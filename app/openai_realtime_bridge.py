@@ -178,9 +178,6 @@ def build_session_config():
                     "format": {
                         "type": "audio/pcmu"
                     },
-                    "transcription": {
-                        "model": "gpt-4o-mini-transcribe"
-                    },
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": 0.55,
@@ -269,8 +266,6 @@ async def handle_single_call(asterisk_ws):
         "call_ending": False,
         "closing": False,
         "close_after_response_done": False,
-        "caller_transcripts": [],
-        "agent_transcripts": [],
         "issue_notes": [],
     }
 
@@ -403,7 +398,6 @@ async def handle_single_call(asterisk_ws):
                 group = arguments.get("group", "Service Desk")
 
                 key_points = "\n".join([f"- {note}" for note in state["issue_notes"][-8:]])
-                caller_transcript = "\n".join(state["caller_transcripts"][-8:])
 
                 ticket_body = (
                     f"Caller: {verified_user.get('name')}\n"
@@ -412,7 +406,6 @@ async def handle_single_call(asterisk_ws):
                     f"Department: {verified_user.get('department')}\n\n"
                     f"Issue Summary:\n{description}\n\n"
                     f"Key Points Collected:\n{key_points if key_points else '- No extra key points captured'}\n\n"
-                    f"Recent Caller Transcript:\n{caller_transcript if caller_transcript else '- Transcript not available'}\n\n"
                     f"Created by: AI Voice Agent Arif"
                 )
 
@@ -564,19 +557,6 @@ async def handle_single_call(asterisk_ws):
                     if audio_b64:
                         await asterisk_ws.send(base64.b64decode(audio_b64))
 
-                elif event_type == "response.output_audio_transcript.done":
-                    transcript = event.get("transcript", "")
-                    if transcript:
-                        state["agent_transcripts"].append(transcript)
-                        print(f"[AGENT SAID] {transcript}")
-
-                elif event_type == "conversation.item.input_audio_transcription.completed":
-                    transcript = event.get("transcript", "")
-                    if transcript:
-                        state["caller_transcripts"].append(transcript)
-                        state["issue_notes"].append(transcript)
-                        print(f"[CALLER SAID] {transcript}")
-
                 elif event_type == "response.output_item.done":
                     item = event.get("item", {})
 
@@ -585,7 +565,17 @@ async def handle_single_call(asterisk_ws):
 
                 elif event_type == "response.done":
                     response = event.get("response", {})
-                    print(f"[OPENAI] Response done status={response.get('status')}")
+                    status = response.get("status")
+                    print(f"[OPENAI] Response done status={status}")
+
+                    if status == "failed":
+                        print("[OPENAI] Response failed. Closing this call to avoid blank call.")
+                        state["call_ending"] = True
+                        try:
+                            await asterisk_ws.close()
+                        except Exception:
+                            pass
+                        return
 
                     if state["close_after_response_done"]:
                         await asyncio.sleep(2)
@@ -597,6 +587,12 @@ async def handle_single_call(asterisk_ws):
                             pass
 
                         return
+
+                elif event_type == "conversation.item.input_audio_transcription.completed":
+                    transcript = event.get("transcript", "")
+                    if transcript:
+                        state["issue_notes"].append(transcript)
+                        print(f"[CALLER SAID] {transcript}")
 
                 elif event_type == "error":
                     print(f"[OPENAI ERROR] {json.dumps(event, indent=2)}")
@@ -610,6 +606,7 @@ async def handle_single_call(asterisk_ws):
                     "response.content_part.done",
                     "response.output_audio.done",
                     "response.output_audio_transcript.delta",
+                    "response.output_audio_transcript.done",
                     "input_audio_buffer.speech_started",
                     "input_audio_buffer.speech_stopped",
                     "input_audio_buffer.committed",
