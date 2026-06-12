@@ -61,6 +61,13 @@ TICKET RULES:
 - In Arabic say: "رقم التذكرة هو ..."
 - After reading ticket number, ask if anything else is needed.
 - If ticket creation fails, do not retry repeatedly. Say there is a technical issue and ask caller to contact IT support directly.
+TICKET CONFIRMATION RULE:
+- Before creating a ticket after troubleshooting, say:
+  "This needs IT team support. Shall I create a ticket for you?"
+- Wait for the caller to say yes, okay, go ahead, or create ticket.
+- Only then call create_ticket.
+- If the caller says no, ask if anything else is needed.
+
 
 TROUBLESHOOTING RULES:
 - Do not jump directly to ticket unless the issue requires escalation.
@@ -68,6 +75,17 @@ TROUBLESHOOTING RULES:
 - Do not read bullet points.
 - Do not talk over the caller.
 - Keep answers short and phone-friendly.
+
+QUESTION HANDLING RULES:
+- Ask only one question at a time.
+- After asking a question, wait for the caller's actual answer.
+- Do not say "okay", "got it", "understood", or continue unless the caller clearly answered.
+- If the caller's answer is unclear, ask the same question once more in simpler words.
+- Never assume the answer.
+- Never answer your own question.
+- Never auto-confirm a question.
+- If the caller is silent, say once: "I did not hear your answer. Could you please repeat?"
+- If the caller is still silent, ask if they want to create a ticket.
 
 BASIC IT SUPPORT KNOWLEDGE:
 - Account lockout: do not suggest restart as main fix. Verify user, ask what exact screen says, then create Service Desk high priority ticket.
@@ -78,6 +96,18 @@ BASIC IT SUPPORT KNOWLEDGE:
 - Slow laptop: ask when issue started, ask if rebooted recently, ask Task Manager high CPU if user can check. If still unresolved, create Service Desk ticket.
 - Printer issue: ask if printer is online, ask if others can print, ask if queue is stuck. If unresolved, create Service Desk ticket.
 - Software access denied: verify user, create Application Support ticket.
+Laptop not turning on:
+- Ask when the issue started.
+- Wait for the caller's answer.
+- Ask if there are any lights on the laptop or charger.
+- Wait for the caller's answer.
+- Ask if the charger is connected directly to wall power.
+- Wait for the caller's answer.
+- Ask the caller to hold the power button for 15 seconds, then try turning it on again.
+- Ask if the laptop turns on now.
+- If not resolved, ask for laptop serial number or asset tag if available.
+- Then create a Service Desk ticket with priority "3 high" if the user cannot work.
+- Do not say "got it" unless the caller answered.
 """
 
 
@@ -179,12 +209,12 @@ def build_session_config():
                     },
                     "turn_detection": {
                         "type": "server_vad",
-                        "threshold": 0.55,
+                        "threshold": 0.60,
                         "prefix_padding_ms": 300,
-                        "silence_duration_ms": 900,
+                        "silence_duration_ms": 800,
                         "create_response": True,
                         "interrupt_response": False,
-                        "idle_timeout_ms": 20000
+                        "idle_timeout_ms": 30000
                     }
                 },
                 "output": {
@@ -595,7 +625,7 @@ async def handle_single_call(asterisk_ws):
                 if state["call_ending"]:
                     break
 
-                if state["tool_in_progress"] or state["closing"]:
+                if state["tool_in_progress"] or state["closing"] or state["active_response"]:
                     continue
 
                 if isinstance(message, bytes):
