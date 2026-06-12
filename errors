@@ -41,3 +41,63 @@ ss -lntp | grep 8765
 cd /opt/ai-support-agent
 source venv/bin/activate
 PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+
+
+
+
+
+[SERVER] Starting on 127.0.0.1:8765
+[SERVER] Model: gpt-realtime
+[SERVER] Max concurrent calls: 5
+[SERVER] Ready. Waiting for calls...
+[CALL] Accepted. Active calls: 1
+[ASTERISK] New call connected
+[OPENAI] Connected
+[ASTERISK CONTROL] MEDIA_START connection_id:aiagent channel:WebSocket/aiagent/0x75556801ba30 channel_id:1781288454.115 format:ulaw optimal_frame_size:160 ptime:20
+[OPENAI] Response done status=failed
+[OPENAI ERROR] {
+  "type": "error",
+  "event_id": "event_Dq0mu8cC7SECPihs6a4Ay",
+  "error": {
+    "type": "server_error",
+    "code": null,
+    "message": "The server had an error while processing your request. Sorry about that! Please contact us through our help center at help.openai.com if the error persists. (include session ID in your message: sess_Dq0mtautwQ6OGRztwHb5L). We recommend you retry your request.",
+    "param": null,
+    "event_id": null
+  }
+}
+[CALL] Handler exiting. Active calls: 0
+[CALL] Accepted. Active calls: 1
+[ASTERISK] New call connected
+[OPENAI] Connected
+[ASTERISK CONTROL] MEDIA_START connection_id:aiagent channel:WebSocket/aiagent/0x755570000fa0 channel_id:1781288521.117 format:ulaw optimal_frame_size:160 ptime:20
+[OPENAI] Response done status=failed
+[OPENAI ERROR] {
+  "type": "error",
+  "event_id": "event_Dq0nzMh97hbauOFg1qVsu",
+  "error": {
+    "type": "server_error",
+    "code": null,
+    "message": "The server had an error while processing your request. Sorry about that! Please contact us through our help center at help.openai.com if the error persists. (include session ID in your message: sess_Dq0nzY494rK5TdCbRrWyC). We recommend you retry your request.",
+    "param": null,
+    "event_id": null
+  }
+}
+[CALL] Handler exiting. Active calls: 0
+[CALL] Accepted. Active calls: 1
+[ASTERISK] New call connected
+[OPENAI] Connected
+[ASTERISK CONTROL] MEDIA_START connection_id:aiagent channel:WebSocket/aiagent/0x7555800151e0 channel_id:1781288638.119 format:ulaw optimal_frame_size:160 ptime:20
+[OPENAI] Response done status=failed
+[OPENAI ERROR] {
+  "type": "error",
+  "event_id": "event_Dq0psHK89Kosc1v1YyRGe",
+  "error": {
+    "type": "server_error",
+    "code": null,
+    "message": "The server had an error while processing your request. Sorry about that! Please contact us through our help center at help.openai.com if the error persists. (include session ID in your message: sess_Dq0prRCrua5lh4eKzULqv). We recommend you retry your request.",
+    "param": null,
+    "event_id": null
+  }
+}
+[CALL] Handler exiting. Active calls: 0
