@@ -3,7 +3,13 @@ import base64
 import json
 import os
 import time
-import websocketsaltime").strip()import websockets
+import websockets
+from dotenv import load_dotenv
+
+load_dotenv("/opt/ai-support-agent/.env", override=True)
+
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
+OPENAI_REALTIME_MODEL = (os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime") or "gpt-realtime").strip()
 
 ASTERISK_WS_HOST = "127.0.0.1"
 ASTERISK_WS_PORT = 8765
@@ -13,7 +19,6 @@ ACTIVE_CALLS = 0
 ACTIVE_CALLS_LOCK = asyncio.Lock()
 
 OPENAI_WS_URL = f"wss://api.openai.com/v1/realtime?model={OPENAI_REALTIME_MODEL}"
-
 
 SYSTEM_PROMPT = """
 You are Arif, an AI IT Support voice agent for National Finance IT Support team.
@@ -730,8 +735,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\n[SERVER] Stopped")
-from dotenv import load_dotenv
-
-load_dotenv("/opt/ai-support-agent/.env", override=True)
-
-OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
