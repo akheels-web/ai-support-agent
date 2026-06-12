@@ -6,5 +6,59 @@ connection handler failed
 Traceback (most recent call last):
   File "/opt/ai-support-agent/venv/lib/python3.14/site-packages/websockets/asyncio/server.py", line 376, in conn_handler
     await self.handler(connection)
-          ~~~~~~~~~~~~^^^^^^^^^^^^
-TypeError: handle_asterisk_call() missing 1 required positional argument: 'path'
+          ~~~~~~~~~~~~^
+
+
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+[SERVER] Starting on 127.0.0.1:8765
+[SERVER] Model: gpt-realtime
+[SERVER] Ready. Waiting for calls...
+[ASTERISK] New call connected
+[OPENAI] Connected
+[ASTERISK CONTROL] MEDIA_START connection_id:aiagent channel:WebSocket/aiagent/0x755584004fd0 channel_id:1781283769.99 format:ulaw optimal_frame_size:160 ptime:20
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.done
+[TOOL] verify_user args={'employee_name': 'Mohammad Aqeel', 'employee_id': '1004'}
+[OPENAI->ASTERISK] SyntaxError('invalid syntax', ('/opt/ai-support-agent/app/verify.py', 107, 1, '``', 107, 2))
+[CALL] Handler exiting
+
