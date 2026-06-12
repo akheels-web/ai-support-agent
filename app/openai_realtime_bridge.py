@@ -404,7 +404,14 @@ async def handle_asterisk_call(asterisk_ws):
 
         print(f"[TOOL] {tool_name} args={arguments}")
 
-        result = await execute_tool(tool_name, arguments)
+        try:
+            result = await execute_tool(tool_name, arguments)
+        except Exception as exc:
+            print(f"[TOOL ERROR] {tool_name} failed: {repr(exc)}")
+            result = {
+                "success": False,
+                "error": f"Tool {tool_name} failed: {str(exc)}"
+    }
 
         await openai_ws.send(json.dumps({
             "type": "conversation.item.create",
