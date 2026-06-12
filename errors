@@ -8,3 +8,11 @@ set +a
 
 PYTHONPATH=/opt/ai-support-agent python -c "from app.zammad_api import create_ticket; print(create_ticket('makheel@example.com', 'AI test ticket', 'Testing from Python API', 'Service Desk', '2 normal'))"
 
+
+pkill -9 -f openai_realtime_bridge.py
+ss -lntp | grep 8765
+
+
+cd /opt/ai-support-agent
+source venv/bin/activate
+PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.p
