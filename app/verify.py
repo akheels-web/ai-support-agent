@@ -151,4 +151,3 @@ def verify_user(employee_id, employee_name):
         "phone": record["phone"],
         "department": record["department"],
     }
-``
