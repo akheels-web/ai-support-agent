@@ -1,0 +1,9 @@
+# Environment files
+.env
+.env.*
+*.env
+
+# Optional
+node_modules/
+__pycache__/
+*.log
