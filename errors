@@ -101,3 +101,19 @@ PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
   }
 }
 [CALL] Handler exiting. Active calls: 0
+
+
+
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+[SERVER] Starting on 127.0.0.1:8765
+[SERVER] Model: gpt-realtime
+[SERVER] Max concurrent calls: 5
+[SERVER] Ready. Waiting for calls...
+[CALL] Accepted. Active calls: 1
+[ASTERISK] New call connected
+[OPENAI] Connection failed: ConnectionClosedError(Close(code=3000, reason='invalid_request_error.invalid_api_key'), Close(code=3000, reason='invalid_request_error.invalid_api_key'), True)
+[CALL] Handler exiting. Active calls: 0
+^C
+[SERVER] Stopped
