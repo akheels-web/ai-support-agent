@@ -3,13 +3,7 @@ import base64
 import json
 import os
 import time
-import websockets
-from dotenv import load_dotenv
-
-load_dotenv("/opt/ai-support-agent/.env")
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
+import websocketsaltime").strip()import websockets
 
 ASTERISK_WS_HOST = "127.0.0.1"
 ASTERISK_WS_PORT = 8765
@@ -182,7 +176,7 @@ def build_session_config():
                         "type": "server_vad",
                         "threshold": 0.55,
                         "prefix_padding_ms": 300,
-                        "silence_duration_ms": 800,
+                        "silence_duration_ms": 900,
                         "create_response": True,
                         "interrupt_response": False,
                         "idle_timeout_ms": 20000
@@ -199,7 +193,23 @@ def build_session_config():
     }
 
 
+async def send_response(openai_ws, instructions):
+    await openai_ws.send(json.dumps({
+        "type": "response.create",
+        "response": {
+            "output_modalities": ["audio"],
+            "instructions": instructions
+        }
+    }))
+
+
 async def connect_openai():
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is empty or missing in /opt/ai-support-agent/.env")
+
+    if not OPENAI_API_KEY.startswith("sk-"):
+        raise RuntimeError("OPENAI_API_KEY format looks invalid")
+
     headers = {
         "Authorization": f"Bearer {OPENAI_API_KEY}"
     }
@@ -212,19 +222,14 @@ async def connect_openai():
 
     await ws.send(json.dumps(build_session_config()))
 
-    greeting = {
-        "type": "response.create",
-        "response": {
-            "output_modalities": ["audio"],
-            "instructions": (
-                "Say exactly this and nothing else: "
-                "Hi, I am Arif from National Finance IT Support team. "
-                "Please say Arabic or English to continue."
-            )
-        }
-    }
-
-    await ws.send(json.dumps(greeting))
+    await send_response(
+        ws,
+        (
+            "Say exactly this and nothing else: "
+            "Hi, I am Arif from National Finance IT Support team. "
+            "Please say Arabic or English to continue."
+        )
+    )
 
     return ws
 
@@ -265,7 +270,10 @@ async def handle_single_call(asterisk_ws):
         "tool_in_progress": False,
         "call_ending": False,
         "closing": False,
-        "close_after_response_done": False,
+        "active_response": False,
+        "pending_response_instruction": None,
+        "pending_goodbye_instruction": None,
+        "close_after_next_response_done": False,
         "issue_notes": [],
     }
 
@@ -279,37 +287,49 @@ async def handle_single_call(asterisk_ws):
         await asterisk_ws.close()
         return
 
-    async def request_goodbye_and_close(reason):
+    def queue_response(instruction):
+        state["pending_response_instruction"] = instruction
+
+    def queue_goodbye(reason):
         if state["closing"]:
             return
 
         state["closing"] = True
-        state["close_after_response_done"] = True
 
         language = state.get("language") or "en"
 
         if language == "ar":
-            goodbye = "Say exactly in Arabic: شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
+            state["pending_goodbye_instruction"] = (
+                "Say exactly in Arabic: شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
+            )
         else:
-            goodbye = "Say exactly: Thank you for calling National Finance IT Support. Goodbye."
+            state["pending_goodbye_instruction"] = (
+                "Say exactly: Thank you for calling National Finance IT Support. Goodbye."
+            )
 
-        try:
-            await openai_ws.send(json.dumps({
-                "type": "response.create",
-                "response": {
-                    "output_modalities": ["audio"],
-                    "instructions": goodbye
-                }
-            }))
-        except Exception as exc:
-            print(f"[CALL] Failed to request goodbye: {exc!r}")
-            state["call_ending"] = True
-            try:
-                await asterisk_ws.close()
-            except Exception:
-                pass
+        print(f"[CALL] Goodbye queued. Reason: {reason}")
 
-        print(f"[CALL] Goodbye requested. Reason: {reason}")
+    async def send_queued_response_if_any():
+        if state["call_ending"]:
+            return
+
+        if state["active_response"]:
+            return
+
+        if state["pending_goodbye_instruction"]:
+            instruction = state["pending_goodbye_instruction"]
+            state["pending_goodbye_instruction"] = None
+            state["close_after_next_response_done"] = True
+            state["active_response"] = True
+            await send_response(openai_ws, instruction)
+            return
+
+        if state["pending_response_instruction"]:
+            instruction = state["pending_response_instruction"]
+            state["pending_response_instruction"] = None
+            state["active_response"] = True
+            await send_response(openai_ws, instruction)
+            return
 
     async def execute_tool(tool_name, arguments):
         state["tool_in_progress"] = True
@@ -358,7 +378,7 @@ async def handle_single_call(asterisk_ws):
                 print(f"[VERIFY] Failed attempt {state['verification_attempts']}/3")
 
                 if state["verification_attempts"] >= 3:
-                    await request_goodbye_and_close("verification_failed")
+                    queue_goodbye("verification_failed")
 
                     return {
                         "verified": False,
@@ -448,8 +468,7 @@ async def handle_single_call(asterisk_ws):
 
             if tool_name == "close_call":
                 reason = arguments.get("reason", "caller_requested")
-
-                await request_goodbye_and_close(reason)
+                queue_goodbye(reason)
 
                 return {
                     "closed": True,
@@ -495,30 +514,75 @@ async def handle_single_call(asterisk_ws):
             }
         }))
 
-        if not state["closing"] and not state["call_ending"]:
-            language = state.get("language") or "en"
+        language = state.get("language") or "en"
+
+        if language == "ar":
+            language_instruction = "Respond only in Arabic."
+        else:
+            language_instruction = "Respond only in English."
+
+        if tool_name == "create_ticket" and result.get("success") and result.get("ticket_number"):
+            ticket_number = result.get("ticket_number")
+            ticket_spoken = result.get("ticket_number_spoken") or ticket_number
 
             if language == "ar":
-                language_instruction = "Respond only in Arabic."
+                queue_response(
+                    f"Respond only in Arabic. Say that the ticket was created successfully. "
+                    f"Say: رقم التذكرة هو {ticket_spoken}. "
+                    f"Then ask if the caller needs anything else."
+                )
             else:
-                language_instruction = "Respond only in English."
+                queue_response(
+                    f"Respond only in English. Say exactly: "
+                    f"Your ticket has been created successfully. Your ticket number is {ticket_spoken}. "
+                    f"Is there anything else I can help you with?"
+                )
 
-            await openai_ws.send(json.dumps({
-                "type": "response.create",
-                "response": {
-                    "output_modalities": ["audio"],
-                    "instructions": (
-                        f"{language_instruction} "
-                        "Continue based on the tool result. "
-                        "If set_language succeeded, confirm the language briefly and ask for full name. "
-                        "If verification failed, ask for correct full name and employee ID again if attempts remain. "
-                        "If verification succeeded, say the caller is verified and ask how you can help. "
-                        "If ticket creation succeeded, read the ticket number clearly once and ask if anything else is needed. "
-                        "If ticket creation failed, do not retry. Say there is a technical issue creating the ticket and ask the caller to contact IT support directly. "
-                        "Keep response short. Do not overlap. Do not repeat."
-                    )
-                }
-            }))
+        elif tool_name == "create_ticket" and not result.get("success"):
+            if language == "ar":
+                queue_response(
+                    "Respond only in Arabic. Say briefly that there is a technical issue creating the ticket right now. "
+                    "Ask the caller to contact IT support directly. Do not retry creating the ticket."
+                )
+            else:
+                queue_response(
+                    "Respond only in English. Say exactly: "
+                    "I am unable to create the ticket right now due to a technical issue. "
+                    "Please contact IT support directly. Do not retry creating the ticket."
+                )
+
+        elif tool_name == "verify_user" and result.get("verified"):
+            queue_response(
+                f"{language_instruction} Say the caller is verified. Then ask: How can I help you today?"
+            )
+
+        elif tool_name == "verify_user" and not result.get("verified"):
+            if result.get("attempts_left", 0) > 0:
+                queue_response(
+                    f"{language_instruction} Say the details did not match. "
+                    f"Ask for the correct full name and employee ID again. "
+                    f"Mention they have {result.get('attempts_left')} attempt remaining."
+                )
+
+        elif tool_name == "set_language":
+            if state.get("language") == "ar":
+                queue_response(
+                    "Respond only in Arabic. Confirm Arabic briefly and ask for the caller's full name."
+                )
+            else:
+                queue_response(
+                    "Respond only in English. Confirm English briefly and ask for the caller's full name."
+                )
+
+        elif tool_name == "close_call":
+            pass
+
+        else:
+            queue_response(
+                f"{language_instruction} Continue based on the tool result. Keep it short."
+            )
+
+        await send_queued_response_if_any()
 
     async def asterisk_to_openai():
         try:
@@ -548,7 +612,10 @@ async def handle_single_call(asterisk_ws):
                 event = json.loads(raw)
                 event_type = event.get("type", "")
 
-                if event_type == "response.output_audio.delta":
+                if event_type == "response.created":
+                    state["active_response"] = True
+
+                elif event_type == "response.output_audio.delta":
                     if state["call_ending"]:
                         break
 
@@ -568,6 +635,8 @@ async def handle_single_call(asterisk_ws):
                     status = response.get("status")
                     print(f"[OPENAI] Response done status={status}")
 
+                    state["active_response"] = False
+
                     if status == "failed":
                         print("[OPENAI] Response failed. Closing this call to avoid blank call.")
                         state["call_ending"] = True
@@ -577,7 +646,7 @@ async def handle_single_call(asterisk_ws):
                             pass
                         return
 
-                    if state["close_after_response_done"]:
+                    if state["close_after_next_response_done"]:
                         await asyncio.sleep(2)
                         state["call_ending"] = True
 
@@ -587,6 +656,8 @@ async def handle_single_call(asterisk_ws):
                             pass
 
                         return
+
+                    await send_queued_response_if_any()
 
                 elif event_type == "conversation.item.input_audio_transcription.completed":
                     transcript = event.get("transcript", "")
@@ -600,7 +671,6 @@ async def handle_single_call(asterisk_ws):
                 elif event_type in (
                     "session.created",
                     "session.updated",
-                    "response.created",
                     "response.output_item.added",
                     "response.content_part.added",
                     "response.content_part.done",
@@ -660,3 +730,8 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\n[SERVER] Stopped")
+from dotenv import load_dotenv
+
+load_dotenv("/opt/ai-support-agent/.env", override=True)
+
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
