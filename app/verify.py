@@ -37,7 +37,7 @@ def _load_users():
 
 
 def _normalize_name(value):
-    return " ".join(value.lower().strip().split())
+    return " ".join(str(value).lower().strip().split())
 
 
 def _name_matches(provided_name, stored_name):
@@ -53,7 +53,7 @@ def _name_matches(provided_name, stored_name):
     provided_tokens = set(provided.split())
     stored_tokens = set(stored.split())
 
-    # Require at least 2 matching tokens for full-name match if stored name has 2+ words.
+    # Stronger check: if stored name has 2+ words, require at least 2 matching words.
     if len(stored_tokens) >= 2:
         common_tokens = provided_tokens.intersection(stored_tokens)
         if len(common_tokens) >= 2:
@@ -104,4 +104,3 @@ def verify_user(employee_id, employee_name):
         "phone": record["phone"],
         "department": record["department"],
     }
-``
