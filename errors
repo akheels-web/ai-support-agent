@@ -15,3 +15,341 @@ PYTHONPATH=/opt/ai-support-agent python -m py_compile app/open
 
 pkill -9 -f openai_realtime_bridge.py
 
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+[SERVER] Starting on 127.0.0.1:8765
+[SERVER] Model: gpt-realtime
+[SERVER] Ready. Waiting for calls...
+[ASTERISK] New call connected
+[OPENAI] Connected
+[ASTERISK CONTROL] MEDIA_START connection_id:aiagent channel:WebSocket/aiagent/0x75559001bf80 channel_id:1781284759.101 format:ulaw optimal_frame_size:160 ptime:20
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.done
+[TOOL] verify_user args={'employee_name': 'Mohammed Aqeel', 'employee_id': '1002'}
+[VERIFY] Verified: Mohammed Akheel (1002)
+[OPENAI] Response done status=completed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.timeout_triggered
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=completed
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.done
+[TOOL] create_ticket args={'customer_email': 'makheel@example.com', 'title': 'Account locked out', 'description': 'User Mohammed Akheel is experiencing an account lockout issue on their laptop and cannot log in.', 'priority': '3 high', 'group': 'Service Desk'}
+[ZAMMAD] Ticket creation failed: HTTPError('422 Client Error: Unprocessable Content for url: http://127.0.0.1:8080/api/v1/tickets')
+[OPENAI] Response done status=completed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.done
+[TOOL] create_ticket args={'customer_email': 'makheel@example.com', 'title': 'Account locked out', 'description': 'User Mohammed Akheel is experiencing an account lockout issue on their laptop and cannot log in.', 'priority': '3 high', 'group': 'Service Desk'}
+[ZAMMAD] Ticket creation failed: HTTPError('422 Client Error: Unprocessable Content for url: http://127.0.0.1:8080/api/v1/tickets')
+[OPENAI] Response done status=completed
+[OPENAI] Response done status=cancelled
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=cancelled
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.done
+[TOOL] create_ticket args={'customer_email': 'makheel@example.com', 'title': 'Account locked out', 'description': 'User Mohammed Akheel is experiencing an account lockout issue on their laptop and cannot log in.', 'priority': '3 high', 'group': 'Service Desk'}
+[ZAMMAD] Ticket creation failed: HTTPError('422 Client Error: Unprocessable Content for url: http://127.0.0.1:8080/api/v1/tickets')
+[OPENAI] Response done status=completed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[ASTERISK CONTROL] MEDIA_XOFF
+[OPENAI] Response done status=completed
+[ASTERISK CONTROL] MEDIA_XON
+[OPENAI EVENT] input_audio_buffer.timeout_triggered
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=cancelled
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI] Response done status=cancelled
+[OPENAI EVENT] input_audio_buffer.committed
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] conversation.item.added
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.delta
+[OPENAI EVENT] response.function_call_arguments.done
+[TOOL] close_call args={'reason': 'caller_requested'}
+[OPENAI] Response done status=completed
+[CALL] Handler exiting
+[CALL] Closed. Reason: caller_requested
+^C
+[SERVER] Stopped
