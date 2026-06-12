@@ -186,12 +186,12 @@ def build_session_config():
                     },
                     "turn_detection": {
                         "type": "server_vad",
-                        "threshold": 0.50,
+                        "threshold": 0.55,
                         "prefix_padding_ms": 300,
-                        "silence_duration_ms": 650,
+                        "silence_duration_ms": 800,
                         "create_response": True,
-                        "interrupt_response": True,
-                        "idle_timeout_ms": 8000
+                        "interrupt_response": False,
+                        "idle_timeout_ms": 20000
                     }
                 },
                 "output": {
@@ -242,6 +242,7 @@ async def handle_asterisk_call(asterisk_ws):
         "last_ticket_number": None,
         "call_ending": False,
         "ticket_created": False,
+        "ticket_creation_attempted": False,
     }
 
     print("[ASTERISK] New call connected")
@@ -266,13 +267,12 @@ async def handle_asterisk_call(asterisk_ws):
                 "response": {
                     "output_modalities": ["audio"],
                     "instructions": (
-                        "Say a short goodbye appropriate to the selected language. "
-                        "Then stop speaking."
+                        "Say exactly: Thank you for calling National Finance IT Support. Goodbye."
                     )
                 }
             }))
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(7)
 
         except Exception as exc:
             print(f"[CALL] Goodbye failed: {exc!r}")
@@ -327,6 +327,15 @@ async def handle_asterisk_call(asterisk_ws):
             }
 
         if tool_name == "create_ticket":
+            
+            if state.get("ticket_creation_attempted"):
+                return {
+                    "success": False,
+                    "error": "Ticket creation was already attempted. Do not retry. Tell the caller there is a technical issue and ask them to contact IT support."
+                }
+
+            state["ticket_creation_attempted"] = True
+
             if not state["verified_user"]:
                 return {
                     "success": False,
@@ -429,10 +438,13 @@ async def handle_asterisk_call(asterisk_ws):
                     "output_modalities": ["audio"],
                     "instructions": (
                         "Continue based on the tool result. "
-                        "If verification failed, ask for correct details again if attempts remain. "
-                        "If verification succeeded, continue to support. "
-                        "If ticket was created, read the ticket number clearly and ask if anything else is needed. "
-                        "If the caller says no, call close_call."
+                        "If verification failed, ask for the correct full name and employee ID again if attempts remain. "
+                        "If verification succeeded, say the caller is verified and continue to support. "
+                        "If ticket creation succeeded, read the ticket number clearly once and ask if anything else is needed. "
+                        "If ticket creation failed, do not retry. Tell the caller: "
+                        "'I am unable to create the ticket right now due to a technical issue. Please contact IT support directly.' "
+                        "Do not keep troubleshooting after ticket creation failure. "
+                        "Do not overlap with the caller. Keep the response short."
                     )
                 }
             }))
