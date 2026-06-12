@@ -130,3 +130,13 @@ root@aicontactappubuntu:/opt/ai-support-agent# source venv/bin/activate
 [CALL] Goodbye requested. Reason: caller_requested
 [OPENAI] Response done status=completed
 [CALL] Handler exiting. Active calls: 0
+
+
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# ss -lntp | grep 8765
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+  File "/opt/ai-support-agent/app/openai_realtime_bridge.py", line 6
+    import websocketsaltime").strip()import websockets
+                           ^
+SyntaxError: unterminated string literal (detected at line 6)
