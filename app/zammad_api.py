@@ -1,5 +1,12 @@
+import os
 import requests
-from app.config import ZAMMAD_URL, ZAMMAD_TOKEN
+from dotenv import load_dotenv
+
+load_dotenv("/opt/ai-support-agent/.env")
+
+ZAMMAD_URL = os.getenv("ZAMMAD_URL", "http://127.0.0.1:8080").rstrip("/")
+ZAMMAD_TOKEN = os.getenv("ZAMMAD_TOKEN")
+DEFAULT_ZAMMAD_GROUP = os.getenv("DEFAULT_ZAMMAD_GROUP", "Service Desk")
 
 HEADERS = {
     "Authorization": f"Token token={ZAMMAD_TOKEN}",
@@ -61,8 +68,24 @@ def create_customer_if_missing(email, firstname="AI", lastname="Caller"):
     return response.json()
 
 
-def create_ticket(customer_email, title, body, group="Service Desk", priority="2 normal"):
-    # Ensure customer exists before ticket creation.
+def _post_ticket(payload):
+    response = requests.post(
+        f"{ZAMMAD_URL}/api/v1/tickets",
+        headers=HEADERS,
+        json=payload,
+        timeout=20
+    )
+
+    _raise_with_body(response)
+    return response.json()
+
+
+def create_ticket(customer_email, title, body, group=None, priority="2 normal"):
+    if not customer_email:
+        raise ValueError("customer_email is required")
+
+    group = group or DEFAULT_ZAMMAD_GROUP
+
     create_customer_if_missing(
         email=customer_email,
         firstname="AI",
@@ -82,16 +105,20 @@ def create_ticket(customer_email, title, body, group="Service Desk", priority="2
         }
     }
 
-    response = requests.post(
-        f"{ZAMMAD_URL}/api/v1/tickets",
-        headers=HEADERS,
-        json=payload,
-        timeout=20
-    )
-
-    _raise_with_body(response)
-
-    data = response.json()
+    try:
+        data = _post_ticket(payload)
+    except requests.exceptions.HTTPError as exc:
+        # If a non-existing group was requested by AI, retry with default Service Desk group.
+        if group != DEFAULT_ZAMMAD_GROUP:
+            print(f"[ZAMMAD] Retrying ticket with default group: {DEFAULT_ZAMMAD_GROUP}")
+            payload["group"] = DEFAULT_ZAMMAD_GROUP
+            payload["article"]["body"] = (
+                body
+                + f"\n\nNote: AI requested group '{group}', but ticket was created under '{DEFAULT_ZAMMAD_GROUP}' as fallback."
+            )
+            data = _post_ticket(payload)
+        else:
+            raise exc
 
     ticket_number = data.get("number")
     ticket_id = data.get("id")

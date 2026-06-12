@@ -16,3 +16,28 @@ ss -lntp | grep 8765
 cd /opt/ai-support-agent
 source venv/bin/activate
 PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.p
+
+
+
+cd /opt/ai-support-agent
+source venv/bin/activate
+
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/verify.py
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/zammad_api.py
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
+
+
+PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1002', 'Mohammed Aqeel'))"
+
+PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1002', 'Hamdan'))"
+
+PYTHONPATH=/opt/ai-support-agent python -c "from app.zammad_api import create_ticket; print(create_ticket('makheel@example.com', 'AI final test ticket', 'Testing final Zammad integration', 'Service Desk', '2 normal'))"
+
+
+pkill -9 -f openai_realtime_bridge.py
+ss -lntp | grep 8765
+
+
+cd /opt/ai-support-agent
+source venv/bin/activate
+PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py

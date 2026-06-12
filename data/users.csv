@@ -1,4 +1,4 @@
-employee_id,name,email,phone,department 
-1001,Ahmed Al Balushi,ahmed@example.com,+96890000001,IT 
-1002,Mohammed Akheel,makheel@example.com,+919000000001,IT 
-1003,Ismail, ismail@example.com,+96890000003,Finance 
+employee_id,name,aliases,email,phone,department
+1001,Ahmed Al Balushi,Ahmed Balushi|Ahmad Al Balushi|Ahmed al balooshi,ahmed@example.com,+96890000001,IT
+1002,Mohammed Akheel,Mohammed Aqeel|Mohammad Akheel|Mohammad Aqeel|Mohammed Akeel|Mohamed Akheel,makheel@example.com,+919000000001,IT
+1003,Fatima Al Hinai,Fatima Hinai|Fatma Al Hinai,fatima@example.com,+96890000003,Finance
