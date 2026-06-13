@@ -12,7 +12,44 @@ cd /opt/zammad-docker-compose
 
 docker compose up -d --force-recreate zammad-nginx zammad-railsserver zammad-websocket zammad-scheduler
 
+systemctl enable asterisk
+systemctl restart asterisk
+systemctl status asterisk
 
+asterisk -rx "core show uptime"
+
+nano /etc/systemd/system/ai-support-bridge.service
+
+[Unit]
+Description=AI Support Agent OpenAI Realtime Bridge
+After=network-online.target asterisk.service-agent"After=network-online.target asterisk.service
+ExecStart=/opt/ai-support-agent/venv/bin/python /opt/ai-support-agent/app/openai_realtime_bridge.py
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+Wants=network-online.target
+Requires=asterisk.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ai-support-agent
+
+
+systemctl daemon-reload
+systemctl enable ai-support-bridge
+systemctl start ai-support-bridge
+systemctl status ai-support-bridge
+
+ss -lntp | grep 8765
+
+systemctl enable ai-dashboard
+systemctl restart ai-dashboard
+systemctl status ai-dashboard
+
+ss -lntp | grep 8090
 
 
 
