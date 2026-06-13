@@ -2,7 +2,9 @@ employee_id,name,aliases,email,phone,department
 1001,Ahmed Al Balushi,Ahmed Balushi|Ahmad Al Balushi|Ahmed al balooshi,ahmed@example.com,+96890000001,IT
 1002,Mohammed Akheel,Mohammed Aqeel|Mohammad Akheel|Mohammad Aqeel|Mohammed Akeel|Mohamed Akheel,makheel@example.com,+919000000001,IT
 1003,Haitham Al Sabahi,Haytham Al Sabahi|Haitham all subahi,haitham@example.com,+96890000003,Finance
-1004,Omar Al Kharushi,Omer Al Kharushi|Omair Al Kharooshi,omer@example.com,+9672849572,IT
+1004,Omar Al Kharusi,Omer Al Kharushi|Omair Al Kharooshi,omer@example.com,+9672849572,IT
 1005,Manaa Al Jahwari,Mana al johri|Manaa Al Jahri,manaa@exmample.com,+9683223923,HR
 1006,Syed Massiudin,Sayed Masioddin|Syed Masiuddin,syed@example.com,+96181291231,Designer
 1007,Arif Al Sayegh, Areef al Sayeg|Arif Al Sayeg,arif@example.com,+96181923481,HR
+1008,Ruqaiya Al Balushi,Ruqaiya Balushi|Rukayya Al Balushi|Ruqaya Al Balushi,ruqaiya@example.com,+96890000008,IT
+1009,Rakesh,Rakeish|Rakesh,rakesh@example.com,+96890001258,Sales
