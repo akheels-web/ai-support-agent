@@ -1,3 +1,219 @@
+
+
+root@aicontactappubuntu:/opt/ai-support-agent# chmod +x /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh 
+root@aicontactappubuntu:/opt/ai-support-agent# /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh 
+======================================================
+Applying National Finance branding to Zammad
+Started: Sat Jun 13 04:06:41 PM UTC 2026
+======================================================
+[1/7] Checking containers...
+NAME                                           IMAGE                              COMMAND                  SERVICE                CREATED      STATUS                 PORTS
+zammad-docker-compose-zammad-backup-1          ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-backup          3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-elasticsearch-1   elasticsearch:9.4.2                "/bin/tini -- /usr/l…"   zammad-elasticsearch   3 days ago   Up 2 hours             9200/tcp, 9300/tcp
+zammad-docker-compose-zammad-memcached-1       memcached:1.6.42-alpine            "docker-entrypoint.s…"   zammad-memcached       3 days ago   Up 2 hours (healthy)   11211/tcp
+zammad-docker-compose-zammad-nginx-1           ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-nginx           3 days ago   Up 2 hours             0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+zammad-docker-compose-zammad-postgresql-1      postgres:17.10-alpine              "docker-entrypoint.s…"   zammad-postgresql      3 days ago   Up 2 hours (healthy)   5432/tcp
+zammad-docker-compose-zammad-railsserver-1     ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-railsserver     3 days ago   Up 2 hours (healthy)   
+zammad-docker-compose-zammad-redis-1           redis:8.8-alpine                   "docker-entrypoint.s…"   zammad-redis           3 days ago   Up 2 hours (healthy)   6379/tcp
+zammad-docker-compose-zammad-scheduler-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-scheduler       3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-websocket-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-websocket       3 days ago   Up 2 hours             
+[2/7] Creating custom CSS directory...
+[3/7] Copying custom CSS...
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/opt/zammad/app/assets/stylesheets/custom/national_finance.css Copying
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/opt/zammad/app/assets/stylesheets/custom/national_finance.css Copied
+[4/7] Setting CSS permissions...
+[5/7] Removing Powered by Zammad from known templates...
+Patching /opt/zammad/app/assets/javascripts/app/views/login.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/password/reset.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/password/reset_sent.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/password/reset_failed.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/password/reset_change.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/admin_password_auth/request.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/admin_password_auth/request_sent.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/signup.jst.eco
+Patching /opt/zammad/app/assets/javascripts/app/views/signup/verify.jst.eco
+[6/7] Precompiling assets...
+** Invoke assets:precompile (first_time)
+** Invoke assets:environment (first_time)
+** Execute assets:environment
+** Invoke environment (first_time)
+** Execute environment
+I, [2026-06-13T18:06:45.684070#1513-2984]  INFO -- : Using memcached as Rails cache store.
+I, [2026-06-13T18:06:45.684360#1513-2984]  INFO -- : Using the Redis back end for Zammad's web socket session store.
+I, [2026-06-13T18:06:48.019246#1513-2984]  INFO -- : ActionCable is configured to accept requests from (?-mix:https?:\/\/localhost:\d+), http://10.1.180.34:8080.
+** Invoke zammad:package:pnpm_hoisted_mode (first_time)
+** Invoke environment 
+** Execute zammad:package:pnpm_hoisted_mode
+** Execute assets:precompile
+rake aborted!
+ExecJS::RuntimeUnavailable: Could not find a JavaScript runtime. See https://github.com/rails/execjs for a list of available runtimes. (ExecJS::RuntimeUnavailable)
+/usr/local/bundle/ruby/3.4.0/gems/execjs-2.10.0/lib/execjs/runtimes.rb:68:in 'ExecJS::Runtimes.autodetect'
+/usr/local/bundle/ruby/3.4.0/gems/execjs-2.10.0/lib/execjs.rb:6:in 'ExecJS.runtime'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/processor.rb:137:in 'AutoprefixerRails::Processor#runtime'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/processor.rb:35:in 'AutoprefixerRails::Processor#process'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/sprockets.rb:22:in 'AutoprefixerRails::Sprockets.run'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/sprockets.rb:16:in 'AutoprefixerRails::Sprockets.call'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:75:in 'Sprockets::ProcessorUtils#call_processor'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:57:in 'block in Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Array#reverse_each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:134:in 'Sprockets::Loader#load_from_unloaded'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:60:in 'block in Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:317:in 'Sprockets::Loader#fetch_asset_from_dependency_cache'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:44:in 'Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:20:in 'block in Sprockets::CachedEnvironment#initialize'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:47:in 'Sprockets::CachedEnvironment#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/bundle.rb:23:in 'block in Sprockets::Bundle.call'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/utils.rb:201:in 'Sprockets::Utils#dfs'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/bundle.rb:24:in 'Sprockets::Bundle.call'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:75:in 'Sprockets::ProcessorUtils#call_processor'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:57:in 'block in Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Array#reverse_each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:134:in 'Sprockets::Loader#load_from_unloaded'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:60:in 'block in Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:317:in 'Sprockets::Loader#fetch_asset_from_dependency_cache'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:44:in 'Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:20:in 'block in Sprockets::CachedEnvironment#initialize'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:47:in 'Sprockets::CachedEnvironment#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/base.rb:66:in 'Sprockets::Base#find_asset'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/base.rb:73:in 'Sprockets::Base#find_all_linked_assets'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:134:in 'block in Sprockets::Manifest#find'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:133:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:133:in 'Sprockets::Manifest#find'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:186:in 'Sprockets::Manifest#compile'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-rails-3.5.2/lib/sprockets/rails/task.rb:67:in 'block (3 levels) in Sprockets::Rails::Task#define'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/rake/sprocketstask.rb:147:in 'Rake::SprocketsTask#with_logger'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-rails-3.5.2/lib/sprockets/rails/task.rb:66:in 'block (2 levels) in Sprockets::Rails::Task#define'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'block in Rake::Task#execute'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'Rake::Task#execute'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:219:in 'block in Rake::Task#invoke_with_call_chain'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:199:in 'Monitor#synchronize'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:199:in 'Rake::Task#invoke_with_call_chain'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:188:in 'Rake::Task#invoke'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:188:in 'Rake::Application#invoke_task'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'block (2 levels) in Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'block in Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:147:in 'Rake::Application#run_with_threads'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:132:in 'Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:83:in 'block in Rake::Application#run'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:214:in 'Rake::Application#standard_exception_handling'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:80:in 'Rake::Application#run'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/exe/rake:27:in '<top (required)>'
+/usr/local/bundle/ruby/3.4.0/bin/rake:25:in 'Kernel#load'
+/usr/local/bundle/ruby/3.4.0/bin/rake:25:in '<top (required)>'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:59:in 'Kernel.load'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:59:in 'Bundler::CLI::Exec#kernel_load'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:23:in 'Bundler::CLI::Exec#run'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:452:in 'Bundler::CLI#exec'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/command.rb:28:in 'Bundler::Thor::Command#run'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/invocation.rb:127:in 'Bundler::Thor::Invocation#invoke_command'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor.rb:538:in 'Bundler::Thor.dispatch'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:35:in 'Bundler::CLI.dispatch'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/base.rb:584:in 'Bundler::Thor::Base::ClassMethods#start'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:29:in 'Bundler::CLI.start'
+/usr/local/lib/ruby/gems/3.4.0/gems/bundler-2.6.9/exe/bundle:28:in 'block in <top (required)>'
+/usr/local/lib/ruby/3.4.0/bundler/friendly_errors.rb:117:in 'Bundler.with_friendly_errors'
+/usr/local/lib/ruby/gems/3.4.0/gems/bundler-2.6.9/exe/bundle:20:in '<top (required)>'
+/usr/local/bin/bundle:25:in 'Kernel#load'
+/usr/local/bin/bundle:25:in '<main>'
+
+Caused by:
+ExecJS::RuntimeUnavailable: Could not find a JavaScript runtime. See https://github.com/rails/execjs for a list of available runtimes. (ExecJS::RuntimeUnavailable)
+/usr/local/bundle/ruby/3.4.0/gems/execjs-2.10.0/lib/execjs/runtimes.rb:68:in 'ExecJS::Runtimes.autodetect'
+/usr/local/bundle/ruby/3.4.0/gems/execjs-2.10.0/lib/execjs.rb:6:in 'ExecJS.runtime'
+/usr/local/bundle/ruby/3.4.0/gems/execjs-2.10.0/lib/execjs/module.rb:27:in 'ExecJS.compile'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/processor.rb:133:in 'AutoprefixerRails::Processor#runtime'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/processor.rb:35:in 'AutoprefixerRails::Processor#process'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/sprockets.rb:22:in 'AutoprefixerRails::Sprockets.run'
+/usr/local/bundle/ruby/3.4.0/gems/autoprefixer-rails-10.4.21.0/lib/autoprefixer-rails/sprockets.rb:16:in 'AutoprefixerRails::Sprockets.call'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:75:in 'Sprockets::ProcessorUtils#call_processor'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:57:in 'block in Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Array#reverse_each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:134:in 'Sprockets::Loader#load_from_unloaded'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:60:in 'block in Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:317:in 'Sprockets::Loader#fetch_asset_from_dependency_cache'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:44:in 'Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:20:in 'block in Sprockets::CachedEnvironment#initialize'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:47:in 'Sprockets::CachedEnvironment#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/bundle.rb:23:in 'block in Sprockets::Bundle.call'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/utils.rb:201:in 'Sprockets::Utils#dfs'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/bundle.rb:24:in 'Sprockets::Bundle.call'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:75:in 'Sprockets::ProcessorUtils#call_processor'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:57:in 'block in Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Array#reverse_each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:134:in 'Sprockets::Loader#load_from_unloaded'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:60:in 'block in Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:317:in 'Sprockets::Loader#fetch_asset_from_dependency_cache'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:44:in 'Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:20:in 'block in Sprockets::CachedEnvironment#initialize'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:47:in 'Sprockets::CachedEnvironment#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/base.rb:66:in 'Sprockets::Base#find_asset'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/base.rb:73:in 'Sprockets::Base#find_all_linked_assets'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:134:in 'block in Sprockets::Manifest#find'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:133:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:133:in 'Sprockets::Manifest#find'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:186:in 'Sprockets::Manifest#compile'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-rails-3.5.2/lib/sprockets/rails/task.rb:67:in 'block (3 levels) in Sprockets::Rails::Task#define'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/rake/sprocketstask.rb:147:in 'Rake::SprocketsTask#with_logger'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-rails-3.5.2/lib/sprockets/rails/task.rb:66:in 'block (2 levels) in Sprockets::Rails::Task#define'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'block in Rake::Task#execute'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'Rake::Task#execute'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:219:in 'block in Rake::Task#invoke_with_call_chain'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:199:in 'Monitor#synchronize'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:199:in 'Rake::Task#invoke_with_call_chain'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:188:in 'Rake::Task#invoke'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:188:in 'Rake::Application#invoke_task'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'block (2 levels) in Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'block in Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:147:in 'Rake::Application#run_with_threads'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:132:in 'Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:83:in 'block in Rake::Application#run'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:214:in 'Rake::Application#standard_exception_handling'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:80:in 'Rake::Application#run'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/exe/rake:27:in '<top (required)>'
+/usr/local/bundle/ruby/3.4.0/bin/rake:25:in 'Kernel#load'
+/usr/local/bundle/ruby/3.4.0/bin/rake:25:in '<top (required)>'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:59:in 'Kernel.load'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:59:in 'Bundler::CLI::Exec#kernel_load'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:23:in 'Bundler::CLI::Exec#run'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:452:in 'Bundler::CLI#exec'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/command.rb:28:in 'Bundler::Thor::Command#run'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/invocation.rb:127:in 'Bundler::Thor::Invocation#invoke_command'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor.rb:538:in 'Bundler::Thor.dispatch'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:35:in 'Bundler::CLI.dispatch'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/base.rb:584:in 'Bundler::Thor::Base::ClassMethods#start'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:29:in 'Bundler::CLI.start'
+/usr/local/lib/ruby/gems/3.4.0/gems/bundler-2.6.9/exe/bundle:28:in 'block in <top (required)>'
+/usr/local/lib/ruby/3.4.0/bundler/friendly_errors.rb:117:in 'Bundler.with_friendly_errors'
+/usr/local/lib/ruby/gems/3.4.0/gems/bundler-2.6.9/exe/bundle:20:in '<top (required)>'
+/usr/local/bin/bundle:25:in 'Kernel#load'
+/usr/local/bin/bundle:25:in '<main>'
+Tasks: TOP => assets:precompile
+root@aicontactappubuntu:/opt/ai-support-agent# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 root@aicontactappubuntu:/opt/ai-support-agent# nano /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh 
 root@aicontactappubuntu:/opt/ai-support-agent# chmod +x /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
 root@aicontactappubuntu:/opt/ai-support-agent# /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
