@@ -1,33 +1,19 @@
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent uvicorn dashboard.app:app --host 0.0.0.0 --port 8090 
-INFO:     Started server process [2200651]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-ERROR:    [Errno 98] error while attempting to bind on address ('0.0.0.0', 8090): [errno 98] address already in use
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# ss -lntp | grep 8090
-LISTEN 0      2048         0.0.0.0:8090       0.0.0.0:*    users:(("uvicorn",pid=2200650,fd=6))                     
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# pip install python-multipart jinja2
-Requirement already satisfied: python-multipart in ./venv/lib/python3.14/site-packages (0.0.32)
-Requirement already satisfied: jinja2 in ./venv/lib/python3.14/site-packages (3.1.6)
-Requirement already satisfied: MarkupSafe>=2.0 in ./venv/lib/python3.14/site-packages (from jinja2) (3.0.3)
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# systemctl status ai-dashboard
-● ai-dashboard.service - AI IT Support Dashboard
-     Loaded: loaded (/etc/systemd/system/ai-dashboard.service; enabled; preset: enabled)
-     Active: active (running) since Sat 2026-06-13 06:24:36 UTC; 2min 16s ago
- Invocation: 74472b01d3d0491981aef6dd67aa59d4
-   Main PID: 2201224 (uvicorn)
-      Tasks: 1 (limit: 6221)
-     Memory: 35.2M (peak: 35.9M)
-        CPU: 699ms
-     CGroup: /system.slice/ai-dashboard.service
-             └─2201224 /opt/ai-support-agent/venv/bin/python3 /opt/ai-support-agent/venv/bin/uvicorn dashboard.app:app --host 0.0.0.0 --port 8090
 
-Jun 13 06:24:36 aicontactappubuntu systemd[1]: Started ai-dashboard.service - AI IT Support Dashboard.
-Jun 13 06:24:36 aicontactappubuntu uvicorn[2201224]: INFO:     Started server process [2201224]
-Jun 13 06:24:36 aicontactappubuntu uvicorn[2201224]: INFO:     Waiting for application startup.
-Jun 13 06:24:36 aicontactappubuntu uvicorn[2201224]: INFO:     Application startup complete.
-Jun 13 06:24:36 aicontactappubuntu uvicorn[2201224]: INFO:     Uvicorn running on http://0.0.0.0:8090 (Press CTRL+C to quit)
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# journalctl -u dashboard -n 100 --no-pager
--- No entries --
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# 
+cd /opt/ai-support-agent
+source venv/bin/activate
+
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/call_logger.py
+
+
+pkill -9 -f openai_realtime_bridge.py
+ss -lntp | grep 8765
+PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+
+sqlite3 /opt/ai-support-agent/data/dashboard.db "select id, call_id, caller_number, employee_id, verified_name, language, status, ticket_number, recording_file from calls order by id desc limit 5;"
+
+
+systemctl restart ai-dashboard
+
+
+http://10.1.180.34:8090/calls

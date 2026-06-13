@@ -5,6 +5,7 @@ import os
 import time
 import websockets
 from dotenv import load_dotenv
+from app.call_logger import create_call, update_call, close_call
 
 load_dotenv("/opt/ai-support-agent/.env", override=True)
 
@@ -311,6 +312,8 @@ async def handle_single_call(asterisk_ws):
         "close_after_next_response_done": False,
         "issue_notes": [],
     }
+    
+    create_call(state["call_id"])
 
     print("[ASTERISK] New call connected")
 
@@ -343,6 +346,8 @@ async def handle_single_call(asterisk_ws):
             )
 
         print(f"[CALL] Goodbye queued. Reason: {reason}")
+
+        update_call(state["call_id"], status=reason)
 
     async def send_queued_response_if_any():
         if state["call_ending"]:
@@ -378,6 +383,8 @@ async def handle_single_call(asterisk_ws):
 
                 state["language"] = language
 
+                update_call(state["call_id"], language=language)
+
                 print(f"[LANGUAGE] Selected: {language}")
 
                 return {
@@ -396,6 +403,13 @@ async def handle_single_call(asterisk_ws):
                 if result.get("verified"):
                     state["verified_user"] = result
                     state["verification_attempts"] = 0
+                    
+                    update_call(
+                        state["call_id"],
+                        employee_id=result.get("employee_id"),
+                        verified_name=result.get("name"),
+                        status="verified"
+                    )
 
                     print(f"[VERIFY] Verified: {result.get('name')} ({employee_id})")
 
@@ -413,6 +427,7 @@ async def handle_single_call(asterisk_ws):
                 print(f"[VERIFY] Failed attempt {state['verification_attempts']}/3")
 
                 if state["verification_attempts"] >= 3:
+                    update_call(state["call_id"], status="verification_failed")
                     queue_goodbye("verification_failed")
 
                     return {
@@ -477,7 +492,14 @@ async def handle_single_call(asterisk_ws):
 
                     if ticket_number:
                         state["last_ticket_number"] = ticket_number
-                        state["ticket_created"] = True
+                        state["ticket_created"] = True                       
+                        update_call(
+                            state["call_id"],
+                            ticket_number=ticket_number,
+                            ticket_created=1,
+                            status="ticket_created",
+                            summary=description
+                        )
 
                         print(f"[ZAMMAD] Ticket created: {ticket_number}")
 
@@ -495,6 +517,12 @@ async def handle_single_call(asterisk_ws):
 
                 except Exception as exc:
                     print(f"[ZAMMAD] Ticket creation failed: {exc!r}")
+
+                    update_call(
+                        state["call_id"],
+                        status="ticket_failed",
+                        summary=str(exc)
+                    )
 
                     return {
                         "success": False,
@@ -636,6 +664,23 @@ async def handle_single_call(asterisk_ws):
                 else:
                     print(f"[ASTERISK CONTROL] {message}")
 
+                    if isinstance(message, str) and "MEDIA_START" in message:
+                        parts = message.split()
+
+                        for part in parts:
+                            if part.startswith("channel_id:"):
+                                real_call_id = part.replace("channel_id:", "").strip()
+
+                                if real_call_id:
+                                    old_call_id = state["call_id"]
+                                    state["call_id"] = real_call_id
+
+                                    create_call(state["call_id"])
+                                    update_call(state["call_id"], status="in_progress")
+
+                                    print(f"[CALL] Asterisk call ID detected: {real_call_id}")
+                                    break
+
         except websockets.exceptions.ConnectionClosed:
             pass
         except Exception as exc:
@@ -684,7 +729,8 @@ async def handle_single_call(asterisk_ws):
                     if state["close_after_next_response_done"]:
                         await asyncio.sleep(2)
                         state["call_ending"] = True
-
+                        close_call(state["call_id"], status="completed")
+                       
                         try:
                             await asterisk_ws.close()
                         except Exception:
@@ -738,7 +784,8 @@ async def handle_single_call(asterisk_ws):
         asterisk_to_openai(),
         openai_to_asterisk()
     )
-
+    if not state["call_ending"]:
+        close_call(state["call_id"], status="ended")
 
 async def main():
     if not OPENAI_API_KEY:
