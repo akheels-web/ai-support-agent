@@ -26,14 +26,6 @@ PYTHONPATH=/opt/ai-support-agent python -m py_compile app/verify.py
 PYTHONPATH=/opt/ai-support-agent python -m py_compile app/zammad_api.py
 PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
 
-
-PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1002', 'Mohammed Aqeel'))"
-
-PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1002', 'Hamdan'))"
-
-PYTHONPATH=/opt/ai-support-agent python -c "from app.zammad_api import create_ticket; print(create_ticket('makheel@example.com', 'AI final test ticket', 'Testing final Zammad integration', 'Service Desk', '2 normal'))"
-
-
 pkill -9 -f openai_realtime_bridge.py
 ss -lntp | grep 8765
 
@@ -43,27 +35,702 @@ source venv/bin/activate
 PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
 
 
+cd /opt/ai-support-agent
+source venv/bin/activate
+pip install jinja2 python-multipart
 
 
-# Environment files
-.env
-.env.*
-*.env
+mkdir -p /opt/ai-support-agent/dashboard
+mkdir -p /opt/ai-support-agent/data
 
-# Optional
-node_modules/
-__pycache__/
-*.log
+nano /opt/ai-support-agent/dashboard/app.py
+
+import os
+import hmac
+import time
+import sqlite3
+import hashlib
+from pathlib import Path
+from urllib.parse import quote
+
+from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+
+APP_SECRET = os.getenv("DASHBOARD_SECRET", "change-this-dashboard-secret")
+DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
+RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
+
+app = FastAPI(title="AI IT Support Dashboard")
 
 
-git add .gitignore
-git commit -m "Add gitignore"
-git push
+def db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-git rm --cached .env
+
+def hash_password(password):
+    salt = "ai-support-agent"
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode(),
+        salt.encode(),
+        100000
+    ).hex()
 
 
-git add .gitignore
-git commit -m "Stop tracking environment files"
-git push
+def sign_token(value):
+    sig = hmac.new(APP_SECRET.encode(), value.encode(), hashlib.sha256).hexdigest()
+    return f"{value}.{sig}"
 
+
+def verify_token(token):
+    try:
+        value, sig = token.rsplit(".", 1)
+        expected = hmac.new(APP_SECRET.encode(), value.encode(), hashlib.sha256).hexdigest()
+        if hmac.compare_digest(sig, expected):
+            return value
+    except Exception:
+        return None
+    return None
+
+
+def current_user(request: Request):
+    token = request.cookies.get("ai_dashboard_token")
+    if not token:
+        return None
+
+    username = verify_token(token)
+    if not username:
+        return None
+
+    conn = db()
+    user = conn.execute(
+        "SELECT * FROM users WHERE username=? AND active=1",
+        (username,)
+    ).fetchone()
+    conn.close()
+
+    return user
+
+
+def require_user(request: Request):
+    user = current_user(request)
+    if not user:
+        raise HTTPException(status_code=302, headers={"Location": "/login"})
+    return user
+
+
+def require_roles(request: Request, allowed_roles):
+    user = require_user(request)
+    if user["role"] not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return user
+
+
+def audit(username, action, entity_type="", entity_id=""):
+    conn = db()
+    conn.execute(
+        """
+        INSERT INTO audit_logs(username, action, entity_type, entity_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (username, action, entity_type, entity_id, int(time.time()))
+    )
+    conn.commit()
+    conn.close()
+
+
+def init_db():
+    Path("/opt/ai-support-agent/data").mkdir(parents=True, exist_ok=True)
+
+    conn = db()
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        password_hash TEXT,
+        role TEXT,
+        active INTEGER DEFAULT 1,
+        created_at INTEGER
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS calls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        call_id TEXT,
+        caller_number TEXT,
+        called_number TEXT,
+        employee_id TEXT,
+        verified_name TEXT,
+        language TEXT,
+        start_time INTEGER,
+        end_time INTEGER,
+        duration_seconds INTEGER,
+        status TEXT,
+        ticket_number TEXT,
+        ticket_created INTEGER DEFAULT 0,
+        recording_file TEXT,
+        summary TEXT
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS quality_reviews (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recording_file TEXT,
+        reviewer TEXT,
+        rating TEXT,
+        notes TEXT,
+        created_at INTEGER
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at INTEGER
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        action TEXT,
+        entity_type TEXT,
+        entity_id TEXT,
+        created_at INTEGER
+    )
+    """)
+
+    defaults = [
+        ("admin", "admin123", "admin"),
+        ("user", "user123", "user"),
+        ("reviewer", "reviewer123", "quality_reviewer"),
+    ]
+
+    for username, password, role in defaults:
+        exists = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        if not exists:
+            conn.execute(
+                """
+                INSERT INTO users(username, password_hash, role, active, created_at)
+                VALUES (?, ?, ?, 1, ?)
+                """,
+                (username, hash_password(password), role, int(time.time()))
+            )
+
+    default_settings = {
+        "ai_greeting": "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue.",
+        "max_concurrent_calls": "5",
+        "recording_retention_days": "30",
+        "zammad_enabled": "true"
+    }
+
+    for key, value in default_settings.items():
+        exists = conn.execute("SELECT key FROM settings WHERE key=?", (key,)).fetchone()
+        if not exists:
+            conn.execute(
+                "INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)",
+                (key, value, int(time.time()))
+            )
+
+    conn.commit()
+    conn.close()
+
+
+def layout(title, user, body):
+    role = user["role"] if user else ""
+
+    nav = ""
+
+    if user:
+        nav = f"""
+        <div class="nav">
+            <a href="/dashboard">Dashboard</a>
+            {"<a href='/calls'>Calls</a>" if role in ["admin", "user"] else ""}
+            {"<a href='/recordings'>Recordings</a>" if role in ["admin", "quality_reviewer"] else ""}
+            {"<a href='/settings'>Settings</a>" if role == "admin" else ""}
+            <span class="spacer"></span>
+            <span>{user["username"]} ({role})</span>
+            <a href="/logout">Logout</a>
+        </div>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{title}</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                margin: 0;
+                background: #f5f7fb;
+                color: #222;
+            }}
+            .nav {{
+                background: #102033;
+                color: white;
+                padding: 12px 20px;
+                display: flex;
+                gap: 20px;
+                align-items: center;
+            }}
+            .nav a {{
+                color: white;
+                text-decoration: none;
+                font-weight: bold;
+            }}
+            .spacer {{
+                flex: 1;
+            }}
+            .container {{
+                padding: 25px;
+            }}
+            .card {{
+                background: white;
+                border-radius: 8px;
+                padding: 18px;
+                margin-bottom: 18px;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            }}
+            .grid {{
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 15px;
+            }}
+            .metric {{
+                background: white;
+                border-radius: 8px;
+                padding: 18px;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            }}
+            .metric h2 {{
+                margin: 0;
+                font-size: 28px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                background: white;
+            }}
+            th, td {{
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                text-align: left;
+                font-size: 14px;
+            }}
+            th {{
+                background: #edf1f7;
+            }}
+            input, textarea, select {{
+                width: 100%;
+                padding: 9px;
+                margin: 6px 0 12px;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+            }}
+            button {{
+                background: #0b5cab;
+                color: white;
+                border: none;
+                padding: 10px 16px;
+                border-radius: 5px;
+                cursor: pointer;
+            }}
+            .danger-note {{
+                color: #a40000;
+                font-weight: bold;
+            }}
+            .small {{
+                color: #666;
+                font-size: 13px;
+            }}
+            audio {{
+                width: 300px;
+            }}
+        </style>
+    </head>
+    <body>
+        {nav}
+        <div class="container">
+            {body}
+        </div>
+    </body>
+    </html>
+    """
+
+
+def recording_files():
+    base = Path(RECORDING_DIR)
+    if not base.exists():
+        return []
+
+    files = []
+    for file in sorted(base.glob("*.wav"), reverse=True):
+        stat = file.stat()
+        caller = "unknown"
+
+        parts = file.name.split("-")
+        if len(parts) >= 4:
+            caller = parts[2]
+
+        files.append({
+            "name": file.name,
+            "path": str(file),
+            "caller": caller,
+            "size_mb": round(stat.st_size / 1024 / 1024, 2),
+            "created_at": stat.st_mtime
+        })
+
+    return files
+
+
+@app.on_event("startup")
+def startup():
+    init_db()
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    if user["role"] == "quality_reviewer":
+        return RedirectResponse("/recordings", status_code=302)
+
+    return RedirectResponse("/dashboard", status_code=302)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    body = """
+    <div class="card" style="max-width:400px;margin:60px auto;">
+        <h2>AI IT Support Dashboard</h2>
+        <form method="post" action="/login">
+            <label>Username</label>
+            <input name="username" required>
+            <label>Password</label>
+            <input name="password" type="password" required>
+            <button type="submit">Login</button>
+        </form>
+        <p class="small">Default users: admin/admin123, user/user123, reviewer/reviewer123</p>
+    </div>
+    """
+    return layout("Login", None, body)
+
+
+@app.post("/login")
+def login(username: str = Form(...), password: str = Form(...)):
+    conn = db()
+    user = conn.execute(
+        "SELECT * FROM users WHERE username=? AND active=1",
+        (username,)
+    ).fetchone()
+    conn.close()
+
+    if not user or user["password_hash"] != hash_password(password):
+        return HTMLResponse("Invalid login. <a href='/login'>Try again</a>", status_code=401)
+
+    token = sign_token(username)
+    resp = RedirectResponse("/dashboard", status_code=302)
+    resp.set_cookie("ai_dashboard_token", token, httponly=True, max_age=28800)
+    return resp
+
+
+@app.get("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=302)
+    resp.delete_cookie("ai_dashboard_token")
+    return resp
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+    user = require_roles(request, ["admin", "user"])
+
+    conn = db()
+    total_calls = conn.execute("SELECT COUNT(*) c FROM calls").fetchone()["c"]
+    tickets = conn.execute("SELECT COUNT(*) c FROM calls WHERE ticket_created=1").fetchone()["c"]
+    failed = conn.execute("SELECT COUNT(*) c FROM calls WHERE status='failed'").fetchone()["c"]
+    conn.close()
+
+    recordings_count = len(recording_files())
+
+    body = f"""
+    <h1>Dashboard</h1>
+    <div class="grid">
+        <div class="metric"><h2>{total_calls}</h2><p>Total Calls Logged</p></div>
+        <div class="metric"><h2>{recordings_count}</h2><p>Recordings</p></div>
+        <div class="metric"><h2>{tickets}</h2><p>Tickets Created</p></div>
+        <div class="metric"><h2>{failed}</h2><p>Failed Calls</p></div>
+    </div>
+
+    <div class="card">
+        <h3>System Notes</h3>
+        <ul>
+            <li>No delete actions are available in this dashboard.</li>
+            <li>Recordings are read-only from dashboard.</li>
+            <li>SQLite is used for POC and can later migrate to PostgreSQL.</li>
+        </ul>
+    </div>
+    """
+
+    return layout("Dashboard", user, body)
+
+
+@app.get("/calls", response_class=HTMLResponse)
+def calls(request: Request):
+    user = require_roles(request, ["admin", "user"])
+
+    conn = db()
+    rows = conn.execute(
+        "SELECT * FROM calls ORDER BY id DESC LIMIT 200"
+    ).fetchall()
+    conn.close()
+
+    table = """
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Caller</th>
+            <th>Employee</th>
+            <th>Name</th>
+            <th>Language</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th>Ticket</th>
+            <th>Recording</th>
+        </tr>
+    """
+
+    for r in rows:
+        rec = r["recording_file"] or ""
+        rec_link = f"<a href='/recordings/play?file={quote(Path(rec).name)}'>Play</a>" if rec else ""
+
+        table += f"""
+        <tr>
+            <td>{r["id"]}</td>
+            <td>{r["caller_number"] or ""}</td>
+            <td>{r["employee_id"] or ""}</td>
+            <td>{r["verified_name"] or ""}</td>
+            <td>{r["language"] or ""}</td>
+            <td>{r["duration_seconds"] or ""}</td>
+            <td>{r["status"] or ""}</td>
+            <td>{r["ticket_number"] or ""}</td>
+            <td>{rec_link}</td>
+        </tr>
+        """
+
+    table += "</table>"
+
+    body = f"""
+    <h1>Call History</h1>
+    <div class="card">
+        <p class="small">This page will show full call records once bridge logging is added.</p>
+        {table}
+    </div>
+    """
+
+    return layout("Calls", user, body)
+
+
+@app.get("/recordings", response_class=HTMLResponse)
+def recordings(request: Request):
+    user = require_roles(request, ["admin", "quality_reviewer"])
+    files = recording_files()
+
+    table = """
+    <table>
+        <tr>
+            <th>File</th>
+            <th>Caller ID</th>
+            <th>Size MB</th>
+            <th>Playback</th>
+            <th>Review</th>
+        </tr>
+    """
+
+    for f in files:
+        encoded = quote(f["name"])
+        table += f"""
+        <tr>
+            <td>{f["name"]}</td>
+            <td>{f["caller"]}</td>
+            <td>{f["size_mb"]}</td>
+            <td>
+                <audio controls src="/recordings/play?file={encoded}"></audio>
+            </td>
+            <td>
+                <form method="post" action="/quality/review">
+                    <input type="hidden" name="recording_file" value="{f["name"]}">
+                    <select name="rating">
+                        <option>Good</option>
+                        <option>Needs Improvement</option>
+                        <option>Escalated</option>
+                    </select>
+                    <textarea name="notes" placeholder="Review notes"></textarea>
+                    <button type="submit">Save Review</button>
+                </form>
+            </td>
+        </tr>
+        """
+
+    table += "</table>"
+
+    body = f"""
+    <h1>Recordings</h1>
+    <div class="card">
+        <p class="danger-note">Delete is disabled by design. Recordings are read-only.</p>
+        {table}
+    </div>
+    """
+
+    return layout("Recordings", user, body)
+
+
+@app.get("/recordings/play")
+def play_recording(request: Request, file: str):
+    user = require_roles(request, ["admin", "quality_reviewer"])
+
+    safe_name = Path(file).name
+    full_path = Path(RECORDING_DIR) / safe_name
+
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="Recording not found")
+
+    audit(user["username"], "play_recording", "recording", safe_name)
+
+    return FileResponse(
+        path=str(full_path),
+        media_type="audio/wav",
+        filename=safe_name
+    )
+
+
+@app.post("/quality/review")
+def save_review(
+    request: Request,
+    recording_file: str = Form(...),
+    rating: str = Form(...),
+    notes: str = Form("")
+):
+    user = require_roles(request, ["admin", "quality_reviewer"])
+
+    conn = db()
+    conn.execute(
+        """
+        INSERT INTO quality_reviews(recording_file, reviewer, rating, notes, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (Path(recording_file).name, user["username"], rating, notes, int(time.time()))
+    )
+    conn.commit()
+    conn.close()
+
+    audit(user["username"], "save_quality_review", "recording", recording_file)
+
+    return RedirectResponse("/recordings", status_code=302)
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request):
+    user = require_roles(request, ["admin"])
+
+    conn = db()
+    rows = conn.execute("SELECT * FROM settings ORDER BY key").fetchall()
+    conn.close()
+
+    form = """
+    <form method="post" action="/settings">
+    """
+
+    for r in rows:
+        form += f"""
+        <label>{r["key"]}</label>
+        <textarea name="{r["key"]}">{r["value"] or ""}</textarea>
+        """
+
+    form += """
+        <button type="submit">Save Settings</button>
+    </form>
+    """
+
+    body = f"""
+    <h1>Settings</h1>
+    <div class="card">
+        <p class="small">Phase 1 stores settings here. Bridge integration will read these later.</p>
+        {form}
+    </div>
+    """
+
+    return layout("Settings", user, body)
+
+
+@app.post("/settings")
+async def save_settings(request: Request):
+    user = require_roles(request, ["admin"])
+    data = await request.form()
+
+    conn = db()
+
+    for key, value in data.items():
+        conn.execute(
+            """
+            INSERT INTO settings(key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at
+            """,
+            (key, value, int(time.time()))
+        )
+
+    conn.commit()
+    conn.close()
+
+    audit(user["username"], "update_settings", "settings", "multiple")
+
+    return RedirectResponse("/settings", status_code=302)
+
+
+    
+cd /opt/ai-support-agent
+source venv/bin/activate
+uvicorn dashboard.app:app --h
+
+
+admin / admin123
+user / user123
+reviewer / reviewer123
+
+
+nano /etc/systemd/system/ai-dashboard.service
+
+[Unit]
+Description=AI IT Support Dashboard
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/ai-support-agent
+Environment="PYTHONPATH=/opt/ai-support-agent"
+ExecStart=/opt/ai-support-agent/venv/bin/uvicorn dashboard.app:app --host 0.0.0.0 --port 8090
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+
+
+systemctl daemon-reload
+systemctl enable ai-dashboard
+systemctl start ai-dashboard
+systemctl status ai-dashboard
+
+
+ls -lh /var/spool/asterisk/monitor/ai-support
