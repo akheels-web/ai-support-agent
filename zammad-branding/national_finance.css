@@ -238,10 +238,10 @@ body:not(.login) .navigation {
 body:not(.login) .navigation::after {
   content: "" !important;
   position: absolute !important;
-  top: 8px !important;
-  right: 12px !important;
-  width: 165px !important;
-  height: 48px !important;
+  top: 10px !important;
+  right: 18px !important;
+  width: 135px !important;
+  height: 40px !important;
   background-color: #121f3f !important;
   background-image: url("/assets/nfc-logo.svg") !important;
   background-repeat: no-repeat !important;
