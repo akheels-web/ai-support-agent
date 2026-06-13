@@ -1,12 +1,8 @@
-import os
 import time
 import sqlite3
 from pathlib import Path
 
-DB_PATH = "/opt/"DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
-
-
-def _db():
+DB_PATH = "/opt/ai-support-agent/data/dashboarddb():DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -104,6 +100,8 @@ def update_call(call_id, **kwargs):
 
 
 def close_call(call_id, status="completed"):
+    init_call_db()
+
     recording_file = find_recording_by_call_id(call_id)
     caller_number = extract_caller_from_recording(recording_file) if recording_file else None
 
@@ -173,3 +171,4 @@ def extract_caller_from_recording(recording_file):
         return parts[2]
 
     return None
+RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
