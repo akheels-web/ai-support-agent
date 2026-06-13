@@ -1,95 +1,32 @@
-root@aicontactappubuntu:~# systemctl restart asterisk
-root@aicontactappubuntu:~# systemctl status asterisk
-● asterisk.service - LSB: Asterisk PBX
-     Loaded: loaded (/etc/init.d/asterisk; generated)
-     Active: active (running) since Sat 2026-06-13 17:56:50 UTC; 5s ago
- Invocation: 9ae17813bce14671afa34a7e8357aeb5
-       Docs: man:systemd-sysv-generator(8)
-    Process: 111613 ExecStart=/etc/init.d/asterisk start (code=exited, status=0/SUCCESS)
-      Tasks: 75 (limit: 18486)
-     Memory: 255.8M (peak: 260M)
-        CPU: 921ms
-     CGroup: /system.slice/asterisk.service
-             └─111628 /usr/sbin/asterisk -U asterisk -G asterisk
+cat > /etc/systemd/system/ai-support-bridge.service <<'EOF'
+[Unit]
+Description=AI Support Agent OpenAI Realtime Bridge
+After=network-online.target asterisk.service
+Wants=network-online.target
+Requires=asterisk.service
 
-Jun 13 17:56:50 aicontactappubuntu systemd[1]: Starting asterisk.service - LSB: Asterisk PBX...
-Jun 13 17:56:50 aicontactappubuntu asterisk[111613]:  * Starting Asterisk PBX: asterisk
-Jun 13 17:56:50 aicontactappubuntu asterisk[111613]:    ...done.
-Jun 13 17:56:50 aicontactappubuntu systemd[1]: Started asterisk.service - LSB: Asterisk PBX.
-Jun 13 17:56:50 aicontactappubuntu asterisk[111628]: radcli: rc_read_config: rc_read_config: can't open /etc/radiusclient-ng/radiusclient.conf: No such file or directory
-Jun 13 17:56:50 aicontactappubuntu asterisk[111628]: radcli: rc_read_config: rc_read_config: can't open /etc/radiusclient-ng/radiusclient.conf: No such file or directory
-root@aicontactappubuntu:~# asterisk -rx "core show uptime"
-System uptime: 18 seconds
-Last reload: 18 seconds
-root@aicontactappubuntu:~# nano /etc/systemd/system/ai-support-bridge.service
-root@aicontactappubuntu:~# systemctl daemon-reload
-root@aicontactappubuntu:~# systemctl enable ai-support-bridge
-Created symlink '/etc/systemd/system/multi-user.target.wants/ai-support-bridge.service' → '/etc/systemd/system/ai-support-bridge.service'.
-root@aicontactappubuntu:~# systemctl start ai-support-bridge
-Failed to start ai-support-bridge.service: Unit ai-support-bridge.service has a bad unit file setting.
-See system logs and 'systemctl status ai-support-bridge.service' for details.
-root@aicontactappubuntu:~# systemctl status ai-support-bridge
-○ ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge
-     Loaded: bad-setting (Reason: Unit ai-support-bridge.service has a bad unit file setting.)
-     Active: inactive (dead)
+[Service]
+Type=simple
+WorkingDirectory=/opt/ai-support-agent
+Environment=PYTHONPATH=/opt/ai-support-agent
+ExecStart=/opt/ai-support-agent/venv/bin/python /opt/ai-support-agent/app/openai_realtime_bridge.py
+Restart=always
+RestartSec=5
+User=root
 
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:4: Failed to add dependency on asterisk.service-agent"After=network-online.target, ignoring: Inva>
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:5: Unknown key 'ExecStart' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:6: Unknown key 'Restart' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:7: Unknown key 'RestartSec' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:8: Unknown key 'User' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:12: Unknown key 'Wants' in section [Install], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:13: Unknown key 'Requires' in section [Install], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: ai-support-bridge.service: Service has no ExecStart=, ExecStop=, or SuccessAction=. Refusing.
-Jun 13 17:58:04 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:12: Unknown key 'Wants' in section [Install], ignoring.
-Jun 13 17:58:04 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:13: Unknown key 'Requires' in section [Install], ignoring.
- ESCOD
-
-○ ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge
-     Loaded: bad-setting (Reason: Unit ai-support-bridge.service has a bad unit file setting.)
-     Active: inactive (dead)
-
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:4: Failed to add dependency on asterisk.service-agent"After=network-online.target, ignoring: Inva>
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:5: Unknown key 'ExecStart' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:6: Unknown key 'Restart' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:7: Unknown key 'RestartSec' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:8: Unknown key 'User' in section [Unit], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:12: Unknown key 'Wants' in section [Install], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:13: Unknown key 'Requires' in section [Install], ignoring.
-Jun 13 17:57:46 aicontactappubuntu systemd[1]: ai-support-bridge.service: Service has no ExecStart=, ExecStop=, or SuccessAction=. Refusing.
-Jun 13 17:58:04 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:12: Unknown key 'Wants' in section [Install], ignoring.
-Jun 13 17:58:04 aicontactappubuntu systemd[1]: /etc/systemd/system/ai-support-bridge.service:13: Unknown key 'Requires' in section [Install], ignoring.
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
- ESCOC
+[Install]
+WantedBy=multi-user.target
+EOF
 
 
+systemctl daemon-reload
+systemctl reset-failed ai-support-bridge
+systemctl enable ai-support-bridge
+systemctl start ai-support-bridge
+systemctl status ai-support-bridge
 
 
+ss -lntp | grep 8765
 
- Failed to add dependency on asterisk.service-agent"After=network-online.target, ignoring: Invalid argument
- Unknown key 'ExecStart' in section [Unit], ignoring.
- Unknown key 'Restart' in section [Unit], ignoring.
- Unknown key 'RestartSec' in section [Unit], ignoring.
- Unknown key 'User' in section [Unit], ignoring.
-: Unknown key 'Wants' in section [Install], ignoring.
-: Unknown key 'Requires' in section [Install], ignoring.
-art=, ExecStop=, or SuccessAction=. Refusing.
-: Unknown key 'Wants' in section [Install], ignoring.
-: Unknown key 'Requires' in section [Install], ignoring.
+journalctl -u ai-support-bridge -n 100 --no-pager
+
