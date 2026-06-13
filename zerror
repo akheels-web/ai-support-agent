@@ -1,0 +1,192 @@
+root@aicontactappubuntu:/opt/ai-support-agent# chmod +x /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh 
+root@aicontactappubuntu:/opt/ai-support-agent# /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh 
+======================================================
+Applying National Finance branding to Zammad
+Started: Sat Jun 13 04:12:18 PM UTC 2026
+======================================================
+[1/6] Checking containers...
+NAME                                           IMAGE                              COMMAND                  SERVICE                CREATED      STATUS                 PORTS
+zammad-docker-compose-zammad-backup-1          ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-backup          3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-elasticsearch-1   elasticsearch:9.4.2                "/bin/tini -- /usr/l…"   zammad-elasticsearch   3 days ago   Up 2 hours             9200/tcp, 9300/tcp
+zammad-docker-compose-zammad-memcached-1       memcached:1.6.42-alpine            "docker-entrypoint.s…"   zammad-memcached       3 days ago   Up 2 hours (healthy)   11211/tcp
+zammad-docker-compose-zammad-nginx-1           ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-nginx           3 days ago   Up 2 hours             0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+zammad-docker-compose-zammad-postgresql-1      postgres:17.10-alpine              "docker-entrypoint.s…"   zammad-postgresql      3 days ago   Up 2 hours (healthy)   5432/tcp
+zammad-docker-compose-zammad-railsserver-1     ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-railsserver     3 days ago   Up 2 hours (healthy)   
+zammad-docker-compose-zammad-redis-1           redis:8.8-alpine                   "docker-entrypoint.s…"   zammad-redis           3 days ago   Up 2 hours (healthy)   6379/tcp
+zammad-docker-compose-zammad-scheduler-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-scheduler       3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-websocket-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-websocket       3 days ago   Up 2 hours             
+[2/6] Copying CSS into containers...
+Copying CSS to zammad-railsserver
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/tmp/national_finance.css Copied
+Copying CSS to zammad-nginx
+ zammad-docker-compose-zammad-nginx-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-nginx-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-nginx-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-nginx-1:/tmp/national_finance.css Copied
+Copying CSS to zammad-websocket
+ zammad-docker-compose-zammad-websocket-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-websocket-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-websocket-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-websocket-1:/tmp/national_finance.css Copied
+Copying CSS to zammad-scheduler
+ zammad-docker-compose-zammad-scheduler-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-scheduler-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-scheduler-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-scheduler-1:/tmp/national_finance.css Copied
+[3/6] Appending custom CSS to compiled Zammad CSS assets...
+Patching CSS in zammad-railsserver
+Patching CSS in zammad-nginx
+Patching CSS in zammad-websocket
+Patching CSS in zammad-scheduler
+[4/6] Removing Powered by Zammad from compiled JS assets...
+Patching JS in zammad-railsserver
+Patching JS in zammad-nginx
+Patching JS in zammad-websocket
+Patching JS in zammad-scheduler
+[5/6] Removing stale compressed assets so browser uses patched files...
+Removing gzip assets in zammad-railsserver
+Removing gzip assets in zammad-nginx
+Removing gzip assets in zammad-websocket
+Removing gzip assets in zammad-scheduler
+[6/6] Restarting Zammad containers...
+ Container zammad-docker-compose-zammad-memcached-1  Restarting
+ Container zammad-docker-compose-zammad-nginx-1  Restarting
+ Container zammad-docker-compose-zammad-elasticsearch-1  Restarting
+ Container zammad-docker-compose-zammad-railsserver-1  Restarting
+ Container zammad-docker-compose-zammad-postgresql-1  Restarting
+ Container zammad-docker-compose-zammad-scheduler-1  Restarting
+ Container zammad-docker-compose-zammad-websocket-1  Restarting
+ Container zammad-docker-compose-zammad-init-1  Restarting
+ Container zammad-docker-compose-zammad-backup-1  Restarting
+ Container zammad-docker-compose-zammad-redis-1  Restarting
+ Container zammad-docker-compose-zammad-init-1  Started
+ Container zammad-docker-compose-zammad-websocket-1  Started
+ Container zammad-docker-compose-zammad-nginx-1  Started
+ Container zammad-docker-compose-zammad-railsserver-1  Started
+ Container zammad-docker-compose-zammad-memcached-1  Started
+ Container zammad-docker-compose-zammad-scheduler-1  Started
+ Container zammad-docker-compose-zammad-postgresql-1  Started
+ Container zammad-docker-compose-zammad-redis-1  Started
+ Container zammad-docker-compose-zammad-elasticsearch-1  Started
+ Container zammad-docker-compose-zammad-backup-1  Started
+======================================================
+Branding applied successfully
+Finished: Sat Jun 13 04:12:37 PM UTC 2026
+======================================================
+root@aicontactappubuntu:/opt/ai-support-agent# tail -n 120 /var/log/zammad-branding.log
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Array#reverse_each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/processor_utils.rb:56:in 'Sprockets::ProcessorUtils#call_processors'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:134:in 'Sprockets::Loader#load_from_unloaded'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:60:in 'block in Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:317:in 'Sprockets::Loader#fetch_asset_from_dependency_cache'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/loader.rb:44:in 'Sprockets::Loader#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:20:in 'block in Sprockets::CachedEnvironment#initialize'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/cached_environment.rb:47:in 'Sprockets::CachedEnvironment#load'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/base.rb:66:in 'Sprockets::Base#find_asset'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/base.rb:73:in 'Sprockets::Base#find_all_linked_assets'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:134:in 'block in Sprockets::Manifest#find'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:133:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:133:in 'Sprockets::Manifest#find'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/sprockets/manifest.rb:186:in 'Sprockets::Manifest#compile'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-rails-3.5.2/lib/sprockets/rails/task.rb:67:in 'block (3 levels) in Sprockets::Rails::Task#define'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-3.7.5/lib/rake/sprocketstask.rb:147:in 'Rake::SprocketsTask#with_logger'
+/usr/local/bundle/ruby/3.4.0/gems/sprockets-rails-3.5.2/lib/sprockets/rails/task.rb:66:in 'block (2 levels) in Sprockets::Rails::Task#define'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'block in Rake::Task#execute'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:281:in 'Rake::Task#execute'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:219:in 'block in Rake::Task#invoke_with_call_chain'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:199:in 'Monitor#synchronize'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:199:in 'Rake::Task#invoke_with_call_chain'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/task.rb:188:in 'Rake::Task#invoke'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:188:in 'Rake::Application#invoke_task'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'block (2 levels) in Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'Array#each'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:138:in 'block in Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:147:in 'Rake::Application#run_with_threads'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:132:in 'Rake::Application#top_level'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:83:in 'block in Rake::Application#run'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:214:in 'Rake::Application#standard_exception_handling'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/lib/rake/application.rb:80:in 'Rake::Application#run'
+/usr/local/bundle/ruby/3.4.0/gems/rake-13.3.1/exe/rake:27:in '<top (required)>'
+/usr/local/bundle/ruby/3.4.0/bin/rake:25:in 'Kernel#load'
+/usr/local/bundle/ruby/3.4.0/bin/rake:25:in '<top (required)>'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:59:in 'Kernel.load'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:59:in 'Bundler::CLI::Exec#kernel_load'
+/usr/local/lib/ruby/3.4.0/bundler/cli/exec.rb:23:in 'Bundler::CLI::Exec#run'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:452:in 'Bundler::CLI#exec'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/command.rb:28:in 'Bundler::Thor::Command#run'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/invocation.rb:127:in 'Bundler::Thor::Invocation#invoke_command'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor.rb:538:in 'Bundler::Thor.dispatch'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:35:in 'Bundler::CLI.dispatch'
+/usr/local/lib/ruby/3.4.0/bundler/vendor/thor/lib/thor/base.rb:584:in 'Bundler::Thor::Base::ClassMethods#start'
+/usr/local/lib/ruby/3.4.0/bundler/cli.rb:29:in 'Bundler::CLI.start'
+/usr/local/lib/ruby/gems/3.4.0/gems/bundler-2.6.9/exe/bundle:28:in 'block in <top (required)>'
+/usr/local/lib/ruby/3.4.0/bundler/friendly_errors.rb:117:in 'Bundler.with_friendly_errors'
+/usr/local/lib/ruby/gems/3.4.0/gems/bundler-2.6.9/exe/bundle:20:in '<top (required)>'
+/usr/local/bin/bundle:25:in 'Kernel#load'
+/usr/local/bin/bundle:25:in '<main>'
+Tasks: TOP => assets:precompile
+======================================================
+Applying National Finance branding to Zammad
+Started: Sat Jun 13 04:12:18 PM UTC 2026
+======================================================
+[1/6] Checking containers...
+NAME                                           IMAGE                              COMMAND                  SERVICE                CREATED      STATUS                 PORTS
+zammad-docker-compose-zammad-backup-1          ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-backup          3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-elasticsearch-1   elasticsearch:9.4.2                "/bin/tini -- /usr/l…"   zammad-elasticsearch   3 days ago   Up 2 hours             9200/tcp, 9300/tcp
+zammad-docker-compose-zammad-memcached-1       memcached:1.6.42-alpine            "docker-entrypoint.s…"   zammad-memcached       3 days ago   Up 2 hours (healthy)   11211/tcp
+zammad-docker-compose-zammad-nginx-1           ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-nginx           3 days ago   Up 2 hours             0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+zammad-docker-compose-zammad-postgresql-1      postgres:17.10-alpine              "docker-entrypoint.s…"   zammad-postgresql      3 days ago   Up 2 hours (healthy)   5432/tcp
+zammad-docker-compose-zammad-railsserver-1     ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-railsserver     3 days ago   Up 2 hours (healthy)   
+zammad-docker-compose-zammad-redis-1           redis:8.8-alpine                   "docker-entrypoint.s…"   zammad-redis           3 days ago   Up 2 hours (healthy)   6379/tcp
+zammad-docker-compose-zammad-scheduler-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-scheduler       3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-websocket-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-websocket       3 days ago   Up 2 hours             
+[2/6] Copying CSS into containers...
+Copying CSS to zammad-railsserver
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/tmp/national_finance.css Copied
+Copying CSS to zammad-nginx
+ zammad-docker-compose-zammad-nginx-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-nginx-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-nginx-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-nginx-1:/tmp/national_finance.css Copied
+Copying CSS to zammad-websocket
+ zammad-docker-compose-zammad-websocket-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-websocket-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-websocket-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-websocket-1:/tmp/national_finance.css Copied
+Copying CSS to zammad-scheduler
+ zammad-docker-compose-zammad-scheduler-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-scheduler-1:/tmp/national_finance.css Copying
+ zammad-docker-compose-zammad-scheduler-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-scheduler-1:/tmp/national_finance.css Copied
+[3/6] Appending custom CSS to compiled Zammad CSS assets...
+Patching CSS in zammad-railsserver
+Patching CSS in zammad-nginx
+Patching CSS in zammad-websocket
+Patching CSS in zammad-scheduler
+[4/6] Removing Powered by Zammad from compiled JS assets...
+Patching JS in zammad-railsserver
+Patching JS in zammad-nginx
+Patching JS in zammad-websocket
+Patching JS in zammad-scheduler
+[5/6] Removing stale compressed assets so browser uses patched files...
+Removing gzip assets in zammad-railsserver
+Removing gzip assets in zammad-nginx
+Removing gzip assets in zammad-websocket
+Removing gzip assets in zammad-scheduler
+[6/6] Restarting Zammad containers...
+ Container zammad-docker-compose-zammad-memcached-1  Restarting
+ Container zammad-docker-compose-zammad-nginx-1  Restarting
+ Container zammad-docker-compose-zammad-elasticsearch-1  Restarting
+ Container zammad-docker-compose-zammad-railsserver-1  Restarting
+ Container zammad-docker-compose-zammad-postgresql-1  Restarting
+ Container zammad-docker-compose-zammad-scheduler-1  Restarting
+ Container zammad-docker-compose-zammad-websocket-1  Restarting
+ Container zammad-docker-compose-zammad-init-1  Restarting
+ Container zammad-docker-compose-zammad-backup-1  Restarting
+ Container zammad-docker-compose-zammad-redis-1  Restarting
+ Container zammad-docker-compose-zammad-init-1  Started
+ Container zammad-docker-compose-zammad-websocket-1  Started
+ Container zammad-docker-compose-zammad-nginx-1  Started
+ Container zammad-docker-compose-zammad-railsserver-1  Started
+ Container zammad-docker-compose-zammad-memcached-1  Started
+ Container zammad-docker-compose-zammad-scheduler-1  Started
+ Container zammad-docker-compose-zammad-postgresql-1  Started
+ Container zammad-docker-compose-zammad-redis-1  Started
+ Container zammad-docker-compose-zammad-elasticsearch-1  Started
+ Container zammad-docker-compose-zammad-backup-1  Started
+======================================================
+Branding applied successfully
+Finished: Sat Jun 13 04:12:37 PM UTC 2026
+======================================================
+root@aicontactappubuntu:/opt/ai-support-agent# 
