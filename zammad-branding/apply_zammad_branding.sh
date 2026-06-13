@@ -25,7 +25,7 @@ echo "[3/7] Copying custom CSS..."
 docker compose cp "$CSS_SOURCE" zammad-railsserver:"$CSS_TARGET"
 
 echo "[4/7] Setting CSS permissions..."
-docker compose exec -T zammad-railsserver bash -lc "chmod 644 $CSS_TARGET"
+docker compose exec -T -u 0 zammad-railsserver bash -lc "chmod 644 $CSS_TARGET || true"
 
 echo "[5/7] Removing Powered by Zammad from known templates..."
 docker compose exec -T zammad-railsserver bash -lc '
@@ -55,7 +55,7 @@ done
 '
 
 echo "[6/7] Precompiling assets..."
-docker compose exec -T zammad-railsserver bash -lc "cd /opt/zammad && bundle exec rake assets:precompile --trace"
+docker compose exec -T -u 0 zammad-railsserver bash -lc "cd /opt/zammad && bundle exec rake assets:precompile --trace"
 
 echo "[7/7] Restarting Zammad containers..."
 docker compose restart
