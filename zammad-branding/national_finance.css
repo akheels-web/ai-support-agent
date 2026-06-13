@@ -231,3 +231,45 @@ button.btn-primary:hover {
   color: var(--nf-red) !important;
   font-weight: 800 !important;
 }
+
+/* ==========================================================/* ================================================= img,
+body:not(.login) img[src*="logo"] {
+  opacity: 0 !important;
+}
+
+/* Show National Finance logo in sidebar/logo area */
+body:not(.login) .navigation .logo,
+body:not(.login) #navigation .logo,
+body:not(.login) .sidebar-left .logo,
+body:not(.login) .column.left .logo,
+body:not(.login) aside .logo {
+  position: relative !important;
+  min-height: 42px !important;
+  min-width: 120px !important;
+}
+
+/* Inject National Finance logo */
+body:not(.login) .navigation .logo::after,
+body:not(.login) #navigation .logo::after,
+body:not(.login) .sidebar-left .logo::after,
+body:not(.login) .column.left .logo::after,
+body:not(.login) aside .logo::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute !important;
+  top: 6px !important;
+  left: 12px !important;
+  width: 135px !important;
+  height: 34px !important;
+  background-image: url("/assets/nfc-logo.svg") !important;
+  background-repeat: no-repeat !important;
+  background-position: left center !important;
+  background-size: contain !important;
+  z-index: 9999 !important;
+}
+
+/* Hide small Zammad bird/logo in app sidebar/header */
+body:not(.login) .navigation .logo img,
+body:not(.login) #navigation .logo img,
+body:not(.login) .sidebar-left .logo img,
+body:not(.login) .column.left .logo img,

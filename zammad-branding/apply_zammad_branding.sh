@@ -4,6 +4,7 @@ set -e
 COMPOSE_DIR="/opt/zammad-docker-compose"
 CSS_SOURCE="/opt/ai-support-agent/zammad-branding/national_finance.css"
 LOGO_SOURCE="/opt/ai-support-agent/zammad-branding/assets/tct-logo.png"
+NFC_LOGO_SOURCE="/opt/ai-support-agent/zammad-branding/assets/nfc-logo.svg"
 LOG_FILE="/var/log/zammad-branding.log"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -28,6 +29,12 @@ echo "[2B/5] Copying TCT logo into public assets..."
 for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
   echo "Copying TCT logo to $svc"
   docker compose cp "$LOGO_SOURCE" "$svc:/opt/zammad/public/assets/tct-logo.png" || true
+done
+
+echo "[2C/5] Copying National Finance logo into public assets..."
+for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
+  echo "Copying NFC logo to $svc"
+  docker compose cp "$NFC_LOGO_SOURCE" "$svc:/opt/zammad/public/assets/nfc-logo.svg" || true
 done
 
 echo "[3/5] Appending custom CSS to compiled CSS assets..."
