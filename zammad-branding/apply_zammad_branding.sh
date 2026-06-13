@@ -8,22 +8,22 @@ LOG_FILE="/var/log/zammad-branding.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "======================================================"
-echo "Applying National Finance branding to Zammad"
+echo "Applying National Finance CSS-only branding to Zammad"
 echo "Started: $(date)"
 echo "======================================================"
 
 cd "$COMPOSE_DIR"
 
-echo "[1/6] Checking containers..."
+echo "[1/5] Checking containers..."
 docker compose ps
 
-echo "[2/6] Copying CSS into containers..."
+echo "[2/5] Copying CSS into app containers..."
 for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
   echo "Copying CSS to $svc"
   docker compose cp "$CSS_SOURCE" "$svc:/tmp/national_finance.css" || true
 done
 
-echo "[3/6] Appending custom CSS to compiled Zammad CSS assets..."
+echo "[3/5] Appending custom CSS to compiled CSS assets..."
 for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
   echo "Patching CSS in $svc"
 
@@ -44,38 +44,19 @@ for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
   ' || true
 done
 
-echo "[4/6] Removing Powered by Zammad from compiled JS assets..."
+echo "[4/5] Removing stale compressed CSS only..."
 for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
-  echo "Patching JS in $svc"
-
-  docker compose exec -T -u 0 "$svc" bash -lc '
-    if [ -d /opt/zammad/public/assets ]; then
-      for js in /opt/zammad/public/assets/*.js; do
-        if [ -f "$js" ]; then
-          perl -0777 -pi -e "s!<div class=\\\"poweredBy\\\">.*?</div>!!sg" "$js" || true
-          perl -0777 -pi -e "s!<div class=\\\"powered-by\\\">.*?</div>!!sg" "$js" || true
-          perl -0777 -pi -e "s!Powered by Zammad!!sg" "$js" || true
-          perl -0777 -pi -e "s!poweredBy!!sg" "$js" || true
-        fi
-      done
-    fi
-  ' || true
-done
-
-echo "[5/6] Removing stale compressed assets so browser uses patched files..."
-for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
-  echo "Removing gzip assets in $svc"
+  echo "Removing CSS gzip assets in $svc"
 
   docker compose exec -T -u 0 "$svc" bash -lc '
     if [ -d /opt/zammad/public/assets ]; then
       rm -f /opt/zammad/public/assets/*.css.gz || true
-      rm -f /opt/zammad/public/assets/*.js.gz || true
     fi
   ' || true
 done
 
-echo "[6/6] Restarting Zammad containers..."
-docker compose restart
+echo "[5/5] Restarting Zammad app containers..."
+docker compose restart zammad-nginx zammad-railsserver zammad-websocket zammad-scheduler
 
 echo "======================================================"
 echo "Branding applied successfully"
