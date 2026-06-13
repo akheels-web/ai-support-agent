@@ -2,7 +2,11 @@ import time
 import sqlite3
 from pathlib import Path
 
-DB_PATH = "/opt/ai-support-agent/data/dashboarddb():DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
+DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
+RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
+
+
+def _db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -171,4 +175,3 @@ def extract_caller_from_recording(recording_file):
         return parts[2]
 
     return None
-RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
