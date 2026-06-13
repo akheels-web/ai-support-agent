@@ -293,3 +293,57 @@ body:not(.login) .ticket-number {
   color: var(--nf-red) !important;
   font-weight: 800 !important;
 }
+
+/* ==========================================================
+   FINAL FIX - Hide Zammad top logo and show NFC logo cleanly
+   Zammad 7.0.1 safe override
+   ========================================================== */
+
+body:not(.login) .navigation {
+  position: relative !important;
+  overflow: hidden !important;
+  isolation: isolate !important;
+}
+
+/* Cover only the top-right logo area where Zammad bird appears */
+body:not(.login) .navigation::before {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: 210px !important;
+  height: 92px !important;
+  background: #121f3f !important;
+  z-index: 9998 !important;
+  pointer-events: none !important;
+}
+
+/* Place National Finance logo inside the covered area */
+body:not(.login) .navigation::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 18px !important;
+  right: 22px !important;
+  width: 155px !important;
+  height: 48px !important;
+  background-image: url("/assets/nfc-logo.svg") !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  background-size: contain !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure bottom profile/settings/add icons stay visible */
+body:not(.login) .navigation-footer,
+body:not(.login) .navigation .footer,
+body:not(.login) .navigation .profile,
+body:not(.login) .navigation .user,
+body:not(.login) .navigation .avatar,
+body:not(.login) .navigation [class*="user"],
+body:not(.login) .navigation [class*="avatar"],
+body:not(.login) .navigation [class*="profile"] {
+  display: initial !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
