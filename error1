@@ -1,3 +1,54 @@
+root@aicontactappubuntu:/opt/ai-support-agent# nano /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh 
+root@aicontactappubuntu:/opt/ai-support-agent# chmod +x /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
+root@aicontactappubuntu:/opt/ai-support-agent# /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
+======================================================
+Applying National Finance branding to Zammad
+Started: Sat Jun 13 04:02:36 PM UTC 2026
+======================================================
+[1/7] Checking containers...
+NAME                                           IMAGE                              COMMAND                  SERVICE                CREATED      STATUS                 PORTS
+zammad-docker-compose-zammad-backup-1          ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-backup          3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-elasticsearch-1   elasticsearch:9.4.2                "/bin/tini -- /usr/l…"   zammad-elasticsearch   3 days ago   Up 2 hours             9200/tcp, 9300/tcp
+zammad-docker-compose-zammad-memcached-1       memcached:1.6.42-alpine            "docker-entrypoint.s…"   zammad-memcached       3 days ago   Up 2 hours (healthy)   11211/tcp
+zammad-docker-compose-zammad-nginx-1           ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-nginx           3 days ago   Up 2 hours             0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+zammad-docker-compose-zammad-postgresql-1      postgres:17.10-alpine              "docker-entrypoint.s…"   zammad-postgresql      3 days ago   Up 2 hours (healthy)   5432/tcp
+zammad-docker-compose-zammad-railsserver-1     ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-railsserver     3 days ago   Up 2 hours (healthy)   
+zammad-docker-compose-zammad-redis-1           redis:8.8-alpine                   "docker-entrypoint.s…"   zammad-redis           3 days ago   Up 2 hours (healthy)   6379/tcp
+zammad-docker-compose-zammad-scheduler-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-scheduler       3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-websocket-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-websocket       3 days ago   Up 2 hours             
+[2/7] Creating custom CSS directory...
+[3/7] Copying custom CSS...
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/opt/zammad/app/assets/stylesheets/custom/national_finance.css Copying
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/opt/zammad/app/assets/stylesheets/custom/national_finance.css Copied
+[4/7] Setting CSS permissions...
+chmod: changing permissions of '/opt/zammad/app/assets/stylesheets/custom/national_finance.css': Operation not permitted
+root@aicontactappubuntu:/opt/ai-support-agent# tail -n 120 /var/log/zammad-branding.log
+======================================================
+Applying National Finance branding to Zammad
+Started: Sat Jun 13 04:02:36 PM UTC 2026
+======================================================
+[1/7] Checking containers...
+NAME                                           IMAGE                              COMMAND                  SERVICE                CREATED      STATUS                 PORTS
+zammad-docker-compose-zammad-backup-1          ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-backup          3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-elasticsearch-1   elasticsearch:9.4.2                "/bin/tini -- /usr/l…"   zammad-elasticsearch   3 days ago   Up 2 hours             9200/tcp, 9300/tcp
+zammad-docker-compose-zammad-memcached-1       memcached:1.6.42-alpine            "docker-entrypoint.s…"   zammad-memcached       3 days ago   Up 2 hours (healthy)   11211/tcp
+zammad-docker-compose-zammad-nginx-1           ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-nginx           3 days ago   Up 2 hours             0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp
+zammad-docker-compose-zammad-postgresql-1      postgres:17.10-alpine              "docker-entrypoint.s…"   zammad-postgresql      3 days ago   Up 2 hours (healthy)   5432/tcp
+zammad-docker-compose-zammad-railsserver-1     ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-railsserver     3 days ago   Up 2 hours (healthy)   
+zammad-docker-compose-zammad-redis-1           redis:8.8-alpine                   "docker-entrypoint.s…"   zammad-redis           3 days ago   Up 2 hours (healthy)   6379/tcp
+zammad-docker-compose-zammad-scheduler-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-scheduler       3 days ago   Up 2 hours             
+zammad-docker-compose-zammad-websocket-1       ghcr.io/zammad/zammad:7.0.1-0058   "/opt/zammad/bin/doc…"   zammad-websocket       3 days ago   Up 2 hours             
+[2/7] Creating custom CSS directory...
+[3/7] Copying custom CSS...
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/opt/zammad/app/assets/stylesheets/custom/national_finance.css Copying
+ zammad-docker-compose-zammad-railsserver-1 copy /opt/ai-support-agent/zammad-branding/national_finance.css to zammad-docker-compose-zammad-railsserver-1:/opt/zammad/app/assets/stylesheets/custom/national_finance.css Copied
+[4/7] Setting CSS permissions...
+chmod: changing permissions of '/opt/zammad/app/assets/stylesheets/custom/national_finance.css': Operation not permitted
+root@aicontactappubuntu:/opt/ai-support-agent# 
+
+
+
+
 
 cd /opt/ai-support-agent
 source venv/bin/activate
