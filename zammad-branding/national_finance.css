@@ -287,6 +287,7 @@ body:not(.login) .ticket-number {
   color: var(--nf-red) !important;
   font-weight: 800 !important;
 }
+
 /* ==========================================================
    FINAL STABLE FIX - Clean Top Sidebar Area
    Purpose:
