@@ -3,7 +3,6 @@ set -e
 
 COMPOSE_DIR="/opt/zammad-docker-compose"
 CSS_SOURCE="/opt/ai-support-agent/zammad-branding/national_finance.css"
-CSS_TARGET="/opt/zammad/app/assets/stylesheets/custom/national_finance.css"
 LOG_FILE="/var/log/zammad-branding.log"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -15,49 +14,67 @@ echo "======================================================"
 
 cd "$COMPOSE_DIR"
 
-echo "[1/7] Checking containers..."
+echo "[1/6] Checking containers..."
 docker compose ps
 
-echo "[2/7] Creating custom CSS directory..."
-docker compose exec -T zammad-railsserver bash -lc "mkdir -p /opt/zammad/app/assets/stylesheets/custom"
-
-echo "[3/7] Copying custom CSS..."
-docker compose cp "$CSS_SOURCE" zammad-railsserver:"$CSS_TARGET"
-
-echo "[4/7] Setting CSS permissions..."
-docker compose exec -T -u 0 zammad-railsserver bash -lc "chmod 644 $CSS_TARGET || true"
-
-echo "[5/7] Removing Powered by Zammad from known templates..."
-docker compose exec -T zammad-railsserver bash -lc '
-FILES="
-/opt/zammad/app/assets/javascripts/app/views/login.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/password/reset.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/password/reset_sent.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/password/reset_failed.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/password/reset_change.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/admin_password_auth/request.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/admin_password_auth/request_sent.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/signup.jst.eco
-/opt/zammad/app/assets/javascripts/app/views/signup/verify.jst.eco
-"
-
-for file in $FILES; do
-  if [ -f "$file" ]; then
-    echo "Patching $file"
-
-    cp "$file" "$file.nf-backup" 2>/dev/null || true
-
-    perl -0777 -pi -e "s!<div class=\"poweredBy\">.*?</div>!!sg" "$file"
-    perl -0777 -pi -e "s!<div class=\"powered-by\">.*?</div>!!sg" "$file"
-    perl -0777 -pi -e "s!Powered by Zammad!!sg" "$file"
-  fi
+echo "[2/6] Copying CSS into containers..."
+for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
+  echo "Copying CSS to $svc"
+  docker compose cp "$CSS_SOURCE" "$svc:/tmp/national_finance.css" || true
 done
-'
 
-echo "[6/7] Precompiling assets..."
-docker compose exec -T -u 0 zammad-railsserver bash -lc "cd /opt/zammad && bundle exec rake assets:precompile --trace"
+echo "[3/6] Appending custom CSS to compiled Zammad CSS assets..."
+for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
+  echo "Patching CSS in $svc"
 
-echo "[7/7] Restarting Zammad containers..."
+  docker compose exec -T -u 0 "$svc" bash -lc '
+    if [ -d /opt/zammad/public/assets ]; then
+      for css in /opt/zammad/public/assets/*.css; do
+        if [ -f "$css" ]; then
+          sed -i "/\/\* NATIONAL FINANCE BRANDING START \*\//,/\/\* NATIONAL FINANCE BRANDING END \*\//d" "$css" || true
+          {
+            echo ""
+            echo "/* NATIONAL FINANCE BRANDING START */"
+            cat /tmp/national_finance.css
+            echo "/* NATIONAL FINANCE BRANDING END */"
+          } >> "$css"
+        fi
+      done
+    fi
+  ' || true
+done
+
+echo "[4/6] Removing Powered by Zammad from compiled JS assets..."
+for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
+  echo "Patching JS in $svc"
+
+  docker compose exec -T -u 0 "$svc" bash -lc '
+    if [ -d /opt/zammad/public/assets ]; then
+      for js in /opt/zammad/public/assets/*.js; do
+        if [ -f "$js" ]; then
+          perl -0777 -pi -e "s!<div class=\\\"poweredBy\\\">.*?</div>!!sg" "$js" || true
+          perl -0777 -pi -e "s!<div class=\\\"powered-by\\\">.*?</div>!!sg" "$js" || true
+          perl -0777 -pi -e "s!Powered by Zammad!!sg" "$js" || true
+          perl -0777 -pi -e "s!poweredBy!!sg" "$js" || true
+        fi
+      done
+    fi
+  ' || true
+done
+
+echo "[5/6] Removing stale compressed assets so browser uses patched files..."
+for svc in zammad-railsserver zammad-nginx zammad-websocket zammad-scheduler; do
+  echo "Removing gzip assets in $svc"
+
+  docker compose exec -T -u 0 "$svc" bash -lc '
+    if [ -d /opt/zammad/public/assets ]; then
+      rm -f /opt/zammad/public/assets/*.css.gz || true
+      rm -f /opt/zammad/public/assets/*.js.gz || true
+    fi
+  ' || true
+done
+
+echo "[6/6] Restarting Zammad containers..."
 docker compose restart
 
 echo "======================================================"
