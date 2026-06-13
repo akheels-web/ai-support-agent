@@ -1,6 +1,6 @@
 mkdir -p /opt/ai-support-agent/zammad-branding/assets
 
-curl -L "https://www.nationalfinance.co.om/img/logo_nfc.svg" \
+curl -L "https://res.cloudinary.com/dmqsfxck9/image/upload/v1781370942/logo_nfc_jpgona.svg" \
 -o /opt/ai-support-agent/zammad-branding/assets/nfc-logo.svg
 
 cd /opt/zammad-docker-compose
