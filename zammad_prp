@@ -1,680 +1,267 @@
-/*
- * ============================================================
- *  National Finance Oman — Zammad Custom Branding CSS
- *  File: /opt/zammad/app/assets/stylesheets/custom/custom.css
- *  After editing: run  zammad run rails assets:precompile
- *                 then  systemctl restart zammad
- * ============================================================
- *
- *  Brand Palette (extracted from National Finance Oman logo):
- *    Navy Blue  #1B2F6B  — primary brand / header / sidebar
- *    Brand Red  #C8102E  — accent / CTAs / tags
- *    Mid Blue   #2B4A9F  — hover states / secondary elements
- *    Light Blue #E8EDF8  — background tints
- *    Warm White #F7F8FC  — page background
- *    Dark Grey  #2D2D2D  — body text
- *    Mid Grey   #6B7280  — secondary text / meta
- *    Border     #D1D9F0  — subtle borders
- *
- *  Priority system colours:
- *    Low    #3B82F6 (blue)
- *    Normal #10B981 (green)
- *    High   #F59E0B (amber)
- *    Urgent #C8102E (brand red)
- *
- *  State colours:
- *    New      #1B2F6B (navy)
- *    Open     #C8102E (red)
- *    Pending  #F59E0B (amber)
- *    Closed   #6B7280 (grey)
- * ============================================================
- */
+mkdir -p /opt/ai-support-agent/zammad-branding
+nano /opt/ai-support-agent/zammad-branding/national_finance.css
 
 
-/* ─── ROOT VARIABLES ──────────────────────────────────────── */
+
 :root {
-  --nf-navy:        #1B2F6B;
-  --nf-navy-dark:   #132250;
-  --nf-navy-mid:    #2B4A9F;
-  --nf-navy-light:  #E8EDF8;
-  --nf-red:         #C8102E;
-  --nf-red-dark:    #A50E26;
-  --nf-white:       #FFFFFF;
-  --nf-bg:          #F7F8FC;
-  --nf-text:        #2D2D2D;
-  --nf-text-meta:   #6B7280;
-  --nf-border:      #D1D9F0;
-  --nf-shadow:      0 2px 12px rgba(27,47,107,0.10);
+  --nf-navy: #1B2F6B;
+  --nf-navy-dark: #132250;
+  --nf-blue: #2B4A9F;
+  --nf-light-blue: #E8EDF8;
+  --nf-red: #C8102E;
+  --nf-red-dark: #A50E26;
+  --nf-bg: #F7F8FC;
+  --nf-text: #2D2D2D;
+  --nf-muted: #6B7280;
+  --nf-border: #D1D9F0;
 }
 
+/* Global */
+body {
+  background: var(--nf-bg) !important;
+  color: var(--nf-text) !important;
+  font-family: "Inter", "Segoe UI", Arial, sans-serif !important;
+}
 
-/* ══════════════════════════════════════════════════════════ */
-/*  1. LOGIN PAGE                                             */
-/* ══════════════════════════════════════════════════════════ */
-
-/* Page background */
+/* Login page */
 .login {
-  background: linear-gradient(160deg, var(--nf-navy) 0%, var(--nf-navy-mid) 55%, #3A5FBF 100%) !important;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: linear-gradient(145deg, var(--nf-navy) 0%, var(--nf-blue) 70%) !important;
 }
 
-/* Login card */
 .login .login-form,
 .login form,
 .login .card {
-  background: var(--nf-white) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.25) !important;
+  background: #ffffff !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25) !important;
   border: none !important;
-  padding: 40px !important;
 }
 
-/* Logo area on login — Zammad loads this via the branding logo upload.
-   The selectors below add spacing and centering around it. */
 .login .logo,
 .login-logo,
 #logo {
-  display: block;
-  margin: 0 auto 28px auto;
-  max-width: 200px;
-  max-height: 70px;
-  object-fit: contain;
+  display: block !important;
+  margin: 0 auto 24px auto !important;
+  max-width: 220px !important;
+  max-height: 80px !important;
 }
 
-/* Field labels */
 .login label {
   color: var(--nf-navy) !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   font-size: 12px !important;
-  letter-spacing: 0.6px !important;
   text-transform: uppercase !important;
 }
 
-/* Input fields */
 .login input[type="text"],
 .login input[type="email"],
 .login input[type="password"] {
   border: 1.5px solid var(--nf-border) !important;
-  border-radius: 7px !important;
-  padding: 10px 14px !important;
-  font-size: 14px !important;
-  color: var(--nf-text) !important;
+  border-radius: 8px !important;
   background: var(--nf-bg) !important;
-  transition: border-color 0.2s ease;
+  color: var(--nf-text) !important;
 }
 
 .login input:focus {
-  border-color: var(--nf-navy-mid) !important;
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(43,74,159,0.15) !important;
-  background: var(--nf-white) !important;
+  border-color: var(--nf-blue) !important;
+  box-shadow: 0 0 0 3px rgba(43, 74, 159, 0.15) !important;
+  background: #ffffff !important;
 }
 
-/* Sign In button */
+.login button[type="submit"],
 .login [type="submit"],
-.login .btn-primary,
-.login button[type="submit"] {
+.login .btn-primary {
   background: var(--nf-navy) !important;
   border: none !important;
-  border-radius: 7px !important;
-  color: var(--nf-white) !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
-  font-size: 14px !important;
-  letter-spacing: 0.5px !important;
-  padding: 12px !important;
-  width: 100% !important;
-  transition: background 0.2s ease !important;
 }
 
+.login button[type="submit"]:hover,
 .login [type="submit"]:hover,
-.login button[type="submit"]:hover {
-  background: var(--nf-navy-mid) !important;
+.login .btn-primary:hover {
+  background: var(--nf-blue) !important;
 }
 
-/* Forgot password link */
-.login a {
-  color: var(--nf-red) !important;
-  font-weight: 500 !important;
-}
-
-.login a:hover {
-  color: var(--nf-red-dark) !important;
-  text-decoration: underline !important;
-}
-
-/* ── "Powered by Zammad" footer → replace with NF branding ─ */
-/* Hide the Zammad powered-by logo */
+/* Hide powered by via CSS fallback */
 .login .powered,
 .login .poweredBy,
-.login [class*="powered"],
-.login footer img[src*="zammad"],
-.login .zammad-logo {
+.login .poweredby,
+.login .powered-by,
+.login [class*="powered"] {
   display: none !important;
 }
 
-/* Inject a custom NF IT Support footer line */
+/* Custom footer */
 .login::after {
   content: "© National Finance Oman · IT Support Portal";
-  display: block;
   position: fixed;
-  bottom: 20px;
+  bottom: 18px;
   left: 0;
   right: 0;
   text-align: center;
-  color: rgba(255,255,255,0.55);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 12px;
-  font-family: inherit;
   pointer-events: none;
 }
 
-/* Register link */
-.login .register a,
-.login .register {
-  color: rgba(255,255,255,0.75) !important;
-  font-size: 12px;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  2. TOP NAVIGATION BAR                                     */
-/* ══════════════════════════════════════════════════════════ */
-
-/* Main top bar */
+/* Top navigation */
 #navigation,
 .navigation,
-nav.navigation {
+nav.navigation,
+.header,
+.header-bar {
   background: var(--nf-navy) !important;
   border-bottom: 3px solid var(--nf-red) !important;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.2) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.20) !important;
 }
 
-/* App name / branding text in top bar */
-#navigation .brand,
-.navigation .brand,
-#brand {
-  color: var(--nf-white) !important;
-  font-weight: 700 !important;
-  font-size: 15px !important;
-  letter-spacing: 0.3px !important;
-}
-
-/* Hide Zammad logo in top-left — the org logo upload replaces this.
-   If Zammad still renders its own logo asset, hide it: */
-#navigation img[src*="zammad"],
-.navigation img[src*="zammad"],
-#navigation .logo img[alt*="Zammad"],
-.zammad-logo-nav {
-  opacity: 0 !important;
-  width: 0 !important;
-  overflow: hidden !important;
-}
-
-/* Nav icons and links */
 #navigation a,
-.navigation a {
-  color: rgba(255,255,255,0.80) !important;
-  transition: color 0.15s ease !important;
+.navigation a,
+.header a {
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
 #navigation a:hover,
 .navigation a:hover,
-#navigation a.active,
-.navigation a.active {
-  color: var(--nf-white) !important;
+.header a:hover {
+  color: #ffffff !important;
 }
 
-/* Active nav underline */
-#navigation .active,
-.navigation .active {
-  border-bottom: 3px solid var(--nf-red) !important;
-}
-
-/* Search bar in nav */
-#navigation .search input,
-.navigation .search input,
-#global-search {
-  background: rgba(255,255,255,0.12) !important;
-  border: 1px solid rgba(255,255,255,0.2) !important;
-  border-radius: 20px !important;
-  color: var(--nf-white) !important;
-  padding: 6px 14px !important;
-}
-
-#navigation .search input::placeholder,
-#global-search::placeholder {
-  color: rgba(255,255,255,0.55) !important;
-}
-
-/* User avatar bubble */
-#navigation .user,
-.navigation .user {
-  background: var(--nf-red) !important;
-  border-radius: 50% !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  3. LEFT SIDEBAR                                           */
-/* ══════════════════════════════════════════════════════════ */
-
-#app-content aside,
+/* Sidebar */
 .sidebar-left,
-.column.left {
-  background: var(--nf-navy-light) !important;
+.column.left,
+#app-content aside {
+  background: var(--nf-light-blue) !important;
   border-right: 1px solid var(--nf-border) !important;
 }
 
 .sidebar-left a,
 .column.left a {
   color: var(--nf-navy) !important;
-  border-radius: 6px !important;
-  transition: background 0.15s ease, color 0.15s ease !important;
+  border-radius: 8px !important;
 }
 
 .sidebar-left a:hover,
 .column.left a:hover {
-  background: rgba(27,47,107,0.08) !important;
-  color: var(--nf-navy-dark) !important;
+  background: rgba(27, 47, 107, 0.10) !important;
 }
 
 .sidebar-left a.active,
 .column.left a.active,
 .sidebar-left .is-active {
   background: var(--nf-navy) !important;
-  color: var(--nf-white) !important;
-  font-weight: 600 !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  4. DASHBOARD                                              */
-/* ══════════════════════════════════════════════════════════ */
-
-/* Page background */
-body,
-#app,
-.main-content,
-.dashboard {
-  background: var(--nf-bg) !important;
-}
-
-/* Dashboard stat cards */
-.dashboard .stats,
-.stat-widget,
-.widget {
-  background: var(--nf-white) !important;
-  border: 1px solid var(--nf-border) !important;
-  border-radius: 10px !important;
-  box-shadow: var(--nf-shadow) !important;
-  padding: 20px !important;
-}
-
-.stat-widget h2,
-.widget h2,
-.stat-widget .title,
-.widget .title {
-  color: var(--nf-navy) !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
-  font-size: 13px !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.5px !important;
-  border-bottom: 2px solid var(--nf-red) !important;
-  padding-bottom: 8px !important;
-  margin-bottom: 14px !important;
 }
 
-/* Stat numbers */
-.stat-widget .count,
-.widget .count,
-.stat-count {
+/* Cards and widgets */
+.widget,
+.stat-widget,
+.dashboard .stats,
+.card {
+  background: #ffffff !important;
+  border: 1px solid var(--nf-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 12px rgba(27, 47, 107, 0.10) !important;
+}
+
+.widget h2,
+.stat-widget h2,
+.widget .title,
+.stat-widget .title {
   color: var(--nf-navy) !important;
-  font-size: 36px !important;
   font-weight: 800 !important;
 }
 
-/* Widget accent underline */
-.stat-widget::before,
-.widget::before {
-  content: '';
-  display: block;
-  height: 4px;
-  background: linear-gradient(90deg, var(--nf-navy) 0%, var(--nf-red) 100%);
-  border-radius: 10px 10px 0 0;
-  position: absolute;
-  top: 0; left: 0; right: 0;
-}
-
-.stat-widget,
-.widget {
-  position: relative;
-  overflow: hidden;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  5. TICKET LIST / OVERVIEWS                                */
-/* ══════════════════════════════════════════════════════════ */
-
-/* Table / ticket list container */
+/* Tables */
 .ticket-list,
 .overview-table,
 .js-tableBody {
-  background: var(--nf-white) !important;
-  border-radius: 10px !important;
+  background: #ffffff !important;
   border: 1px solid var(--nf-border) !important;
-  overflow: hidden;
-  box-shadow: var(--nf-shadow) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
 }
 
-/* Table header */
 .ticket-list thead th,
 .overview-table thead th,
 .js-tableHead th {
   background: var(--nf-navy) !important;
-  color: var(--nf-white) !important;
-  font-weight: 600 !important;
-  font-size: 12px !important;
-  letter-spacing: 0.5px !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
   text-transform: uppercase !important;
-  padding: 12px 16px !important;
-  border: none !important;
-}
-
-/* Ticket rows */
-.ticket-list tbody tr,
-.overview-table tbody tr,
-.js-tableBody tr {
-  border-bottom: 1px solid var(--nf-border) !important;
-  transition: background 0.12s ease !important;
 }
 
 .ticket-list tbody tr:hover,
 .overview-table tbody tr:hover,
 .js-tableBody tr:hover {
-  background: var(--nf-navy-light) !important;
+  background: var(--nf-light-blue) !important;
 }
 
-.ticket-list td,
-.overview-table td,
-.js-tableBody td {
-  color: var(--nf-text) !important;
-  font-size: 13px !important;
-  padding: 11px 16px !important;
-  vertical-align: middle !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  6. PRIORITY BADGES                                        */
-/* ══════════════════════════════════════════════════════════ */
-
-/* Base badge style */
-.ticket-priority,
-[class*="priority"],
-.badge-priority {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 5px !important;
-  padding: 3px 10px !important;
-  border-radius: 20px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.4px !important;
-  text-transform: uppercase !important;
-}
-
-/* 1 Low */
-[class*="priority-1"],
-.priority-low,
-[data-priority="1 low"] {
-  background: #DBEAFE !important;
-  color: #1D4ED8 !important;
-}
-
-/* 2 Normal */
-[class*="priority-2"],
-.priority-normal,
-[data-priority="2 normal"] {
-  background: #D1FAE5 !important;
-  color: #065F46 !important;
-}
-
-/* 3 High */
-[class*="priority-3"],
-.priority-high,
-[data-priority="3 high"] {
-  background: #FEF3C7 !important;
-  color: #92400E !important;
-}
-
-/* Urgent (if exists) */
-[class*="priority-urgent"],
-.priority-urgent {
-  background: #FEE2E2 !important;
-  color: var(--nf-red-dark) !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  7. STATE / STATUS BADGES                                  */
-/* ══════════════════════════════════════════════════════════ */
-
-.ticket-state,
-[class*="state"],
-.badge-state {
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 3px 10px !important;
-  border-radius: 20px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.4px !important;
-  text-transform: uppercase !important;
-}
-
-.state--new,
-[data-state="new"],
-.is-new { background: #E8EDF8 !important; color: var(--nf-navy) !important; }
-
-.state--open,
-[data-state="open"],
-.is-open { background: #FEE2E2 !important; color: var(--nf-red) !important; }
-
-.state--pending,
-[data-state*="pending"],
-.is-pending { background: #FEF3C7 !important; color: #92400E !important; }
-
-.state--closed,
-[data-state="closed"],
-.is-closed { background: #F3F4F6 !important; color: #6B7280 !important; }
-
-.state--merged,
-[data-state="merged"] { background: #EDE9FE !important; color: #5B21B6 !important; }
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  8. TICKET DETAIL VIEW                                     */
-/* ══════════════════════════════════════════════════════════ */
-
-/* Ticket header */
-.ticket-title h1,
-.ticket-zoom-title,
-h1.ticket-title {
-  color: var(--nf-navy) !important;
-  font-weight: 800 !important;
-  font-size: 22px !important;
-}
-
-/* Article / note bubbles */
-.ticket-article,
-.article,
-.ticket-zoom-article {
-  border-radius: 10px !important;
-  border: 1px solid var(--nf-border) !important;
-  margin-bottom: 16px !important;
-  box-shadow: 0 1px 4px rgba(27,47,107,0.06) !important;
-}
-
-/* Agent note header */
-.ticket-article .header,
-.article .header {
-  background: var(--nf-navy-light) !important;
-  border-bottom: 1px solid var(--nf-border) !important;
-  border-radius: 10px 10px 0 0 !important;
-  padding: 10px 16px !important;
-}
-
-/* Right sidebar (ticket meta) */
-.ticket-sidebar,
-.sidebar-right {
-  background: var(--nf-white) !important;
-  border-left: 1px solid var(--nf-border) !important;
-}
-
-.ticket-sidebar h3,
-.sidebar-right h3,
-.sidebar-right .sidebar-title {
-  color: var(--nf-navy) !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.6px !important;
-  margin-bottom: 6px !important;
-}
-
-/* Ticket number label */
-.ticket-number {
-  color: var(--nf-red) !important;
-  font-weight: 700 !important;
-  font-size: 13px !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  9. BUTTONS                                                */
-/* ══════════════════════════════════════════════════════════ */
-
+/* Buttons */
 .btn.btn-primary,
 button.btn-primary,
 .js-submit.btn-primary {
   background: var(--nf-navy) !important;
   border: none !important;
-  border-radius: 7px !important;
-  color: var(--nf-white) !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
-  transition: background 0.2s ease !important;
 }
 
 .btn.btn-primary:hover,
 button.btn-primary:hover {
-  background: var(--nf-navy-mid) !important;
+  background: var(--nf-blue) !important;
 }
 
 .btn.btn-danger,
 button.btn-danger {
   background: var(--nf-red) !important;
   border: none !important;
-  border-radius: 7px !important;
-  color: var(--nf-white) !important;
-  font-weight: 700 !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
 }
 
-.btn.btn-danger:hover {
-  background: var(--nf-red-dark) !important;
-}
-
-.btn.btn-secondary,
-button.btn-secondary,
-.btn.btn-default {
-  background: var(--nf-white) !important;
-  border: 1.5px solid var(--nf-border) !important;
-  border-radius: 7px !important;
+/* Ticket title and number */
+.ticket-title h1,
+.ticket-zoom-title,
+h1.ticket-title {
   color: var(--nf-navy) !important;
-  font-weight: 600 !important;
+  font-weight: 800 !important;
 }
 
-.btn.btn-secondary:hover,
-.btn.btn-default:hover {
-  background: var(--nf-navy-light) !important;
-  border-color: var(--nf-navy-mid) !important;
+.ticket-number {
+  color: var(--nf-red) !important;
+  font-weight: 800 !important;
 }
 
-
-/* ══════════════════════════════════════════════════════════ */
-/*  10. FORMS & INPUTS (GENERAL)                              */
-/* ══════════════════════════════════════════════════════════ */
-
+/* Forms */
 input[type="text"],
 input[type="email"],
 input[type="search"],
 textarea,
 select {
   border: 1.5px solid var(--nf-border) !important;
-  border-radius: 7px !important;
+  border-radius: 8px !important;
   color: var(--nf-text) !important;
-  background: var(--nf-white) !important;
-  font-size: 13px !important;
 }
 
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: var(--nf-navy-mid) !important;
-  box-shadow: 0 0 0 3px rgba(43,74,159,0.12) !important;
+  border-color: var(--nf-blue) !important;
+  box-shadow: 0 0 0 3px rgba(43, 74, 159, 0.12) !important;
   outline: none !important;
 }
 
-label {
-  color: var(--nf-navy) !important;
-  font-weight: 600 !important;
-  font-size: 12px !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  11. MODAL DIALOGS                                         */
-/* ══════════════════════════════════════════════════════════ */
-
-.modal-dialog,
-.dialog,
-.modal {
-  border-radius: 12px !important;
-  border: none !important;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.25) !important;
-}
-
-.modal-header,
-.dialog-header {
-  background: var(--nf-navy) !important;
-  color: var(--nf-white) !important;
-  border-radius: 12px 12px 0 0 !important;
-  padding: 16px 24px !important;
-}
-
-.modal-header h1,
-.modal-header h2,
-.modal-header h3,
-.dialog-header h1,
-.dialog-header h2 {
-  color: var(--nf-white) !important;
-  font-size: 16px !important;
-  font-weight: 700 !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  12. NOTIFICATIONS / ALERTS                                */
-/* ══════════════════════════════════════════════════════════ */
-
+/* Alerts */
 .alert-success,
 .notice.success {
   background: #D1FAE5 !important;
   border-left: 4px solid #10B981 !important;
   color: #065F46 !important;
-  border-radius: 7px !important;
 }
 
 .alert-warning,
@@ -682,7 +269,6 @@ label {
   background: #FEF3C7 !important;
   border-left: 4px solid #F59E0B !important;
   color: #92400E !important;
-  border-radius: 7px !important;
 }
 
 .alert-danger,
@@ -690,96 +276,104 @@ label {
 .notice.error {
   background: #FEE2E2 !important;
   border-left: 4px solid var(--nf-red) !important;
-  color: var(--nf-red-dark) !important;
-  border-radius: 7px !important;
+  color: var(--nf-red) !important;
 }
 
 .alert-info,
 .notice.info {
-  background: var(--nf-navy-light) !important;
+  background: var(--nf-light-blue) !important;
   border-left: 4px solid var(--nf-navy) !important;
-  color: var(--nf-navy-dark) !important;
-  border-radius: 7px !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  13. TAG PILLS                                             */
-/* ══════════════════════════════════════════════════════════ */
-
-.tag,
-.badge-tag {
-  background: var(--nf-navy-light) !important;
   color: var(--nf-navy) !important;
-  border-radius: 12px !important;
-  font-size: 11px !important;
-  font-weight: 600 !important;
-  padding: 2px 8px !important;
-  border: 1px solid var(--nf-border) !important;
 }
 
-
-/* ══════════════════════════════════════════════════════════ */
-/*  14. SCROLLBARS (webkit)                                   */
-/* ══════════════════════════════════════════════════════════ */
-
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--nf-bg); }
-::-webkit-scrollbar-thumb {
-  background: var(--nf-border);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover { background: var(--nf-navy-mid); }
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  15. HIDE ALL REMAINING ZAMMAD BRANDING                    */
-/* ══════════════════════════════════════════════════════════ */
-
-/* Footer "Powered by" on login */
-.login .poweredby,
-.login [class*="powered-by"],
-.login .powered-by { display: none !important; }
-
-/* Any Zammad wordmark rendered as text */
-a[href="https://zammad.com"],
-a[href*="zammad.com"]:not([class*="btn"]) {
-  font-size: 0 !important;       /* hide text */
-  pointer-events: none !important;
-}
-
-a[href="https://zammad.com"]::after,
-a[href*="zammad.com"]:not([class*="btn"])::after {
-  content: "National Finance IT Support";
-  font-size: 12px !important;
-  color: rgba(255,255,255,0.45) !important;
-}
-
-
-/* ══════════════════════════════════════════════════════════ */
-/*  16. TYPOGRAPHY                                            */
-/* ══════════════════════════════════════════════════════════ */
-
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-  color: var(--nf-text) !important;
-  -webkit-font-smoothing: antialiased !important;
-}
-
+/* Typography */
 h1, h2, h3, h4, h5, h6 {
   color: var(--nf-navy) !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
 }
 
 
-/* ══════════════════════════════════════════════════════════ */
-/*  17. RESPONSIVE TWEAKS                                     */
-/* ══════════════════════════════════════════════════════════ */
+nano /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
 
-@media (max-width: 768px) {
-  .login form,
-  .login .login-form {
-    padding: 24px !important;
-    margin: 16px !important;
-  }
-}
+
+#!/bin/bash
+set -e
+
+COMPOSE_DIR="/opt/zammad-docker-compose"
+CSS_SOURCE="/opt/ai-support-agent/zammad-branding/national_finance.css"
+CSS_TARGET="/opt/zammad/app/assets/stylesheets/custom/national_finance.css"
+
+cd "$COMPOSE_DIR"
+
+echo "[1/6] Checking Zammad containers..."
+docker compose ps
+
+echo "[2/6] Creating custom CSS directory..."
+docker compose exec -T zammad-railsserver bash -lc "mkdir -p /opt/zammad/app/assets/stylesheets/custom"
+
+echo "[3/6] Copying National Finance CSS..."
+docker compose cp "$CSS_SOURCE" zammad-railsserver:"$CSS_TARGET"
+
+echo "[4/6] Removing Powered by Zammad from login templates..."
+
+docker compose exec -T zammad-railsserver bash -lc '
+FILES="
+/opt/zammad/app/assets/javascripts/app/views/login.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/password/reset.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/password/reset_sent.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/password/reset_failed.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/password/reset_change.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/admin_password_auth/request.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/admin_password_auth/request_sent.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/signup.jst.eco
+/opt/zammad/app/assets/javascripts/app/views/signup/verify.jst.eco
+"
+
+for file in $FILES; do
+  if [ -f "$file" ]; then
+    echo "Patching $file"
+    perl -0777 -pi -e "s!<div class=\"poweredBy\">.*?</div>!!sg" "$file"
+    perl -0777 -pi -e "s!<div class=\"powered-by\">.*?</div>!!sg" "$file"
+    perl -0777 -pi -e "s!Powered by Zammad!!sg" "$file"
+  fi
+done
+'
+
+echo "[5/6] Precompiling Zammad assets..."
+docker compose exec -T zammad-railsserver bash -lc "bundle exec rake assets:precompile"
+
+echo "[6/6] Restarting Zammad..."
+docker compose restart
+
+echo "Branding applied successfully."
+
+
+
+chmod +x /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
+
+/opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
+
+cd /opt/zammad-docker-compose
+docker compose ps
+
+nano /etc/systemd/system/zammad-branding.service
+
+[Unit]
+Description=Apply National Finance Branding to Zammad
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user
+
+systemctl daemon-reload
+systemctl enable zammad-branding
+
+crontab -e
+
+30 3 * * * /opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh >> /var/log/zammad-branding.log 2
