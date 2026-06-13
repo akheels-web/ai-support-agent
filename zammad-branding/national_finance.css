@@ -268,8 +268,60 @@ body:not(.login) aside .logo::after {
   z-index: 9999 !important;
 }
 
-/* Hide small Zammad bird/logo in app sidebar/header */
+/* ==========================================================
+   Zammad 7.0.1 - Sidebar Logo Replacement
+   Replace bird/Zammad logo with National Finance logo
+   ========================================================== */
+
+/* Make top logo area controlled */
+body:not(.login) .navigation {
+  position: relative !important;
+}
+
+/* Hide existing Zammad bird/logo inside sidebar top area */
+body:not(.login) .navigation img,
+body:not(.login) .navigation svg,
 body:not(.login) .navigation .logo img,
-body:not(.login) #navigation .logo img,
-body:not(.login) .sidebar-left .logo img,
-body:not(.login) .column.left .logo img,
+body:not(.login) .navigation .logo svg,
+body:not(.login) .navigation [class*="logo"] img,
+body:not(.login) .navigation [class*="logo"] svg {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Reserve clean logo space at top */
+body:not(.login) .navigation::before {
+  content: "" !important;
+  display: block !important;
+  width: 100% !important;
+  height: 62px !important;
+  background-color: #121f3f !important;
+  background-image: url("/assets/nfc-logo.svg") !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  background-size: 145px auto !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Push search/sidebar content below logo */
+body:not(.login) .navigation>*:first-child {
+  margin-top: 0 !important;
+}
+
+/* If Zammad logo element still takes space, collapse it */
+body:not(.login) .navigation .logo,
+body:not(.login) .navigation [class*="logo"] {
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Keep sidebar width stable */
+body:not(.login) .navigation,
+body:not(.login) .sidebar-left,
+body:not(.login) .column.left {
+  overflow: hidden !important;
+}
