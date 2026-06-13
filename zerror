@@ -18,3 +18,8 @@ curl -I http://127.0.0.1:8080
 docker compose logs --tail=100 zammad-nginx
 docker compose logs --tail=100 zammad-railsserver
 
+mkdir -p /opt/ai-support-agent/zammad-branding/assets
+
+curl -L "https://tctenterprise.com/wp-content/uploads/2023/02/tct-logo-1.png" \
+-o /opt/ai-support-agent/zammad-branding/assets/tct-logo.png
+
