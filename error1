@@ -28,3 +28,12 @@ SyntaxError: invalid syntax
 (venv) root@aicontactappubuntu:/opt/ai-support-agent# pkill -9 -f openai_realtime_bridge.py
 (venv) root@aicontactappubuntu:/opt/ai-support-agent# ss -lntp | grep 8765
 (venv) root@aicontactappubuntu:/opt/ai-support-agent# 
+
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python -m py_compile app/call_logger.py
+  File "app/call_logger.py", line 5
+    DB_PATH = "/opt/ai-support-agent/data/dashboarddb():DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
+                                                                                                          ^
+SyntaxError: unterminated string literal (detected at line 5)
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# 
