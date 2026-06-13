@@ -8,6 +8,10 @@ cd /opt/zammad-docker-compose
 docker compose exec -T zammad-nginx bash -lc "grep -R \"logo\" /opt/zammad/public/assets/*.css /opt/zammad/public/assets/*.js 2>/dev/null | head -n 30"
 
 
+cd /opt/zammad-docker-compose
+
+docker compose up -d --force-recreate zammad-nginx zammad-railsserver zammad-websocket zammad-scheduler
+
 
 
 

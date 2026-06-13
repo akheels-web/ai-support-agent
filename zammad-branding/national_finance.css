@@ -1,16 +1,15 @@
 /* ==========================================================
-   National Finance Oman - Safe Zammad Branding
-   Version: Safe CSS only for Zammad 7.0.1
-   Purpose:
-   - Branded login screen
+   National Finance Oman - Final Safe Zammad Branding
+   Zammad 7.0.1
+   Goal:
+   - Login screen branded
    - Powered by TCT footer
-   - National Finance logo in sidebar
-   - Keep native Zammad dashboard layout stable
+   - Hide/cover Zammad bird logo safely
+   - Do NOT break dashboard/sidebar/buttons/icons
    ========================================================== */
 
 :root {
   --nf-navy: #1B2F6B;
-  --nf-navy-dark: #132250;
   --nf-blue: #2B4A9F;
   --nf-red: #C8102E;
   --nf-border: #D1D9F0;
@@ -39,7 +38,8 @@ body.login,
 .login .login-form form,
 .login .login-form .form,
 .login .login-form .controls,
-.login .login-form .form-group {
+.login .login-form .form-group,
+.login .login-form .form-control {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -81,6 +81,7 @@ body.login,
   min-height: 40px !important;
 }
 
+/* Focus */
 .login input[type="text"]:focus,
 .login input[type="email"]:focus,
 .login input[type="password"]:focus {
@@ -88,7 +89,7 @@ body.login,
   box-shadow: 0 0 0 3px rgba(43, 74, 159, 0.15) !important;
 }
 
-/* Sign in button - force visible */
+/* Sign in button */
 .login button[type="submit"],
 .login input[type="submit"],
 .login .btn-primary,
@@ -180,12 +181,12 @@ body.login,
 }
 
 /* ==========================================================
-   MAIN ZAMMAD APP - SAFE RESET
-   Do not change fonts/layout globally.
-   Restore icons/buttons hidden by previous CSS.
+   MAIN APP SAFETY RESET
+   Important:
+   Do not globally hide SVG/images.
+   Do not change layout.
    ========================================================== */
 
-/* Restore all navigation images/icons */
 body:not(.login) .navigation img,
 body:not(.login) .navigation svg,
 body:not(.login) #navigation img,
@@ -195,26 +196,15 @@ body:not(.login) aside svg {
   display: inline-block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  max-width: none !important;
-  max-height: none !important;
 }
 
-/* Restore logo container behavior damaged by previous CSS */
-body:not(.login) .navigation .logo,
-body:not(.login) .navigation [class*="logo"],
-body:not(.login) #navigation .logo,
-body:not(.login) #navigation [class*="logo"],
-body:not(.login) aside .logo,
-body:not(.login) aside [class*="logo"] {
-  height: auto !important;
-  min-height: initial !important;
-  max-height: initial !important;
-  overflow: visible !important;
-  margin: initial !important;
-  padding: initial !important;
+/* Reset previous broken pseudo/logo behavior */
+body:not(.login) .navigation::before,
+body:not(.login) .navigation::after {
+  content: none !important;
 }
 
-/* Keep original Zammad layout stable */
+/* Keep default Zammad layout stable */
 body:not(.login),
 body:not(.login) #app,
 body:not(.login) .app,
@@ -225,43 +215,47 @@ body:not(.login) .main-content {
 }
 
 /* ==========================================================
-   NATIONAL FINANCE LOGO PATCH - CONSERVATIVE
-   Covers the small Zammad bird/logo area only.
-   Does NOT hide profile icon or sidebar buttons.
+   FINAL LOGO FIX
+   Do NOT inject a large logo.
+   Only cover Zammad bird logo area with sidebar background.
+   This avoids overlap/search/sidebar button issues.
    ========================================================== */
 
 body:not(.login) .navigation {
   position: relative !important;
+  background-color: #121f3f !important;
 }
 
-/* Cover original small logo area with a clean branded logo */
-body:not(.login) .navigation::after {
+/* Cover only the Zammad bird/logo area */
+body:not(.login) .navigation>div:first-child::after,
+body:not(.login) .navigation>a:first-child::after,
+body:not(.login) .navigation>.logo::after,
+body:not(.login) .navigation [class*="logo"]::after {
   content: "" !important;
   position: absolute !important;
-  top: 10px !important;
-  right: 18px !important;
-  width: 135px !important;
-  height: 40px !important;
-  background-color: #121f3f !important;
-  background-image: url("/assets/nfc-logo.svg") !important;
-  background-repeat: no-repeat !important;
-  background-position: center center !important;
-  background-size: 145px auto !important;
-  border-radius: 4px !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: 120px !important;
+  height: 70px !important;
+  background: #121f3f !important;
   z-index: 9999 !important;
   pointer-events: none !important;
 }
 
-/* Main navigation/sidebar brand color only */
-body:not(.login) .navigation,
-body:not(.login) #navigation,
-body:not(.login) .sidebar-left,
-body:not(.login) .column.left,
-body:not(.login) #app-content aside {
-  background-color: #121f3f !important;
+/* Backup cover: top-right only, does not push layout */
+body:not(.login) .navigation::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  width: 125px !important;
+  height: 72px !important;
+  background: #121f3f !important;
+  z-index: 9998 !important;
+  pointer-events: none !important;
 }
 
-/* Active sidebar item only */
+/* Active item color only */
 body:not(.login) .navigation a.active,
 body:not(.login) .sidebar-left a.active,
 body:not(.login) .column.left a.active,
@@ -292,58 +286,4 @@ body:not(.login) button.btn-primary:hover {
 body:not(.login) .ticket-number {
   color: var(--nf-red) !important;
   font-weight: 800 !important;
-}
-
-/* ==========================================================
-   FINAL FIX - Hide Zammad top logo and show NFC logo cleanly
-   Zammad 7.0.1 safe override
-   ========================================================== */
-
-body:not(.login) .navigation {
-  position: relative !important;
-  overflow: hidden !important;
-  isolation: isolate !important;
-}
-
-/* Cover only the top-right logo area where Zammad bird appears */
-body:not(.login) .navigation::before {
-  content: "" !important;
-  position: absolute !important;
-  top: 0 !important;
-  right: 0 !important;
-  width: 210px !important;
-  height: 92px !important;
-  background: #121f3f !important;
-  z-index: 9998 !important;
-  pointer-events: none !important;
-}
-
-/* Place National Finance logo inside the covered area */
-body:not(.login) .navigation::after {
-  content: "" !important;
-  position: absolute !important;
-  top: 18px !important;
-  right: 22px !important;
-  width: 155px !important;
-  height: 48px !important;
-  background-image: url("/assets/nfc-logo.svg") !important;
-  background-repeat: no-repeat !important;
-  background-position: center center !important;
-  background-size: contain !important;
-  z-index: 9999 !important;
-  pointer-events: none !important;
-}
-
-/* Ensure bottom profile/settings/add icons stay visible */
-body:not(.login) .navigation-footer,
-body:not(.login) .navigation .footer,
-body:not(.login) .navigation .profile,
-body:not(.login) .navigation .user,
-body:not(.login) .navigation .avatar,
-body:not(.login) .navigation [class*="user"],
-body:not(.login) .navigation [class*="avatar"],
-body:not(.login) .navigation [class*="profile"] {
-  display: initial !important;
-  visibility: visible !important;
-  opacity: 1 !important;
 }

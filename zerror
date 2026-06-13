@@ -26,4 +26,6 @@ curl -L "https://tctenterprise.com/wp-content/uploads/2023/02/tct-logo-1.png" \
 ls -lh /opt/ai-support-agent/zammad-branding/assets/tct-logo.png
 
 cd /opt/zammad-docker-compose
-docker compose exec -T zammad-nginx bash -lc "grep -R \"btn-primary\" /opt/zammad/public/assets/*.css | tail"
+
+docker compose up -d --force-recreate zammad-nginx zammad-railsserver zammad-websocket zammad-scheduler
+
