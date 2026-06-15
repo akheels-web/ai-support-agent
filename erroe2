@@ -6,3 +6,15 @@ cd /opt/zammad-docker-compose
 
 docker compose up -d --force-recreate zammad-nginx zammad-railsserver zammad-websocket zammad-scheduler
 
+
+cd /opt/ai-support-agent
+source venv/bin/activate
+
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
+
+systemctl restart ai-support-bridge
+systemctl status ai-support-bridge
+
+ss -lntp | grep 8765
+
+journalctl -u ai-support-bridge -f

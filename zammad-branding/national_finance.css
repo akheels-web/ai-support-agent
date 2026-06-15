@@ -215,44 +215,29 @@ body:not(.login) .main-content {
 }
 
 /* ==========================================================
-   FINAL LOGO FIX
-   Do NOT inject a large logo.
-   Only cover Zammad bird logo area with sidebar background.
-   This avoids overlap/search/sidebar button issues.
+   FINAL LOGO FIX - Clean Top Sidebar Area
+   Purpose:
+   - Hide Zammad bird/logo cleanly
+   - Keep search bar, dashboard menu, bottom icons working
+   - No absolute overlays or overflow modifications to avoid breaking the sidebar!
    ========================================================== */
 
+/* Change Sidebar Background */
 body:not(.login) .navigation {
-  position: relative !important;
   background-color: #121f3f !important;
 }
 
-/* Cover only the Zammad bird/logo area */
-body:not(.login) .navigation>div:first-child::after,
-body:not(.login) .navigation>a:first-child::after,
-body:not(.login) .navigation>.logo::after,
-body:not(.login) .navigation [class*="logo"]::after {
-  content: "" !important;
-  position: absolute !important;
-  top: 0 !important;
-  right: 0 !important;
-  width: 120px !important;
-  height: 70px !important;
-  background: #121f3f !important;
-  z-index: 9999 !important;
-  pointer-events: none !important;
-}
-
-/* Backup cover: top-right only, does not push layout */
-body:not(.login) .navigation::after {
-  content: "" !important;
-  position: absolute !important;
-  top: 0 !important;
-  right: 0 !important;
-  width: 125px !important;
-  height: 72px !important;
-  background: #121f3f !important;
-  z-index: 9998 !important;
-  pointer-events: none !important;
+/* Safely Hide the Zammad Logo without covering elements */
+body:not(.login) .navigation .logo,
+body:not(.login) .navigation .brand,
+body:not(.login) .navigation .menu-logo,
+body:not(.login) .navigation img[src*="logo"],
+body:not(.login) .navigation img[alt*="Zammad"],
+body:not(.login) .navigation svg.logo,
+body:not(.login) .navigation svg[class*="logo"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 /* Active item color only */
@@ -286,88 +271,4 @@ body:not(.login) button.btn-primary:hover {
 body:not(.login) .ticket-number {
   color: var(--nf-red) !important;
   font-weight: 800 !important;
-}
-
-/* ==========================================================
-   FINAL STABLE FIX - Clean Top Sidebar Area
-   Purpose:
-   - Hide Zammad bird/logo cleanly
-   - No National Finance logo inside Zammad dashboard sidebar
-   - Keep search bar, dashboard menu, bottom icons working
-   ========================================================== */
-
-/* Keep sidebar stable */
-body:not(.login) .navigation {
-  position: relative !important;
-  overflow: hidden !important;
-  background: #121f3f !important;
-}
-
-/* Remove all previous logo pseudo-elements */
-body:not(.login) .navigation::before {
-  content: none !important;
-  display: none !important;
-}
-
-/* Clean full-width top cover, not a small patch */
-body:not(.login) .navigation::after {
-  content: "" !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  width: 100% !important;
-  height: 145px !important;
-  background: linear-gradient(180deg, #121f3f 0%, #15284d 100%) !important;
-  z-index: 20 !important;
-  pointer-events: none !important;
-}
-
-/* Keep search box visible above clean header */
-body:not(.login) .navigation input[type="search"],
-body:not(.login) .navigation .search,
-body:not(.login) .navigation [class*="search"] {
-  position: relative !important;
-  z-index: 30 !important;
-}
-
-/* Keep main nav/menu items above normal layer */
-body:not(.login) .navigation a,
-body:not(.login) .navigation button,
-body:not(.login) .navigation .item,
-body:not(.login) .navigation [class*="item"] {
-  position: relative !important;
-  z-index: 25 !important;
-}
-
-/* But keep first top logo area hidden under cover */
-body:not(.login) .navigation img[src*="logo"],
-body:not(.login) .navigation img[alt*="Zammad"],
-body:not(.login) .navigation svg[class*="logo"],
-body:not(.login) .navigation [class*="brand"] {
-  opacity: 0 !important;
-  visibility: hidden !important;
-}
-
-/* Restore bottom icons/profile/settings/add buttons */
-body:not(.login) .navigation-footer,
-body:not(.login) .navigation .footer,
-body:not(.login) .navigation .profile,
-body:not(.login) .navigation .avatar,
-body:not(.login) .navigation .user,
-body:not(.login) .navigation [class*="profile"],
-body:not(.login) .navigation [class*="avatar"],
-body:not(.login) .navigation [class*="user"] {
-  display: initial !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  position: relative !important;
-  z-index: 50 !important;
-}
-
-/* Ensure active menu remains visible */
-body:not(.login) .navigation a.active,
-body:not(.login) .navigation .is-active {
-  background: #0EA5B7 !important;
-  color: #ffffff !important;
 }
