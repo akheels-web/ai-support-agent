@@ -14,6 +14,9 @@ APP_SECRET = os.getenv("DASHBOARD_SECRET", "change-this-dashboard-secret")
 DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
 RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
 
+DEFAULT_NF_LOGO = "https://www.nationalfinance.co.om/img/logo_nfc.svg"
+DEFAULT_TCT_LOGO = "https://tctenterprise.com/wp-content/uploads/2023/02/tct-logo-1.png"
+
 app = FastAPI(title="AI IT Support Dashboard")
 
 
@@ -100,6 +103,17 @@ def audit(username, action, entity_type="", entity_id=""):
     )
     conn.commit()
     conn.close()
+
+
+def get_setting(key, default=""):
+    conn = db()
+    row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    conn.close()
+
+    if row and row["value"] is not None:
+        return row["value"]
+
+    return default
 
 
 def init_db():
@@ -190,10 +204,17 @@ def init_db():
             )
 
     default_settings = {
+        "organization_name": "National Finance Oman",
+        "dashboard_title": "AI IT Support Dashboard",
+        "dashboard_subtitle": "Voice AI Support Operations",
+        "national_finance_logo_url": DEFAULT_NF_LOGO,
+        "tct_logo_url": DEFAULT_TCT_LOGO,
         "ai_greeting": "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue.",
+        "system_prompt": "You are Arif, an AI IT Support voice agent for National Finance IT Support team.",
         "max_concurrent_calls": "5",
         "recording_retention_days": "30",
-        "zammad_enabled": "true"
+        "zammad_enabled": "true",
+        "profile_icon_text": "NF"
     }
 
     for key, value in default_settings.items():
@@ -210,6 +231,31 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+def extract_caller_from_recording(recording_file):
+    if not recording_file:
+        return ""
+
+    name = Path(recording_file).name
+    parts = name.split("-")
+
+    if len(parts) >= 4:
+        return parts[2]
+
+    return ""
+
+
+def format_minutes(seconds):
+    if seconds is None or seconds == "":
+        return ""
+
+    try:
+        seconds_int = int(seconds)
+        mins = seconds_int / 60
+        return f"{mins:.1f}"
+    except Exception:
+        return ""
 
 
 def recording_files():
@@ -242,6 +288,12 @@ def recording_files():
 
 def layout(title, user, body):
     role = user["role"] if user else ""
+
+    organization_name = get_setting("organization_name", "National Finance Oman")
+    dashboard_title = get_setting("dashboard_title", "AI IT Support Dashboard")
+    profile_icon_text = get_setting("profile_icon_text", "NF")
+    tct_logo_url = get_setting("tct_logo_url", DEFAULT_TCT_LOGO)
+
     nav = ""
 
     if user:
@@ -267,10 +319,10 @@ def layout(title, user, body):
         nav = f"""
         <div class="nav">
             <div class="brand">
-                <div class="brand-mark">NF</div>
+                <div class="brand-mark">{escape(profile_icon_text)}</div>
                 <div>
-                    <div class="brand-title">National Finance Oman</div>
-                    <div class="brand-subtitle">AI IT Support Dashboard</div>
+                    <div class="brand-title">{escape(organization_name)}</div>
+                    <div class="brand-subtitle">{escape(dashboard_title)}</div>
                 </div>
             </div>
 
@@ -280,10 +332,17 @@ def layout(title, user, body):
 
             <div class="nav-user">
                 <span>{escape(user["username"])} ({escape(role)})</span>
-                <a href="/logout" class="logout">Logout</a>
+                <a class="logout" href="/logout">Logout</a>
             </div>
         </div>
         """
+
+    footer = f"""
+    <div class="footer-credit">
+        <span>Presented by</span>
+        <img src="{escape(tct_logo_url)}" alt="TCT Enterprise">
+    </div>
+    """
 
     return f"""
     <!DOCTYPE html>
@@ -402,6 +461,7 @@ def layout(title, user, body):
                 padding: 28px;
                 max-width: 1500px;
                 margin: 0 auto;
+                min-height: calc(100vh - 130px);
             }}
 
             h1 {{
@@ -462,6 +522,14 @@ def layout(title, user, body):
 
             .card h3 {{
                 margin-top: 0;
+            }}
+
+            .filter-box {{
+                display: grid;
+                grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+                gap: 12px;
+                align-items: end;
+                margin-bottom: 18px;
             }}
 
             table {{
@@ -567,59 +635,39 @@ def layout(title, user, body):
                 width: 300px;
             }}
 
-            .login-wrap {{
-                min-height: 100vh;
+            .footer-credit {{
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: radial-gradient(circle at center, #2B4A9F 0%, #132250 75%);
-                padding: 20px;
-            }}
-
-            .login-card {{
-                max-width: 420px;
-                width: 100%;
-                background: white;
-                border-radius: 18px;
-                padding: 34px;
-                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.30);
-                border-top: 5px solid var(--nf-red);
-            }}
-
-            .login-card h2 {{
-                margin: 0 0 8px;
-                color: var(--nf-navy);
-                font-size: 25px;
-            }}
-
-            .login-card p {{
-                margin-top: 0;
+                gap: 10px;
                 color: var(--nf-muted);
-                font-size: 14px;
-            }}
-
-            .login-card label {{
-                color: var(--nf-navy);
-                font-weight: 700;
                 font-size: 12px;
-                text-transform: uppercase;
+                padding: 18px;
             }}
 
-            .login-card input {{
-                background: #ffffff;
-                border: 1.5px solid #b8c4e3;
-                min-height: 42px;
+            .footer-credit img {{
+                height: 28px;
+                max-width: 130px;
+                object-fit: contain;
             }}
 
-            .login-card button {{
-                width: 100%;
-                min-height: 44px;
-                margin-top: 10px;
-            }}
-
-            @media (max-width: 900px) {{
+            @media (max-width: 1100px) {{
                 .grid {{
                     grid-template-columns: repeat(2, 1fr);
+                }}
+
+                .filter-box {{
+                    grid-template-columns: 1fr 1fr;
+                }}
+            }}
+
+            @media (max-width: 700px) {{
+                .grid {{
+                    grid-template-columns: 1fr;
+                }}
+
+                .container {{
+                    padding: 18px;
                 }}
 
                 .nav {{
@@ -629,15 +677,9 @@ def layout(title, user, body):
                 .brand {{
                     min-width: auto;
                 }}
-            }}
 
-            @media (max-width: 600px) {{
-                .grid {{
+                .filter-box {{
                     grid-template-columns: 1fr;
-                }}
-
-                .container {{
-                    padding: 18px;
                 }}
 
                 table {{
@@ -647,11 +689,13 @@ def layout(title, user, body):
             }}
         </style>
     </head>
+
     <body>
         {nav}
         <div class="container">
             {body}
         </div>
+        {footer}
     </body>
     </html>
     """
@@ -677,24 +721,10 @@ def home(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
-    body = """
-    <div class="login-wrap">
-        <div class="login-card">
-            <h2>AI IT Support Dashboard</h2>
-            <p>National Finance Oman — Secure Operations Portal</p>
-
-            <form method="post" action="/login">
-                <label>Username</label>
-                <input name="username" required>
-
-                <label>Password</label>
-                <input name="password" type="password" required>
-
-                <button type="submit">Login</button>
-            </form>
-        </div>
-    </div>
-    """
+    organization_name = get_setting("organization_name", "National Finance Oman")
+    dashboard_title = get_setting("dashboard_title", "AI IT Support Dashboard")
+    nf_logo_url = get_setting("national_finance_logo_url", DEFAULT_NF_LOGO)
+    tct_logo_url = get_setting("tct_logo_url", DEFAULT_TCT_LOGO)
 
     return f"""
     <!DOCTYPE html>
@@ -702,6 +732,7 @@ def login_page(request: Request):
     <head>
         <title>Login</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
         <style>
             :root {{
                 --nf-navy: #1B2F6B;
@@ -726,10 +757,11 @@ def login_page(request: Request):
                 justify-content: center;
                 background: radial-gradient(circle at center, #2B4A9F 0%, #132250 75%);
                 padding: 20px;
+                position: relative;
             }}
 
             .login-card {{
-                max-width: 420px;
+                max-width: 430px;
                 width: 100%;
                 background: white;
                 border-radius: 18px;
@@ -738,16 +770,26 @@ def login_page(request: Request):
                 border-top: 5px solid var(--nf-red);
             }}
 
+            .nf-logo {{
+                display: block;
+                max-width: 230px;
+                max-height: 80px;
+                margin: 0 auto 22px;
+                object-fit: contain;
+            }}
+
             h2 {{
                 margin: 0 0 8px;
                 color: var(--nf-navy);
                 font-size: 25px;
+                text-align: center;
             }}
 
             p {{
                 margin-top: 0;
                 color: var(--nf-muted);
                 font-size: 14px;
+                text-align: center;
             }}
 
             label {{
@@ -791,10 +833,55 @@ def login_page(request: Request):
             button:hover {{
                 background: var(--nf-blue);
             }}
+
+            .login-footer {{
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 22px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                color: rgba(255, 255, 255, 0.78);
+                font-size: 12px;
+            }}
+
+            .login-footer img {{
+                height: 32px;
+                max-width: 140px;
+                object-fit: contain;
+                background: rgba(255,255,255,0.08);
+                border-radius: 6px;
+                padding: 3px 6px;
+            }}
         </style>
     </head>
+
     <body>
-        {body}
+        <div class="login-wrap">
+            <div class="login-card">
+                <img class="nf-logo" src="{escape(nf_logo_url)}" alt="National Finance Oman">
+
+                <h2>{escape(dashboard_title)}</h2>
+                <p>{escape(organization_name)} — Secure Operations Portal</p>
+
+                <form method="post" action="/login">
+                    <label>Username</label>
+                    <input name="username" required>
+
+                    <label>Password</label>
+                    <input name="password" type="password" required>
+
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+
+            <div class="login-footer">
+                <span>Presented by</span>
+                <img src="{escape(tct_logo_url)}" alt="TCT Enterprise">
+            </div>
+        </div>
     </body>
     </html>
     """
@@ -833,12 +920,24 @@ def logout():
 def dashboard(request: Request):
     user = require_roles(request, ["admin", "user"])
 
+    organization_name = get_setting("organization_name", "National Finance Oman")
+    dashboard_title = get_setting("dashboard_title", "AI IT Support Dashboard")
+    dashboard_subtitle = get_setting("dashboard_subtitle", "Voice AI Support Operations")
+
     conn = db()
     total_calls = conn.execute("SELECT COUNT(*) c FROM calls").fetchone()["c"]
     tickets = conn.execute("SELECT COUNT(*) c FROM calls WHERE ticket_created=1").fetchone()["c"]
-    failed = conn.execute("SELECT COUNT(*) c FROM calls WHERE status='failed'").fetchone()["c"]
     verified = conn.execute(
         "SELECT COUNT(*) c FROM calls WHERE verified_name IS NOT NULL AND verified_name != ''"
+    ).fetchone()["c"]
+    failed = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE status IN ('failed', 'openai_connection_failed', 'openai_response_failed', 'ticket_failed')"
+    ).fetchone()["c"]
+    ongoing = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE status='in_progress'"
+    ).fetchone()["c"]
+    rejected = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE status IN ('rejected', 'max_concurrent_rejected')"
     ).fetchone()["c"]
     conn.close()
 
@@ -847,21 +946,29 @@ def dashboard(request: Request):
 
         metrics = f"""
         <div class="metric"><h2>{total_calls}</h2><p>Total Calls</p></div>
-        <div class="metric"><h2>{recordings_count}</h2><p>Recordings</p></div>
+        <div class="metric"><h2>{ongoing}</h2><p>Ongoing Calls</p></div>
         <div class="metric"><h2>{tickets}</h2><p>Tickets Created</p></div>
+        <div class="metric"><h2>{recordings_count}</h2><p>Recordings</p></div>
         <div class="metric"><h2>{verified}</h2><p>Verified Callers</p></div>
+        <div class="metric"><h2>0</h2><p>Calls in Queue</p></div>
+        <div class="metric"><h2>{rejected}</h2><p>Rejected Calls</p></div>
+        <div class="metric"><h2>{failed}</h2><p>Failed Calls</p></div>
         """
     else:
         metrics = f"""
         <div class="metric"><h2>{total_calls}</h2><p>Total Calls</p></div>
+        <div class="metric"><h2>{ongoing}</h2><p>Ongoing Calls</p></div>
         <div class="metric"><h2>{tickets}</h2><p>Tickets Created</p></div>
         <div class="metric"><h2>{verified}</h2><p>Verified Callers</p></div>
+        <div class="metric"><h2>0</h2><p>Calls in Queue</p></div>
+        <div class="metric"><h2>{rejected}</h2><p>Rejected Calls</p></div>
         <div class="metric"><h2>{failed}</h2><p>Failed Calls</p></div>
+        <div class="metric"><h2>{get_setting("max_concurrent_calls", "5")}</h2><p>Max Concurrent Calls</p></div>
         """
 
     body = f"""
-    <h1>AI IT Support Dashboard</h1>
-    <p class="subtitle">National Finance Oman — Voice AI Support Operations</p>
+    <h1>{escape(dashboard_title)}</h1>
+    <p class="subtitle">{escape(organization_name)} — {escape(dashboard_subtitle)}</p>
 
     <div class="grid">
         {metrics}
@@ -885,93 +992,150 @@ def dashboard(request: Request):
 def calls(request: Request):
     user = require_roles(request, ["admin", "user"])
 
+    q = request.query_params.get("q", "").strip()
+    employee_id = request.query_params.get("employee_id", "").strip()
+    status = request.query_params.get("status", "").strip()
+    language = request.query_params.get("language", "").strip()
+    ticket_created = request.query_params.get("ticket_created", "").strip()
+
+    sql = "SELECT * FROM calls WHERE 1=1"
+    params = []
+
+    if q:
+        sql += """
+        AND (
+            caller_number LIKE ?
+            OR verified_name LIKE ?
+            OR employee_id LIKE ?
+            OR ticket_number LIKE ?
+            OR status LIKE ?
+            OR summary LIKE ?
+        )
+        """
+        like = f"%{q}%"
+        params.extend([like, like, like, like, like, like])
+
+    if employee_id:
+        sql += " AND employee_id LIKE ?"
+        params.append(f"%{employee_id}%")
+
+    if status:
+        sql += " AND status=?"
+        params.append(status)
+
+    if language:
+        sql += " AND language=?"
+        params.append(language)
+
+    if ticket_created in ["0", "1"]:
+        sql += " AND ticket_created=?"
+        params.append(int(ticket_created))
+
+    sql += " ORDER BY id ASC LIMIT 500"
+
     conn = db()
-    rows = conn.execute(
-        "SELECT * FROM calls ORDER BY id DESC LIMIT 200"
+    rows = conn.execute(sql, params).fetchall()
+    status_rows = conn.execute(
+        "SELECT DISTINCT status FROM calls WHERE status IS NOT NULL AND status != '' ORDER BY status"
     ).fetchall()
     conn.close()
 
-    show_recording = user["role"] == "admin"
+    status_options = '<option value="">All Status</option>'
+    for s in status_rows:
+        selected = "selected" if status == s["status"] else ""
+        status_options += f'<option value="{escape(s["status"])}" {selected}>{escape(s["status"])}</option>'
 
-    if show_recording:
-        table = """
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>Caller</th>
-                <th>Employee</th>
-                <th>Name</th>
-                <th>Language</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>Ticket</th>
-                <th>Recording</th>
-            </tr>
-        """
-    else:
-        table = """
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>Caller</th>
-                <th>Employee</th>
-                <th>Name</th>
-                <th>Language</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>Ticket</th>
-            </tr>
-        """
+    language_options = f"""
+    <option value="">All Languages</option>
+    <option value="en" {"selected" if language == "en" else ""}>English</option>
+    <option value="ar" {"selected" if language == "ar" else ""}>Arabic</option>
+    """
+
+    ticket_options = f"""
+    <option value="">All Tickets</option>
+    <option value="1" {"selected" if ticket_created == "1" else ""}>Ticket Created</option>
+    <option value="0" {"selected" if ticket_created == "0" else ""}>No Ticket</option>
+    """
+
+    table = """
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Caller ID</th>
+            <th>Employee</th>
+            <th>Caller Name</th>
+            <th>Language</th>
+            <th>Duration(mins)</th>
+            <th>Status</th>
+            <th>Ticket</th>
+            <th>Summary</th>
+        </tr>
+    """
 
     for r in rows:
-        status = escape(str(r["status"] or ""))
-        ticket = escape(str(r["ticket_number"] or ""))
+        caller_id = r["caller_number"] or extract_caller_from_recording(r["recording_file"] or "")
+        caller_name = r["verified_name"] or "Unverified"
+        duration_mins = format_minutes(r["duration_seconds"])
+        status_text = str(r["status"] or "")
+        ticket = str(r["ticket_number"] or "")
+        summary = str(r["summary"] or "")
 
-        status_html = f"<span class='status-pill'>{status}</span>" if status else ""
-        ticket_html = f"<span class='ticket-pill'>{ticket}</span>" if ticket else ""
+        status_html = f"<span class='status-pill'>{escape(status_text)}</span>" if status_text else ""
+        ticket_html = f"<span class='ticket-pill'>{escape(ticket)}</span>" if ticket else ""
 
-        if show_recording:
-            rec = r["recording_file"] or ""
-            rec_name = Path(rec).name if rec else ""
-            rec_link = ""
-
-            if rec_name:
-                rec_link = f"<a class='btn-link' href='/recordings/play?file={quote(rec_name)}'>Play</a>"
-
-            table += f"""
-            <tr>
-                <td>{r["id"]}</td>
-                <td>{escape(str(r["caller_number"] or ""))}</td>
-                <td>{escape(str(r["employee_id"] or ""))}</td>
-                <td>{escape(str(r["verified_name"] or ""))}</td>
-                <td>{escape(str(r["language"] or ""))}</td>
-                <td>{escape(str(r["duration_seconds"] or ""))}</td>
-                <td>{status_html}</td>
-                <td>{ticket_html}</td>
-                <td>{rec_link}</td>
-            </tr>
-            """
-        else:
-            table += f"""
-            <tr>
-                <td>{r["id"]}</td>
-                <td>{escape(str(r["caller_number"] or ""))}</td>
-                <td>{escape(str(r["employee_id"] or ""))}</td>
-                <td>{escape(str(r["verified_name"] or ""))}</td>
-                <td>{escape(str(r["language"] or ""))}</td>
-                <td>{escape(str(r["duration_seconds"] or ""))}</td>
-                <td>{status_html}</td>
-                <td>{ticket_html}</td>
-            </tr>
-            """
+        table += f"""
+        <tr>
+            <td>{r["id"]}</td>
+            <td>{escape(str(caller_id or ""))}</td>
+            <td>{escape(str(r["employee_id"] or ""))}</td>
+            <td>{escape(caller_name)}</td>
+            <td>{escape(str(r["language"] or ""))}</td>
+            <td>{escape(duration_mins)}</td>
+            <td>{status_html}</td>
+            <td>{ticket_html}</td>
+            <td>{escape(summary[:160])}</td>
+        </tr>
+        """
 
     table += "</table>"
 
     body = f"""
     <h1>Call History</h1>
-    <p class="subtitle">Recent AI support interactions</p>
+    <p class="subtitle">Recent AI support interactions with filters</p>
 
     <div class="card">
+        <form method="get" action="/calls" class="filter-box">
+            <div>
+                <label>Search</label>
+                <input name="q" value="{escape(q)}" placeholder="Search caller, employee, ticket, status, summary">
+            </div>
+
+            <div>
+                <label>Employee ID</label>
+                <input name="employee_id" value="{escape(employee_id)}" placeholder="1002">
+            </div>
+
+            <div>
+                <label>Status</label>
+                <select name="status">{status_options}</select>
+            </div>
+
+            <div>
+                <label>Language</label>
+                <select name="language">{language_options}</select>
+            </div>
+
+            <div>
+                <label>Ticket</label>
+                <select name="ticket_created">{ticket_options}</select>
+            </div>
+
+            <div>
+                <button type="submit">Filter</button>
+                <a class="btn-link" href="/calls">Reset</a>
+            </div>
+        </form>
+
         {table}
     </div>
     """
@@ -1094,10 +1258,27 @@ def settings_page(request: Request):
     <form method="post" action="/settings">
     """
 
-    for r in rows:
+    preferred_order = [
+        "organization_name",
+        "dashboard_title",
+        "dashboard_subtitle",
+        "profile_icon_text",
+        "national_finance_logo_url",
+        "tct_logo_url",
+        "ai_greeting",
+        "system_prompt",
+        "max_concurrent_calls",
+        "recording_retention_days",
+        "zammad_enabled",
+    ]
+
+    rows_dict = {r["key"]: r["value"] for r in rows}
+
+    for key in preferred_order:
+        value = rows_dict.get(key, "")
         form += f"""
-        <label>{escape(r["key"])}</label>
-        <textarea name="{escape(r["key"])}">{escape(r["value"] or "")}</textarea>
+        <label>{escape(key)}</label>
+        <textarea name="{escape(key)}">{escape(value or "")}</textarea>
         """
 
     form += """
@@ -1107,10 +1288,13 @@ def settings_page(request: Request):
 
     body = f"""
     <h1>Settings</h1>
-    <p class="subtitle">Dashboard and AI support configuration</p>
+    <p class="subtitle">Admin-only configuration for dashboard, branding, prompts, and AI behavior</p>
 
     <div class="card">
-        <p class="small">Phase 1 stores settings here. Bridge integration can read these later.</p>
+        <p class="small">
+            These settings are stored in SQLite. Dashboard branding changes apply immediately after save.
+            Bridge prompt integration can be connected in the next phase.
+        </p>
         {form}
     </div>
     """
