@@ -1,11 +1,11 @@
-import asyncio
+import asyncioimport asyncioimport time
+import websockets
 import base64
 import json
 import os
-import time
-import websockets
 from dotenv import load_dotenv
-from app.call_logger import create_call, update_call, close_call
+
+from app.call_logger import create_call, update_call, close_call as log_close_call
 
 load_dotenv("/opt/ai-support-agent/.env", override=True)
 
@@ -21,94 +21,90 @@ ACTIVE_CALLS_LOCK = asyncio.Lock()
 
 OPENAI_WS_URL = f"wss://api.openai.com/v1/realtime?model={OPENAI_REALTIME_MODEL}"
 
+
 SYSTEM_PROMPT = """
 You are Arif, an AI IT Support voice agent for National Finance IT Support team.
 
-STRICT CALL FLOW:
-1. Say exactly once: "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue."
+CRITICAL RULE:
+- Follow the call workflow exactly.
+- Do not skip steps.
+- Do not create a ticket unless caller is verified and caller clearly confirms ticket creation.
+- Do not speak in mixed languages.
+- Ask one question at a time and wait for the caller's answer.
+
+CALL FLOW:
+1. Greet caller once:
+   "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue."
 2. Wait for caller to choose Arabic or English.
-3. You must call set_language after caller chooses language.
-4. Ask for caller full name.
-5. Ask for employee ID.
-6. You must call verify_user with both employee_name and employee_id.
-7. Do not provide IT support until verify_user returns verified=true.
-8. If verification fails, ask caller to repeat correct full name and employee ID.
-9. Caller gets maximum 3 verification attempts.
-10. If verification fails 3 times, call close_call with reason=verification_failed.
-11. After verification succeeds, ask: "How can I help you today?"
-12. Troubleshoot with max 3 to 4 short questions or steps.
-13. If issue is solved, ask if anything else is needed.
-14. If issue is not solved, create a ticket.
-15. If caller asks to disconnect, says bye, says no, says nothing else, or says thank you, call close_call.
+3. Call set_language.
+4. Ask caller full name.
+5. Call capture_name.
+6. Ask employee ID.
+7. Call capture_employee_id.
+8. Call verify_user.
+9. If verified, ask: "How can I help you today?"
+10. Collect issue details using record_issue_detail.
+11. Troubleshoot with maximum 3 to 4 useful questions or steps.
+12. If issue is not resolved, ask:
+    "This needs IT team support. Shall I create a ticket for you?"
+13. Only if caller says yes / okay / go ahead / create ticket, call confirm_ticket.
+14. After confirm_ticket succeeds, call create_ticket.
+15. Read ticket number.
+16. Ask if anything else is needed.
+17. If caller says no / nothing / bye / thank you / disconnect, call close_call.
 
 LANGUAGE RULES:
 - If English is selected, speak only English.
 - If Arabic is selected, speak only Arabic.
 - Never mix Arabic and English.
-- Ticket number must be spoken in selected language.
-- Goodbye must be spoken in selected language.
+- After set_language, every response must be in selected language only.
+- If unsure, ask the caller to repeat in the selected language.
+
+BACKGROUND NOISE RULE:
+- If you hear more than one speaker, background conversation, or unclear audio, do not continue troubleshooting.
+- Call report_audio_issue.
+- Say: "I am hearing background voices. Please speak one person at a time so I can help you correctly."
+- Then wait.
+
+QUESTION HANDLING RULES:
+- Ask only one question at a time.
+- After asking a question, wait for caller's actual answer.
+- Never answer your own question.
+- Never assume the answer.
+- Never say "got it", "okay", or "understood" unless the caller clearly answered.
+- If caller is silent or unclear, ask once: "I did not hear your answer clearly. Could you please repeat?"
 
 VERIFICATION RULES:
-- Employee ID must match exactly.
-- Full name must match or be close enough based on backend verification.
-- Do not say verified unless verify_user returns verified=true.
-- Do not create a verified ticket unless user is verified.
+- Do not provide IT support before verify_user returns verified=true.
+- Do not say verified unless backend returns verified=true.
+- If verification fails, ask for name and employee ID again.
+- If verification fails 3 times, close the call politely.
 
 TICKET RULES:
 - Never say ticket is created unless create_ticket returns success=true.
 - Never invent ticket numbers.
-- If create_ticket returns ticket_number, read it clearly once.
+- Never call create_ticket before confirm_ticket.
+- If create_ticket returns ticket_number, read it clearly.
 - In English say: "Your ticket number is ..."
 - In Arabic say: "رقم التذكرة هو ..."
-- After reading ticket number, ask if anything else is needed.
-- If ticket creation fails, do not retry repeatedly. Say there is a technical issue and ask caller to contact IT support directly.
-TICKET CONFIRMATION RULE:
-- Before creating a ticket after troubleshooting, say:
-  "This needs IT team support. Shall I create a ticket for you?"
-- Wait for the caller to say yes, okay, go ahead, or create ticket.
-- Only then call create_ticket.
-- If the caller says no, ask if anything else is needed.
+- If ticket creation fails, do not retry repeatedly.
 
+IT SUPPORT KNOWLEDGE:
+- Account lockout: verify user, ask exact screen/message, create Service Desk high priority ticket after confirmation.
+- Password reset: verify user, do not reset directly, create Service Desk ticket after confirmation.
+- MFA issue: verify user, ask if phone changed or code not working, create Service Desk/Security ticket after confirmation.
+- VPN TLS error: ask before login or after login, confirm internet works, create Network Support ticket after confirmation if unresolved.
+- VPN timeout: ask if internet works, ask if websites open, suggest reconnecting VPN once, create Network Support ticket if unresolved.
+- Slow laptop: ask when it started, ask if rebooted recently, ask if Task Manager shows high CPU if user can check.
+- Laptop not turning on: ask when issue started, ask if charger/laptop lights are visible, ask to hold power button for 15 seconds, then ask if it turns on.
+- Printer issue: ask if printer is online, if others can print, if queue is stuck.
+- Access denied: verify user and create Application Support ticket after confirmation.
 
-TROUBLESHOOTING RULES:
-- Do not jump directly to ticket unless the issue requires escalation.
-- Ask one question at a time.
-- Do not read bullet points.
-- Do not talk over the caller.
-- Keep answers short and phone-friendly.
-
-QUESTION HANDLING RULES:
-- Ask only one question at a time.
-- After asking a question, wait for the caller's actual answer.
-- Do not say "okay", "got it", "understood", or continue unless the caller clearly answered.
-- If the caller's answer is unclear, ask the same question once more in simpler words.
-- Never assume the answer.
-- Never answer your own question.
-- Never auto-confirm a question.
-- If the caller is silent, say once: "I did not hear your answer. Could you please repeat?"
-- If the caller is still silent, ask if they want to create a ticket.
-
-BASIC IT SUPPORT KNOWLEDGE:
-- Account lockout: do not suggest restart as main fix. Verify user, ask what exact screen says, then create Service Desk high priority ticket.
-- Password reset: do not reset password directly. Verify user, then create Service Desk ticket.
-- MFA issue: verify user, ask if phone was changed or code not working, then create Service Desk or Security ticket.
-- VPN TLS error: ask if TLS error appears before or after login. Ask if internet works. If still failing, create Network Support ticket.
-- VPN timeout: ask internet status, ask if other websites work, suggest reconnecting VPN once. If still failing, create Network Support ticket.
-- Slow laptop: ask when issue started, ask if rebooted recently, ask Task Manager high CPU if user can check. If still unresolved, create Service Desk ticket.
-- Printer issue: ask if printer is online, ask if others can print, ask if queue is stuck. If unresolved, create Service Desk ticket.
-- Software access denied: verify user, create Application Support ticket.
-Laptop not turning on:
-- Ask when the issue started.
-- Wait for the caller's answer.
-- Ask if there are any lights on the laptop or charger.
-- Wait for the caller's answer.
-- Ask if the charger is connected directly to wall power.
-- Wait for the caller's answer.
-- Ask the caller to hold the power button for 15 seconds, then try turning it on again.
-- Ask if the laptop turns on now.
-- If not resolved, ask for laptop serial number or asset tag if available.
-- Then create a Service Desk ticket with priority "3 high" if the user cannot work.
-- Do not say "got it" unless the caller answered.
+STYLE:
+- Keep responses short and phone-friendly.
+- No long explanations.
+- No bullet points aloud.
+- Be calm, professional, and direct.
 """
 
 
@@ -116,7 +112,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "set_language",
-        "description": "Set caller language for the current call.",
+        "description": "Set caller language for this call.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -130,8 +126,36 @@ TOOLS = [
     },
     {
         "type": "function",
+        "name": "capture_name",
+        "description": "Capture caller full name before verification.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "employee_name": {
+                    "type": "string"
+                }
+            },
+            "required": ["employee_name"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "capture_employee_id",
+        "description": "Capture caller employee ID before verification.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "employee_id": {
+                    "type": "string"
+                }
+            },
+            "required": ["employee_id"]
+        }
+    },
+    {
+        "type": "function",
         "name": "verify_user",
-        "description": "Verify caller identity by matching full name and employee ID against users.csv.",
+        "description": "Verify caller identity using captured or provided full name and employee ID.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -147,8 +171,45 @@ TOOLS = [
     },
     {
         "type": "function",
+        "name": "record_issue_detail",
+        "description": "Record caller issue details and troubleshooting answers.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "issue_category": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string"
+                }
+            },
+            "required": ["field", "value"]
+        }
+    },
+    {
+        "type": "function",
+        "name": "confirm_ticket",
+        "description": "Confirm caller clearly agreed to ticket creation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "confirmed": {
+                    "type": "boolean"
+                }
+            },
+            "required": ["confirmed"]
+        }
+    },
+    {
+        "type": "function",
         "name": "create_ticket",
-        "description": "Create a support ticket in Zammad. Only call after verification succeeds.",
+        "description": "Create Zammad ticket only after verification and caller confirmation.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -163,8 +224,7 @@ TOOLS = [
                     "enum": ["1 low", "2 normal", "3 high"]
                 },
                 "group": {
-                    "type": "string",
-                    "description": "Service Desk, Network Support, Security, Application Support"
+                    "type": "string"
                 }
             },
             "required": ["title", "description", "priority", "group"]
@@ -172,8 +232,22 @@ TOOLS = [
     },
     {
         "type": "function",
+        "name": "report_audio_issue",
+        "description": "Report unclear audio, background voice, or multiple speakers detected.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "issue": {
+                    "type": "string"
+                }
+            },
+            "required": ["issue"]
+        }
+    },
+    {
+        "type": "function",
         "name": "close_call",
-        "description": "Terminate the call cleanly. Always use this to end the call.",
+        "description": "Close call cleanly with goodbye.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -184,6 +258,7 @@ TOOLS = [
                         "ticket_created",
                         "verification_failed",
                         "caller_requested",
+                        "audio_unclear",
                         "timeout"
                     ]
                 }
@@ -210,9 +285,9 @@ def build_session_config():
                     },
                     "turn_detection": {
                         "type": "server_vad",
-                        "threshold": 0.60,
+                        "threshold": 0.70,
                         "prefix_padding_ms": 300,
-                        "silence_duration_ms": 800,
+                        "silence_duration_ms": 1400,
                         "create_response": True,
                         "interrupt_response": False,
                         "idle_timeout_ms": 30000
@@ -270,8 +345,14 @@ async def connect_openai():
     return ws
 
 
-def _digit_by_digit(value):
+def digit_by_digit(value):
     return " ".join(list(str(value)))
+
+
+def language_prefix(state):
+    if state.get("language") == "ar":
+        return "Respond only in Arabic."
+    return "Respond only in English."
 
 
 async def handle_asterisk_call(asterisk_ws):
@@ -297,24 +378,42 @@ async def handle_asterisk_call(asterisk_ws):
 async def handle_single_call(asterisk_ws):
     state = {
         "call_id": str(int(time.time() * 1000)),
+        "current_state": "greeting",
+
         "language": None,
+        "greeted": True,
+
+        "caller_name": None,
+        "employee_id": None,
         "verified_user": None,
         "verification_attempts": 0,
+
+        "issue_category": None,
+        "issue_summary": None,
+        "last_question": None,
+        "awaiting_answer": False,
+        "question_count": 0,
+        "answers_received": [],
+        "troubleshooting_steps": [],
+
+        "ticket_confirmed": False,
+        "ticket_creation_attempted": False,
         "last_ticket_number": None,
         "ticket_created": False,
-        "ticket_creation_attempted": False,
-        "tool_in_progress": False,
-        "call_ending": False,
-        "closing": False,
+
         "active_response": False,
         "pending_response_instruction": None,
         "pending_goodbye_instruction": None,
         "close_after_next_response_done": False,
-        "issue_notes": [],
-    }
-    
-    create_call(state["call_id"])
 
+        "tool_in_progress": False,
+        "call_ending": False,
+        "closing": False,
+
+        "background_noise_warning_count": 0,
+    }
+
+    create_call(state["call_id"])
     print("[ASTERISK] New call connected")
 
     try:
@@ -322,6 +421,7 @@ async def handle_single_call(asterisk_ws):
         print("[OPENAI] Connected")
     except Exception as exc:
         print(f"[OPENAI] Connection failed: {exc!r}")
+        update_call(state["call_id"], status="openai_connection_failed", summary=str(exc))
         await asterisk_ws.close()
         return
 
@@ -333,21 +433,21 @@ async def handle_single_call(asterisk_ws):
             return
 
         state["closing"] = True
+        state["current_state"] = "closing"
 
-        language = state.get("language") or "en"
-
-        if language == "ar":
+        if state.get("language") == "ar":
             state["pending_goodbye_instruction"] = (
-                "Say exactly in Arabic: شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
+                "Respond only in Arabic. Say exactly: "
+                "شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
             )
         else:
             state["pending_goodbye_instruction"] = (
-                "Say exactly: Thank you for calling National Finance IT Support. Goodbye."
+                "Respond only in English. Say exactly: "
+                "Thank you for calling National Finance IT Support. Goodbye."
             )
 
-        print(f"[CALL] Goodbye queued. Reason: {reason}")
-
         update_call(state["call_id"], status=reason)
+        print(f"[CALL] Goodbye queued. Reason: {reason}")
 
     async def send_queued_response_if_any():
         if state["call_ending"]:
@@ -382,28 +482,84 @@ async def handle_single_call(asterisk_ws):
                     language = "en"
 
                 state["language"] = language
+                state["current_state"] = "ask_name"
 
-                update_call(state["call_id"], language=language)
+                update_call(
+                    state["call_id"],
+                    language=language,
+                    status="language_selected"
+                )
 
                 print(f"[LANGUAGE] Selected: {language}")
 
                 return {
                     "success": True,
-                    "language": language
+                    "language": language,
+                    "next_state": state["current_state"]
+                }
+
+            if tool_name == "capture_name":
+                employee_name = arguments.get("employee_name", "").strip()
+
+                if not employee_name:
+                    return {
+                        "success": False,
+                        "error": "Name was empty. Ask caller to repeat full name."
+                    }
+
+                state["caller_name"] = employee_name
+                state["current_state"] = "ask_employee_id"
+
+                print(f"[CAPTURE] Name: {employee_name}")
+
+                return {
+                    "success": True,
+                    "employee_name": employee_name,
+                    "next_state": state["current_state"]
+                }
+
+            if tool_name == "capture_employee_id":
+                employee_id = arguments.get("employee_id", "").strip()
+
+                if not employee_id:
+                    return {
+                        "success": False,
+                        "error": "Employee ID was empty. Ask caller to repeat employee ID."
+                    }
+
+                state["employee_id"] = employee_id
+                state["current_state"] = "verification"
+
+                print(f"[CAPTURE] Employee ID: {employee_id}")
+
+                return {
+                    "success": True,
+                    "employee_id": employee_id,
+                    "next_state": state["current_state"]
                 }
 
             if tool_name == "verify_user":
                 from app.verify import verify_user
 
-                employee_id = arguments.get("employee_id", "").strip()
-                employee_name = arguments.get("employee_name", "").strip()
+                employee_id = arguments.get("employee_id", "").strip() or state.get("employee_id")
+                employee_name = arguments.get("employee_name", "").strip() or state.get("caller_name")
+
+                if not employee_name or not employee_id:
+                    return {
+                        "verified": False,
+                        "error": "Both employee name and employee ID are required before verification."
+                    }
+
+                state["caller_name"] = employee_name
+                state["employee_id"] = employee_id
 
                 result = verify_user(employee_id, employee_name)
 
                 if result.get("verified"):
                     state["verified_user"] = result
                     state["verification_attempts"] = 0
-                    
+                    state["current_state"] = "verified"
+
                     update_call(
                         state["call_id"],
                         employee_id=result.get("employee_id"),
@@ -418,7 +574,8 @@ async def handle_single_call(asterisk_ws):
                         "name": result.get("name"),
                         "email": result.get("email"),
                         "employee_id": result.get("employee_id"),
-                        "department": result.get("department")
+                        "department": result.get("department"),
+                        "next_state": state["current_state"]
                     }
 
                 state["verification_attempts"] += 1
@@ -427,6 +584,7 @@ async def handle_single_call(asterisk_ws):
                 print(f"[VERIFY] Failed attempt {state['verification_attempts']}/3")
 
                 if state["verification_attempts"] >= 3:
+                    state["current_state"] = "closing"
                     update_call(state["call_id"], status="verification_failed")
                     queue_goodbye("verification_failed")
 
@@ -437,13 +595,123 @@ async def handle_single_call(asterisk_ws):
                         "message": "Maximum verification attempts reached."
                     }
 
+                state["current_state"] = "ask_name"
+
                 return {
                     "verified": False,
                     "attempts_left": attempts_left,
-                    "message": "Name and employee ID did not match."
+                    "message": "Name and employee ID did not match.",
+                    "next_state": state["current_state"]
+                }
+
+            if tool_name == "record_issue_detail":
+                if not state["verified_user"]:
+                    return {
+                        "success": False,
+                        "error": "Caller is not verified. Cannot collect support details yet."
+                    }
+
+                issue_category = arguments.get("issue_category", "").strip()
+                field = arguments.get("field", "").strip()
+                value = arguments.get("value", "").strip()
+                summary = arguments.get("summary", "").strip()
+
+                if issue_category:
+                    state["issue_category"] = issue_category
+
+                if summary:
+                    state["issue_summary"] = summary
+                elif not state["issue_summary"] and value:
+                    state["issue_summary"] = value
+
+                if field and value:
+                    state["answers_received"].append({
+                        "field": field,
+                        "value": value
+                    })
+
+                    state["troubleshooting_steps"].append(f"{field}: {value}")
+
+                state["question_count"] += 1
+                state["awaiting_answer"] = False
+                state["current_state"] = "troubleshooting"
+
+                update_call(
+                    state["call_id"],
+                    status="troubleshooting",
+                    summary=state.get("issue_summary") or value
+                )
+
+                print(f"[ISSUE] {field}: {value}")
+
+                return {
+                    "success": True,
+                    "issue_category": state.get("issue_category"),
+                    "issue_summary": state.get("issue_summary"),
+                    "question_count": state["question_count"],
+                    "max_questions": 4,
+                    "next_state": state["current_state"]
+                }
+
+            if tool_name == "confirm_ticket":
+                confirmed = bool(arguments.get("confirmed"))
+
+                if not state["verified_user"]:
+                    return {
+                        "success": False,
+                        "error": "Caller is not verified. Cannot confirm ticket."
+                    }
+
+                if not state["issue_summary"]:
+                    return {
+                        "success": False,
+                        "error": "Issue summary is missing. Ask one more question before ticket confirmation."
+                    }
+
+                if confirmed:
+                    state["ticket_confirmed"] = True
+                    state["current_state"] = "ticket_creation"
+
+                    print("[TICKET] Caller confirmed ticket creation")
+
+                    return {
+                        "success": True,
+                        "ticket_confirmed": True,
+                        "next_state": state["current_state"]
+                    }
+
+                state["ticket_confirmed"] = False
+                state["current_state"] = "wrap_up"
+
+                return {
+                    "success": True,
+                    "ticket_confirmed": False,
+                    "message": "Caller declined ticket creation.",
+                    "next_state": state["current_state"]
                 }
 
             if tool_name == "create_ticket":
+                if not state["verified_user"]:
+                    return {
+                        "success": False,
+                        "error": "Ticket blocked. Caller is not verified."
+                    }
+
+                if not state["issue_summary"]:
+                    return {
+                        "success": False,
+                        "error": "Ticket blocked. Issue summary is missing."
+                    }
+
+                if not state["ticket_confirmed"]:
+                    state["current_state"] = "ticket_confirmation"
+
+                    return {
+                        "success": False,
+                        "error": "Ticket creation blocked. Caller confirmation is required first.",
+                        "required_action": "Ask caller if they want a ticket created."
+                    }
+
                 if state["ticket_creation_attempted"]:
                     return {
                         "success": False,
@@ -452,22 +720,18 @@ async def handle_single_call(asterisk_ws):
 
                 state["ticket_creation_attempted"] = True
 
-                if not state["verified_user"]:
-                    return {
-                        "success": False,
-                        "error": "Caller is not verified. Cannot create ticket."
-                    }
-
                 from app.zammad_api import create_ticket
 
                 verified_user = state["verified_user"]
                 customer_email = verified_user.get("email")
+
                 title = arguments.get("title", "IT Support Request")
-                description = arguments.get("description", "Issue reported via AI voice agent.")
+                description = arguments.get("description", state["issue_summary"] or "Issue reported via AI voice agent.")
                 priority = arguments.get("priority", "2 normal")
                 group = arguments.get("group", "Service Desk")
 
-                key_points = "\n".join([f"- {note}" for note in state["issue_notes"][-8:]])
+                key_points = "\n".join([f"- {item['field']}: {item['value']}" for item in state["answers_received"][-10:]])
+                troubleshooting = "\n".join([f"- {step}" for step in state["troubleshooting_steps"][-10:]])
 
                 ticket_body = (
                     f"Caller: {verified_user.get('name')}\n"
@@ -476,6 +740,7 @@ async def handle_single_call(asterisk_ws):
                     f"Department: {verified_user.get('department')}\n\n"
                     f"Issue Summary:\n{description}\n\n"
                     f"Key Points Collected:\n{key_points if key_points else '- No extra key points captured'}\n\n"
+                    f"Troubleshooting / Questions:\n{troubleshooting if troubleshooting else '- No troubleshooting steps captured'}\n\n"
                     f"Created by: AI Voice Agent Arif"
                 )
 
@@ -492,7 +757,9 @@ async def handle_single_call(asterisk_ws):
 
                     if ticket_number:
                         state["last_ticket_number"] = ticket_number
-                        state["ticket_created"] = True                       
+                        state["ticket_created"] = True
+                        state["current_state"] = "wrap_up"
+
                         update_call(
                             state["call_id"],
                             ticket_number=ticket_number,
@@ -506,9 +773,16 @@ async def handle_single_call(asterisk_ws):
                         return {
                             "success": True,
                             "ticket_number": ticket_number,
-                            "ticket_number_spoken": _digit_by_digit(ticket_number),
-                            "message": "Ticket created successfully."
+                            "ticket_number_spoken": digit_by_digit(ticket_number),
+                            "message": "Ticket created successfully.",
+                            "next_state": state["current_state"]
                         }
+
+                    update_call(
+                        state["call_id"],
+                        status="ticket_failed",
+                        summary="Zammad did not return ticket number."
+                    )
 
                     return {
                         "success": False,
@@ -528,6 +802,27 @@ async def handle_single_call(asterisk_ws):
                         "success": False,
                         "error": str(exc)
                     }
+
+            if tool_name == "report_audio_issue":
+                issue = arguments.get("issue", "unclear_audio")
+                state["background_noise_warning_count"] += 1
+
+                print(f"[AUDIO] Issue reported: {issue}. Count={state['background_noise_warning_count']}")
+
+                if state["background_noise_warning_count"] >= 3:
+                    queue_goodbye("audio_unclear")
+
+                    return {
+                        "success": True,
+                        "action": "call_will_end",
+                        "message": "Audio remains unclear after multiple warnings."
+                    }
+
+                return {
+                    "success": True,
+                    "warning_count": state["background_noise_warning_count"],
+                    "message": "Ask caller to speak one person at a time and move to a quieter place."
+                }
 
             if tool_name == "close_call":
                 reason = arguments.get("reason", "caller_requested")
@@ -577,20 +872,57 @@ async def handle_single_call(asterisk_ws):
             }
         }))
 
-        language = state.get("language") or "en"
+        prefix = language_prefix(state)
 
-        if language == "ar":
-            language_instruction = "Respond only in Arabic."
-        else:
-            language_instruction = "Respond only in English."
+        if tool_name == "set_language":
+            if state["language"] == "ar":
+                queue_response("Respond only in Arabic. Confirm Arabic briefly and ask for the caller's full name.")
+            else:
+                queue_response("Respond only in English. Confirm English briefly and ask for the caller's full name.")
 
-        if tool_name == "create_ticket" and result.get("success") and result.get("ticket_number"):
+        elif tool_name == "capture_name" and result.get("success"):
+            queue_response(f"{prefix} Ask for the caller's employee ID. Keep it short.")
+
+        elif tool_name == "capture_employee_id" and result.get("success"):
+            queue_response(f"{prefix} Say please wait while I verify your details, then call verify_user immediately.")
+
+        elif tool_name == "verify_user" and result.get("verified"):
+            queue_response(f"{prefix} Say the caller is verified. Then ask: How can I help you today?")
+
+        elif tool_name == "verify_user" and not result.get("verified"):
+            if result.get("attempts_left", 0) > 0:
+                queue_response(
+                    f"{prefix} Say the details did not match. "
+                    f"Ask for the correct full name and employee ID again. "
+                    f"Mention they have {result.get('attempts_left')} attempt remaining."
+                )
+
+        elif tool_name == "record_issue_detail" and result.get("success"):
+            if state["question_count"] >= 4:
+                queue_response(
+                    f"{prefix} Say this needs IT team support. Ask exactly: Shall I create a ticket for you?"
+                )
+            else:
+                queue_response(
+                    f"{prefix} Continue troubleshooting. Ask only one short useful question or give one safe step. "
+                    f"Wait for the caller's answer."
+                )
+
+        elif tool_name == "confirm_ticket" and result.get("ticket_confirmed"):
+            queue_response(
+                f"{prefix} Say please hold one moment while I create the ticket. Then call create_ticket immediately."
+            )
+
+        elif tool_name == "confirm_ticket" and not result.get("ticket_confirmed"):
+            queue_response(f"{prefix} Ask if there is anything else you can help with.")
+
+        elif tool_name == "create_ticket" and result.get("success") and result.get("ticket_number"):
             ticket_number = result.get("ticket_number")
             ticket_spoken = result.get("ticket_number_spoken") or ticket_number
 
-            if language == "ar":
+            if state["language"] == "ar":
                 queue_response(
-                    f"Respond only in Arabic. Say that the ticket was created successfully. "
+                    f"Respond only in Arabic. Say the ticket was created successfully. "
                     f"Say: رقم التذكرة هو {ticket_spoken}. "
                     f"Then ask if the caller needs anything else."
                 )
@@ -602,48 +934,29 @@ async def handle_single_call(asterisk_ws):
                 )
 
         elif tool_name == "create_ticket" and not result.get("success"):
-            if language == "ar":
+            if result.get("required_action"):
                 queue_response(
-                    "Respond only in Arabic. Say briefly that there is a technical issue creating the ticket right now. "
-                    "Ask the caller to contact IT support directly. Do not retry creating the ticket."
+                    f"{prefix} Say this needs IT team support. Ask exactly: Shall I create a ticket for you?"
                 )
             else:
                 queue_response(
-                    "Respond only in English. Say exactly: "
-                    "I am unable to create the ticket right now due to a technical issue. "
-                    "Please contact IT support directly. Do not retry creating the ticket."
+                    f"{prefix} Say there is a technical issue creating the ticket right now. "
+                    f"Ask the caller to contact IT support directly. Do not retry."
                 )
 
-        elif tool_name == "verify_user" and result.get("verified"):
-            queue_response(
-                f"{language_instruction} Say the caller is verified. Then ask: How can I help you today?"
-            )
-
-        elif tool_name == "verify_user" and not result.get("verified"):
-            if result.get("attempts_left", 0) > 0:
-                queue_response(
-                    f"{language_instruction} Say the details did not match. "
-                    f"Ask for the correct full name and employee ID again. "
-                    f"Mention they have {result.get('attempts_left')} attempt remaining."
-                )
-
-        elif tool_name == "set_language":
-            if state.get("language") == "ar":
-                queue_response(
-                    "Respond only in Arabic. Confirm Arabic briefly and ask for the caller's full name."
-                )
+        elif tool_name == "report_audio_issue":
+            if result.get("action") == "call_will_end":
+                pass
             else:
                 queue_response(
-                    "Respond only in English. Confirm English briefly and ask for the caller's full name."
+                    f"{prefix} Say: I am hearing background voices. Please speak one person at a time so I can help you correctly."
                 )
 
         elif tool_name == "close_call":
             pass
 
         else:
-            queue_response(
-                f"{language_instruction} Continue based on the tool result. Keep it short."
-            )
+            queue_response(f"{prefix} Continue based on the tool result. Keep it short.")
 
         await send_queued_response_if_any()
 
@@ -672,12 +985,9 @@ async def handle_single_call(asterisk_ws):
                                 real_call_id = part.replace("channel_id:", "").strip()
 
                                 if real_call_id:
-                                    old_call_id = state["call_id"]
                                     state["call_id"] = real_call_id
-
                                     create_call(state["call_id"])
                                     update_call(state["call_id"], status="in_progress")
-
                                     print(f"[CALL] Asterisk call ID detected: {real_call_id}")
                                     break
 
@@ -720,6 +1030,7 @@ async def handle_single_call(asterisk_ws):
                     if status == "failed":
                         print("[OPENAI] Response failed. Closing this call to avoid blank call.")
                         state["call_ending"] = True
+                        update_call(state["call_id"], status="openai_response_failed")
                         try:
                             await asterisk_ws.close()
                         except Exception:
@@ -729,8 +1040,9 @@ async def handle_single_call(asterisk_ws):
                     if state["close_after_next_response_done"]:
                         await asyncio.sleep(2)
                         state["call_ending"] = True
-                        close_call(state["call_id"], status="completed")
-                       
+
+                        log_close_call(state["call_id"], status="completed")
+
                         try:
                             await asterisk_ws.close()
                         except Exception:
@@ -743,11 +1055,14 @@ async def handle_single_call(asterisk_ws):
                 elif event_type == "conversation.item.input_audio_transcription.completed":
                     transcript = event.get("transcript", "")
                     if transcript:
-                        state["issue_notes"].append(transcript)
                         print(f"[CALLER SAID] {transcript}")
 
                 elif event_type == "error":
                     print(f"[OPENAI ERROR] {json.dumps(event, indent=2)}")
+
+                    error = event.get("error", {})
+                    if error.get("code") == "conversation_already_has_active_response":
+                        state["active_response"] = True
 
                 elif event_type in (
                     "session.created",
@@ -784,8 +1099,10 @@ async def handle_single_call(asterisk_ws):
         asterisk_to_openai(),
         openai_to_asterisk()
     )
+
     if not state["call_ending"]:
-        close_call(state["call_id"], status="ended")
+        log_close_call(state["call_id"], status="ended")
+
 
 async def main():
     if not OPENAI_API_KEY:

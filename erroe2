@@ -1,32 +1,8 @@
-cat > /etc/systemd/system/ai-support-bridge.service <<'EOF'
-[Unit]
-Description=AI Support Agent OpenAI Realtime Bridge
-After=network-online.target asterisk.service
-Wants=network-online.target
-Requires=asterisk.service
+systemctl disable zammad-branding.service
+systemctl stop zammad-branding.service
+systemctl reset-failed zammad-branding.service
 
-[Service]
-Type=simple
-WorkingDirectory=/opt/ai-support-agent
-Environment=PYTHONPATH=/opt/ai-support-agent
-ExecStart=/opt/ai-support-agent/venv/bin/python /opt/ai-support-agent/app/openai_realtime_bridge.py
-Restart=always
-RestartSec=5
-User=root
+cd /opt/zammad-docker-compose
 
-[Install]
-WantedBy=multi-user.target
-EOF
-
-
-systemctl daemon-reload
-systemctl reset-failed ai-support-bridge
-systemctl enable ai-support-bridge
-systemctl start ai-support-bridge
-systemctl status ai-support-bridge
-
-
-ss -lntp | grep 8765
-
-journalctl -u ai-support-bridge -n 100 --no-pager
+docker compose up -d --force-recreate zammad-nginx zammad-railsserver zammad-websocket zammad-scheduler
 
