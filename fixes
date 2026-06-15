@@ -19,10 +19,7 @@ PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; 
 PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1008', 'Ruqaiya Al Balushi'))"
 PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1002', 'Mohammed Aqeel'))"
 
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# systemctl stop ai-support-bridge
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# ss -lntp | grep 8765
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python -m py_compile app/verify.py
-(venv) root@aicontactappubuntu:/opt/ai-support-agent# systemctl restart ai-support-bridge
+opt/ai-support-agent# systemctl restart ai-support-bridge
 (venv) root@aicontactappubuntu:/opt/ai-support-agent# systemctl status ai-support-bridge
 ● ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge
      Loaded: loaded (/etc/systemd/system/ai-support-bridge.service; enabled; preset: enabled)
@@ -73,3 +70,54 @@ Traceback (most recent call last):
     raise OSError(err.errno, msg) from None
 OSError: [Errno 98] error while attempting to bind on address ('127.0.0.1', 8765): [errno 98] address already in use
 (venv) root@aicontactappubuntu:/opt/ai-support-agent# 
+
+
+
+
+
+
+
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+[SERVER] Starting on 127.0.0.1:8765
+[SERVER] Model: gpt-realtime
+[SERVER] Max concurrent calls: 10
+[SERVER] Ready. Waiting for calls...
+[CALL] Accepted. Active calls: 1
+[ASTERISK] New call connected
+[OPENAI] Connected
+[ASTERISK CONTROL] MEDIA_START connection_id:aiagent channel:WebSocket/aiagent/0x746fc0005840 channel_id:1781511844.81 format:ulaw optimal_frame_size:160 ptime:20
+[CALL] Asterisk call ID detected: 1781511844.81
+[OPENAI ERROR] {
+  "type": "error",
+  "event_id": "event_DqwtxcAn1drJUhVWbThnk",
+  "error": {
+    "type": "invalid_request_error",
+    "code": "integer_above_max_value",
+    "message": "Invalid 'session.audio.input.turn_detection.idle_timeout_ms': integer above maximum value. Expected a value <= 30000, but got 35000 instead.",
+    "param": "session.audio.input.turn_detection.idle_timeout_ms",
+    "event_id": null
+  }
+}
+[OPENAI] Response done status=completed
+[ASTERISK CONTROL] MEDIA_XON
+^C
+^X^C[CALL] Handler exiting. Active calls: 0
+
+
+
+
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# journalctl -u ai-support-bridge -f
+Jun 15 08:11:36 aicontactappubuntu systemd[1]: Stopped ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge.
+Jun 15 08:11:36 aicontactappubuntu systemd[1]: Started ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge.
+Jun 15 08:21:06 aicontactappubuntu systemd[1]: Stopping ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge...
+Jun 15 08:21:06 aicontactappubuntu systemd[1]: ai-support-bridge.service: Deactivated successfully.
+Jun 15 08:21:06 aicontactappubuntu systemd[1]: Stopped ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge.
+Jun 15 08:21:42 aicontactappubuntu systemd[1]: Started ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge.
+Jun 15 08:23:55 aicontactappubuntu systemd[1]: Stopping ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge...
+Jun 15 08:23:55 aicontactappubuntu systemd[1]: ai-support-bridge.service: Deactivated successfully.
+Jun 15 08:23:55 aicontactappubuntu systemd[1]: Stopped ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge.
+Jun 15 08:29:10 aicontactappubuntu systemd[1]: Started ai-support-bridge.service - AI Support Agent OpenAI Realtime Bridge.
