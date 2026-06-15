@@ -9,15 +9,20 @@ from html import escape
 
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 APP_SECRET = os.getenv("DASHBOARD_SECRET", "change-this-dashboard-secret")
 DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
 RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
+BRAND_ASSETS_DIR = "/opt/ai-support-agent/zammad-branding/assets"
 
-DEFAULT_NF_LOGO = "https://www.nationalfinance.co.om/img/logo_nfc.svg"
-DEFAULT_TCT_LOGO = "https://tctenterprise.com/wp-content/uploads/2023/02/tct-logo-1.png"
+NF_LOGO_LOCAL = "/brand-assets/nfc-logo.svg"
+TCT_LOGO_LOCAL = "/brand-assets/tct-logo.png"
 
 app = FastAPI(title="AI IT Support Dashboard")
+
+Path(BRAND_ASSETS_DIR).mkdir(parents=True, exist_ok=True)
+app.mount("/brand-assets", StaticFiles(directory=BRAND_ASSETS_DIR), name="brand-assets")
 
 
 def db():
@@ -49,18 +54,15 @@ def verify_token(token):
             return value
     except Exception:
         return None
-
     return None
 
 
 def current_user(request: Request):
     token = request.cookies.get("ai_dashboard_token")
-
     if not token:
         return None
 
     username = verify_token(token)
-
     if not username:
         return None
 
@@ -70,25 +72,20 @@ def current_user(request: Request):
         (username,)
     ).fetchone()
     conn.close()
-
     return user
 
 
 def require_user(request: Request):
     user = current_user(request)
-
     if not user:
         raise HTTPException(status_code=302, headers={"Location": "/login"})
-
     return user
 
 
 def require_roles(request: Request, allowed_roles):
     user = require_user(request)
-
     if user["role"] not in allowed_roles:
         raise HTTPException(status_code=403, detail="Access denied")
-
     return user
 
 
@@ -189,11 +186,7 @@ def init_db():
     ]
 
     for username, password, role in default_users:
-        exists = conn.execute(
-            "SELECT id FROM users WHERE username=?",
-            (username,)
-        ).fetchone()
-
+        exists = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
         if not exists:
             conn.execute(
                 """
@@ -207,8 +200,6 @@ def init_db():
         "organization_name": "National Finance Oman",
         "dashboard_title": "AI IT Support Dashboard",
         "dashboard_subtitle": "Voice AI Support Operations",
-        "national_finance_logo_url": DEFAULT_NF_LOGO,
-        "tct_logo_url": DEFAULT_TCT_LOGO,
         "ai_greeting": "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue.",
         "system_prompt": "You are Arif, an AI IT Support voice agent for National Finance IT Support team.",
         "max_concurrent_calls": "5",
@@ -218,11 +209,7 @@ def init_db():
     }
 
     for key, value in default_settings.items():
-        exists = conn.execute(
-            "SELECT key FROM settings WHERE key=?",
-            (key,)
-        ).fetchone()
-
+        exists = conn.execute("SELECT key FROM settings WHERE key=?", (key,)).fetchone()
         if not exists:
             conn.execute(
                 "INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)",
@@ -244,6 +231,25 @@ def extract_caller_from_recording(recording_file):
         return parts[2]
 
     return ""
+
+
+def display_caller_id(row):
+    caller = row["caller_number"] or ""
+    if caller:
+        return caller
+
+    return extract_caller_from_recording(row["recording_file"] or "")
+
+
+def display_caller_name(row):
+    if row["verified_name"]:
+        return row["verified_name"]
+
+    caller_id = display_caller_id(row)
+    if caller_id:
+        return f"Unknown - {caller_id}"
+
+    return "Unknown"
 
 
 def format_minutes(seconds):
@@ -271,7 +277,6 @@ def recording_files():
         caller = "unknown"
 
         parts = file.name.split("-")
-
         if len(parts) >= 4:
             caller = parts[2]
 
@@ -292,34 +297,25 @@ def layout(title, user, body):
     organization_name = get_setting("organization_name", "National Finance Oman")
     dashboard_title = get_setting("dashboard_title", "AI IT Support Dashboard")
     profile_icon_text = get_setting("profile_icon_text", "NF")
-    tct_logo_url = get_setting("tct_logo_url", DEFAULT_TCT_LOGO)
 
     nav = ""
 
     if user:
-        nav_links = """
-            <a href="/dashboard">Dashboard</a>
-        """
+        nav_links = '<a href="/dashboard">Dashboard</a>'
 
         if role in ["admin", "user"]:
-            nav_links += """
-            <a href="/calls">Calls</a>
-            """
+            nav_links += '<a href="/calls">Calls</a>'
 
         if role in ["admin", "quality_reviewer"]:
-            nav_links += """
-            <a href="/recordings">Recordings</a>
-            """
+            nav_links += '<a href="/recordings">Recordings</a>'
 
         if role == "admin":
-            nav_links += """
-            <a href="/settings">Settings</a>
-            """
+            nav_links += '<a href="/settings">Settings</a>'
 
         nav = f"""
         <div class="nav">
             <div class="brand">
-                <div class="brand-mark">{escape(profile_icon_text)}</div>
+                <img class="brand-logo" src="{NF_LOGO_LOCAL}" alt="National Finance Oman">
                 <div>
                     <div class="brand-title">{escape(organization_name)}</div>
                     <div class="brand-subtitle">{escape(dashboard_title)}</div>
@@ -340,7 +336,7 @@ def layout(title, user, body):
     footer = f"""
     <div class="footer-credit">
         <span>Presented by</span>
-        <img src="{escape(tct_logo_url)}" alt="TCT Enterprise">
+        <img src="{TCT_LOGO_LOCAL}" alt="TCT Enterprise">
     </div>
     """
 
@@ -395,20 +391,16 @@ def layout(title, user, body):
                 display: flex;
                 align-items: center;
                 gap: 12px;
-                min-width: 300px;
+                min-width: 320px;
             }}
 
-            .brand-mark {{
-                width: 42px;
+            .brand-logo {{
                 height: 42px;
-                border-radius: 12px;
+                max-width: 150px;
                 background: white;
-                color: var(--nf-navy);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 800;
-                font-size: 15px;
+                border-radius: 10px;
+                padding: 6px 10px;
+                object-fit: contain;
                 border-top: 4px solid var(--nf-red);
             }}
 
@@ -520,15 +512,18 @@ def layout(title, user, body):
                 border: 1px solid var(--nf-border);
             }}
 
-            .card h3 {{
-                margin-top: 0;
-            }}
-
             .filter-box {{
                 display: grid;
-                grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
+                grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
                 gap: 12px;
                 align-items: end;
+                margin-bottom: 12px;
+            }}
+
+            .filter-actions {{
+                display: flex;
+                gap: 10px;
+                align-items: center;
                 margin-bottom: 18px;
             }}
 
@@ -589,7 +584,13 @@ def layout(title, user, body):
             }}
 
             textarea {{
-                min-height: 80px;
+                min-height: 95px;
+            }}
+
+            label {{
+                font-weight: 700;
+                color: var(--nf-navy);
+                font-size: 13px;
             }}
 
             button {{
@@ -600,6 +601,7 @@ def layout(title, user, body):
                 border-radius: 8px;
                 cursor: pointer;
                 font-weight: 700;
+                height: 40px;
             }}
 
             button:hover {{
@@ -607,18 +609,20 @@ def layout(title, user, body):
             }}
 
             .btn-link {{
-                display: inline-block;
-                background: var(--nf-navy);
-                color: white;
+                display: inline-flex;
+                align-items: center;
+                height: 40px;
+                background: #E8EDF8;
+                color: var(--nf-navy);
                 text-decoration: none;
-                padding: 7px 12px;
+                padding: 0 14px;
                 border-radius: 8px;
                 font-weight: 700;
                 font-size: 13px;
             }}
 
             .btn-link:hover {{
-                background: var(--nf-blue);
+                background: #D1D9F0;
             }}
 
             .danger-note {{
@@ -723,8 +727,6 @@ def home(request: Request):
 def login_page(request: Request):
     organization_name = get_setting("organization_name", "National Finance Oman")
     dashboard_title = get_setting("dashboard_title", "AI IT Support Dashboard")
-    nf_logo_url = get_setting("national_finance_logo_url", DEFAULT_NF_LOGO)
-    tct_logo_url = get_setting("tct_logo_url", DEFAULT_TCT_LOGO)
 
     return f"""
     <!DOCTYPE html>
@@ -772,8 +774,8 @@ def login_page(request: Request):
 
             .nf-logo {{
                 display: block;
-                max-width: 230px;
-                max-height: 80px;
+                max-width: 235px;
+                max-height: 85px;
                 margin: 0 auto 22px;
                 object-fit: contain;
             }}
@@ -861,7 +863,7 @@ def login_page(request: Request):
     <body>
         <div class="login-wrap">
             <div class="login-card">
-                <img class="nf-logo" src="{escape(nf_logo_url)}" alt="National Finance Oman">
+                <img class="nf-logo" src="{NF_LOGO_LOCAL}" alt="National Finance Oman">
 
                 <h2>{escape(dashboard_title)}</h2>
                 <p>{escape(organization_name)} — Secure Operations Portal</p>
@@ -879,7 +881,7 @@ def login_page(request: Request):
 
             <div class="login-footer">
                 <span>Presented by</span>
-                <img src="{escape(tct_logo_url)}" alt="TCT Enterprise">
+                <img src="{TCT_LOGO_LOCAL}" alt="TCT Enterprise">
             </div>
         </div>
     </body>
@@ -898,7 +900,7 @@ def login(username: str = Form(...), password: str = Form(...)):
 
     if not user or user["password_hash"] != hash_password(password):
         return HTMLResponse(
-            "Invalid login. <a href='/login'>Try again</a>",
+            'Invalid login. <a href="/login">Try again</a>',
             status_code=401
         )
 
@@ -924,6 +926,9 @@ def dashboard(request: Request):
     dashboard_title = get_setting("dashboard_title", "AI IT Support Dashboard")
     dashboard_subtitle = get_setting("dashboard_subtitle", "Voice AI Support Operations")
 
+    now = int(time.time())
+    live_cutoff = now - 600
+
     conn = db()
     total_calls = conn.execute("SELECT COUNT(*) c FROM calls").fetchone()["c"]
     tickets = conn.execute("SELECT COUNT(*) c FROM calls WHERE ticket_created=1").fetchone()["c"]
@@ -934,7 +939,13 @@ def dashboard(request: Request):
         "SELECT COUNT(*) c FROM calls WHERE status IN ('failed', 'openai_connection_failed', 'openai_response_failed', 'ticket_failed')"
     ).fetchone()["c"]
     ongoing = conn.execute(
-        "SELECT COUNT(*) c FROM calls WHERE status='in_progress'"
+        """
+        SELECT COUNT(*) c FROM calls
+        WHERE end_time IS NULL
+        AND start_time >= ?
+        AND status IN ('in_progress', 'language_selected', 'verified', 'troubleshooting')
+        """,
+        (live_cutoff,)
     ).fetchone()["c"]
     rejected = conn.execute(
         "SELECT COUNT(*) c FROM calls WHERE status IN ('rejected', 'max_concurrent_rejected')"
@@ -1073,8 +1084,8 @@ def calls(request: Request):
     """
 
     for r in rows:
-        caller_id = r["caller_number"] or extract_caller_from_recording(r["recording_file"] or "")
-        caller_name = r["verified_name"] or "Unverified"
+        caller_id = display_caller_id(r)
+        caller_name = display_caller_name(r)
         duration_mins = format_minutes(r["duration_seconds"])
         status_text = str(r["status"] or "")
         ticket = str(r["ticket_number"] or "")
@@ -1101,36 +1112,38 @@ def calls(request: Request):
 
     body = f"""
     <h1>Call History</h1>
-    <p class="subtitle">Recent AI support interactions with filters</p>
+    <p class="subtitle">Recent AI support interactions with search and filters</p>
 
     <div class="card">
-        <form method="get" action="/calls" class="filter-box">
-            <div>
-                <label>Search</label>
-                <input name="q" value="{escape(q)}" placeholder="Search caller, employee, ticket, status, summary">
+        <form method="get" action="/calls">
+            <div class="filter-box">
+                <div>
+                    <label>Search</label>
+                    <input name="q" value="{escape(q)}" placeholder="Caller, employee, ticket, status, summary">
+                </div>
+
+                <div>
+                    <label>Employee ID</label>
+                    <input name="employee_id" value="{escape(employee_id)}" placeholder="1002">
+                </div>
+
+                <div>
+                    <label>Status</label>
+                    <select name="status">{status_options}</select>
+                </div>
+
+                <div>
+                    <label>Language</label>
+                    <select name="language">{language_options}</select>
+                </div>
+
+                <div>
+                    <label>Ticket</label>
+                    <select name="ticket_created">{ticket_options}</select>
+                </div>
             </div>
 
-            <div>
-                <label>Employee ID</label>
-                <input name="employee_id" value="{escape(employee_id)}" placeholder="1002">
-            </div>
-
-            <div>
-                <label>Status</label>
-                <select name="status">{status_options}</select>
-            </div>
-
-            <div>
-                <label>Language</label>
-                <select name="language">{language_options}</select>
-            </div>
-
-            <div>
-                <label>Ticket</label>
-                <select name="ticket_created">{ticket_options}</select>
-            </div>
-
-            <div>
+            <div class="filter-actions">
                 <button type="submit">Filter</button>
                 <a class="btn-link" href="/calls">Reset</a>
             </div>
@@ -1250,21 +1263,23 @@ def save_review(
 def settings_page(request: Request):
     user = require_roles(request, ["admin"])
 
-    conn = db()
-    rows = conn.execute("SELECT * FROM settings ORDER BY key").fetchall()
-    conn.close()
+    label_map = {
+        "organization_name": "Organization Name",
+        "dashboard_title": "Dashboard Title",
+        "dashboard_subtitle": "Dashboard Subtitle",
+        "profile_icon_text": "Profile Icon Text",
+        "ai_greeting": "AI Greeting",
+        "system_prompt": "System Prompt",
+        "max_concurrent_calls": "Max Concurrent Calls",
+        "recording_retention_days": "Recording Retention Days",
+        "zammad_enabled": "Zammad Enabled"
+    }
 
-    form = """
-    <form method="post" action="/settings">
-    """
-
-    preferred_order = [
+    editable_keys = [
         "organization_name",
         "dashboard_title",
         "dashboard_subtitle",
         "profile_icon_text",
-        "national_finance_logo_url",
-        "tct_logo_url",
         "ai_greeting",
         "system_prompt",
         "max_concurrent_calls",
@@ -1272,12 +1287,14 @@ def settings_page(request: Request):
         "zammad_enabled",
     ]
 
-    rows_dict = {r["key"]: r["value"] for r in rows}
+    form = '<form method="post" action="/settings">'
 
-    for key in preferred_order:
-        value = rows_dict.get(key, "")
+    for key in editable_keys:
+        value = get_setting(key, "")
+        label = label_map.get(key, key)
+
         form += f"""
-        <label>{escape(key)}</label>
+        <label>{escape(label)}</label>
         <textarea name="{escape(key)}">{escape(value or "")}</textarea>
         """
 
@@ -1288,12 +1305,12 @@ def settings_page(request: Request):
 
     body = f"""
     <h1>Settings</h1>
-    <p class="subtitle">Admin-only configuration for dashboard, branding, prompts, and AI behavior</p>
+    <p class="subtitle">Admin-only configuration for dashboard, prompts, and AI behavior</p>
 
     <div class="card">
         <p class="small">
-            These settings are stored in SQLite. Dashboard branding changes apply immediately after save.
-            Bridge prompt integration can be connected in the next phase.
+            Logo settings are fixed by system configuration and are not editable from the dashboard.
+            Prompt and greeting values can be connected to the bridge in the next phase.
         </p>
         {form}
     </div>
@@ -1307,9 +1324,24 @@ async def save_settings(request: Request):
     user = require_roles(request, ["admin"])
     data = await request.form()
 
+    allowed_keys = {
+        "organization_name",
+        "dashboard_title",
+        "dashboard_subtitle",
+        "profile_icon_text",
+        "ai_greeting",
+        "system_prompt",
+        "max_concurrent_calls",
+        "recording_retention_days",
+        "zammad_enabled",
+    }
+
     conn = db()
 
     for key, value in data.items():
+        if key not in allowed_keys:
+            continue
+
         conn.execute(
             """
             INSERT INTO settings(key, value, updated_at)
