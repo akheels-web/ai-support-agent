@@ -5,12 +5,17 @@ from functools import lru_cache
 from difflib import SequenceMatcher
 from dotenv import load_dotenv
 
-load_dotenv("/opt/ai-support-agent/.env")
+load_dotenv("/opt/ai-support-agent/.env", override=True)
 
 USERS_CSV = os.getenv("CSV_USERS_FILE", "/opt/ai-support-agent/data/users.csv")
 
-TOKEN_MATCH_THRESHOLD = 72
-FULL_NAME_MATCH_THRESHOLD = 75
+FULL_NAME_MATCH_THRESHOLD = 78
+FIRST_NAME_MATCH_THRESHOLD = 82
+
+COMMON_TOKENS = {
+    "al", "bin", "bint", "ibn", "abu", "umm",
+    "ال", "بن", "بنت", "ابن", "أبو", "ام", "أم"
+}
 
 
 @lru_cache(maxsize=1)
@@ -46,6 +51,10 @@ def _load_users():
     return users
 
 
+def clear_cache():
+    _load_users.cache_clear()
+
+
 def _normalize(value):
     value = str(value).lower().strip()
     value = re.sub(r"[^a-z0-9\u0600-\u06FF ]+", " ", value)
@@ -53,62 +62,91 @@ def _normalize(value):
     return value
 
 
+def _tokens(value):
+    tokens = _normalize(value).split()
+    return [t for t in tokens if t and t not in COMMON_TOKENS]
+
+
 def _similarity(a, b):
-    return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio() * 100
+    a = _normalize(a)
+    b = _normalize(b)
 
-
-def _token_match_score(provided_name, stored_name):
-    provided_tokens = _normalize(provided_name).split()
-    stored_tokens = _normalize(stored_name).split()
-
-    if not provided_tokens or not stored_tokens:
+    if not a or not b:
         return 0
 
-    matched = 0
-
-    for stored_token in stored_tokens:
-        best_score = 0
-
-        for provided_token in provided_tokens:
-            score = _similarity(provided_token, stored_token)
-            if score > best_score:
-                best_score = score
-
-        if best_score >= TOKEN_MATCH_THRESHOLD:
-            matched += 1
-
-    return matched
+    return SequenceMatcher(None, a, b).ratio() * 100
 
 
-def _name_matches(provided_name, stored_name, aliases=None):
-    provided_name = _normalize(provided_name)
-    stored_name = _normalize(stored_name)
+def _first_name(value):
+    tokens = _tokens(value)
 
-    if not provided_name or not stored_name:
+    if not tokens:
+        return ""
+
+    return tokens[0]
+
+
+def _first_name_matches(provided_name, official_name, aliases):
+    provided_first = _first_name(provided_name)
+
+    if not provided_first:
         return False
 
-    if provided_name == stored_name:
-        return True
+    candidate_names = [official_name] + (aliases or [])
 
-    aliases = aliases or []
+    for candidate in candidate_names:
+        candidate_first = _first_name(candidate)
 
-    for alias in aliases:
-        alias_norm = _normalize(alias)
+        if not candidate_first:
+            continue
 
-        if provided_name == alias_norm:
+        if provided_first == candidate_first:
             return True
 
-        if _similarity(provided_name, alias_norm) >= FULL_NAME_MATCH_THRESHOLD:
+        if _similarity(provided_first, candidate_first) >= FIRST_NAME_MATCH_THRESHOLD:
             return True
 
-    if _similarity(provided_name, stored_name) >= FULL_NAME_MATCH_THRESHOLD:
-        return True
+    return False
 
-    stored_tokens = stored_name.split()
-    required_matches = min(2, len(stored_tokens))
-    matched_tokens = _token_match_score(provided_name, stored_name)
 
-    return matched_tokens >= required_matches
+def _full_name_matches(provided_name, official_name, aliases):
+    provided = _normalize(provided_name)
+
+    if not provided:
+        return False
+
+    candidate_names = [official_name] + (aliases or [])
+
+    for candidate in candidate_names:
+        candidate_norm = _normalize(candidate)
+
+        if not candidate_norm:
+            continue
+
+        if provided == candidate_norm:
+            return True
+
+        if _similarity(provided, candidate_norm) >= FULL_NAME_MATCH_THRESHOLD:
+            return True
+
+    return False
+
+
+def _secure_name_match(provided_name, official_name, aliases):
+    """
+    Security rule:
+    - Full name/alias should match closely.
+    - First/given name must also match.
+    - Common family/tribe names alone are not enough.
+    """
+
+    if not provided_name or not official_name:
+        return False
+
+    first_ok = _first_name_matches(provided_name, official_name, aliases)
+    full_ok = _full_name_matches(provided_name, official_name, aliases)
+
+    return first_ok and full_ok
 
 
 def verify_user(employee_id, employee_name):
@@ -137,7 +175,15 @@ def verify_user(employee_id, employee_name):
             "reason": "employee_id_not_found"
         }
 
-    if not _name_matches(employee_name, record["name"], record.get("aliases", [])):
+    official_name = record.get("name", "")
+    aliases = record.get("aliases", [])
+
+    if not _secure_name_match(employee_name, official_name, aliases):
+        print(
+            f"[VERIFY] Name mismatch. Provided='{employee_name}', "
+            f"Expected='{official_name}', EmployeeID='{employee_id}'"
+        )
+
         return {
             "verified": False,
             "reason": "name_mismatch"

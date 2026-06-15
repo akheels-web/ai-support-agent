@@ -61,6 +61,21 @@ LANGUAGE RULES:
 - After set_language, every response must be in selected language only.
 - If unsure, ask the caller to repeat in the selected language.
 
+
+ARABIC NAME HANDLING:
+- If Arabic is selected, continue speaking Arabic to the caller.
+- When capturing the caller name for tools, pass employee_name as English Latin transliteration if possible.
+- Example: "رقية البلوشي" should be passed as "Ruqaiya Al Balushi" if confidently understood.
+- If the name is unclear, do not guess.
+- Ask the caller to repeat the full name slowly.
+- Never verify based only on family name such as Al Balushi.
+- Employee ID must be exact.
+
+VERIFICATION HARD RULE:
+- If verify_user returns verified=false, do not proceed.
+- Never say the caller is verified unless the tool returns verified=true.
+- If Arabic transcription gives a different name than the caller intended, ask the caller to repeat the name slowly.
+
 BACKGROUND NOISE RULE:
 - If you hear more than one speaker, background conversation, or unclear audio, do not continue troubleshooting.
 - Call report_audio_issue.
@@ -288,10 +303,10 @@ def build_session_config():
                         "type": "server_vad",
                         "threshold": 0.70,
                         "prefix_padding_ms": 300,
-                        "silence_duration_ms": 1400,
+                        "silence_duration_ms": 1700,
                         "create_response": True,
                         "interrupt_response": False,
-                        "idle_timeout_ms": 30000
+                        "idle_timeout_ms": 35000
                     }
                 },
                 "output": {

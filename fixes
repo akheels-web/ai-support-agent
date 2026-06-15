@@ -1,1 +1,21 @@
-007sk-proj-hi0PDeh-Ye007-KmXyiI_VBR1J1DX-4bsHeudUUHHKpXz_6Oig-L26tqltsZTwMcIrx7lAF0seEUKT3BlbkFJ-YTUD_FmKlt6j0m8ZRG7UvGZhU-5sqNznU0g_du69aWiqqa_DHXXEzOdVbRrT9pGnJASoHqjkA007
+systemctl restart ai-support-bridge
+systemctl status ai-support-bridge
+
+journalctl -u ai-support-bridge -n 50 --no-pager
+
+
+
+
+sqlite3 /opt/ai-support-agent/data/dashboard.db "
+UPDATE calls
+SET status='ended',
+    end_time=COALESCE(end_time, strftime('%s','now'))
+WHERE status='in_progress'
+AND start_time < strftime('%s','now') - 1800;
+"
+
+
+PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1008', 'Ahmed Al Balushi'))"
+PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1008', 'Ruqaiya Al Balushi'))"
+PYTHONPATH=/opt/ai-support-agent python -c "from app.verify import verify_user; print(verify_user('1002', 'Mohammed Aqeel'))"
+
