@@ -1,0 +1,46 @@
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
+  File "app/openai_realtime_bridge.py", line 1
+    import asyncioimport asyncioimport time
+                         ^^^^^^^^^^^^^
+SyntaxError: invalid syntax
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# 
+
+
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# PYTHONPATH=/opt/ai-support-agent python app/openai_realtime_bridge.py
+[SERVER] Starting on 127.0.0.1:8765
+[SERVER] Model: gpt-realtime
+[SERVER] Max concurrent calls: 5
+Traceback (most recent call last):
+  File "/opt/ai-support-agent/app/openai_realtime_bridge.py", line 1130, in <module>
+    asyncio.run(main())
+    ~~~~~~~~~~~^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 204, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/runners.py", line 127, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/opt/ai-support-agent/app/openai_realtime_bridge.py", line 1116, in main
+    async with websockets.serve(
+               ~~~~~~~~~~~~~~~~^
+        handle_asterisk_call,
+        ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+        ping_timeout=10
+        ^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/opt/ai-support-agent/venv/lib/python3.14/site-packages/websockets/asyncio/server.py", line 829, in __aenter__
+    return await self
+           ^^^^^^^^^^
+  File "/opt/ai-support-agent/venv/lib/python3.14/site-packages/websockets/asyncio/server.py", line 847, in __await_impl__
+    server = await self.create_server
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 1638, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 98] error while attempting to bind on address ('127.0.0.1', 8765): [errno 98] address already in use
+(venv) root@aicontactappubuntu:/opt/ai-support-agent# 
