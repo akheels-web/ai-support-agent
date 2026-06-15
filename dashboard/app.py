@@ -5,6 +5,7 @@ import sqlite3
 import hashlib
 from pathlib import Path
 from urllib.parse import quote
+from html import escape
 
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
@@ -45,15 +46,18 @@ def verify_token(token):
             return value
     except Exception:
         return None
+
     return None
 
 
 def current_user(request: Request):
     token = request.cookies.get("ai_dashboard_token")
+
     if not token:
         return None
 
     username = verify_token(token)
+
     if not username:
         return None
 
@@ -69,15 +73,19 @@ def current_user(request: Request):
 
 def require_user(request: Request):
     user = current_user(request)
+
     if not user:
         raise HTTPException(status_code=302, headers={"Location": "/login"})
+
     return user
 
 
 def require_roles(request: Request, allowed_roles):
     user = require_user(request)
+
     if user["role"] not in allowed_roles:
         raise HTTPException(status_code=403, detail="Access denied")
+
     return user
 
 
@@ -160,14 +168,18 @@ def init_db():
     )
     """)
 
-    defaults = [
+    default_users = [
         ("admin", "admin123", "admin"),
         ("user", "user123", "user"),
         ("reviewer", "reviewer123", "quality_reviewer"),
     ]
 
-    for username, password, role in defaults:
-        exists = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    for username, password, role in default_users:
+        exists = conn.execute(
+            "SELECT id FROM users WHERE username=?",
+            (username,)
+        ).fetchone()
+
         if not exists:
             conn.execute(
                 """
@@ -185,7 +197,11 @@ def init_db():
     }
 
     for key, value in default_settings.items():
-        exists = conn.execute("SELECT key FROM settings WHERE key=?", (key,)).fetchone()
+        exists = conn.execute(
+            "SELECT key FROM settings WHERE key=?",
+            (key,)
+        ).fetchone()
+
         if not exists:
             conn.execute(
                 "INSERT INTO settings(key, value, updated_at) VALUES (?, ?, ?)",
@@ -196,140 +212,20 @@ def init_db():
     conn.close()
 
 
-def layout(title, user, body):
-    role = user["role"] if user else ""
-
-    nav = ""
-
-    if user:
-        nav = f"""
-        <div class="nav">
-            <a href="/dashboard">Dashboard</a>
-            {"<a href='/calls'>Calls</a>" if role in ["admin", "user"] else ""}
-            {"<a href='/recordings'>Recordings</a>" if role in ["admin", "quality_reviewer"] else ""}
-            {"<a href='/settings'>Settings</a>" if role == "admin" else ""}
-            <span class="spacer"></span>
-            <span>{user["username"]} ({role})</span>
-            <a href="/logout">Logout</a>
-        </div>
-        """
-
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>{title}</title>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                margin: 0;
-                background: #f5f7fb;
-                color: #222;
-            }}
-            .nav {{
-                background: #102033;
-                color: white;
-                padding: 12px 20px;
-                display: flex;
-                gap: 20px;
-                align-items: center;
-            }}
-            .nav a {{
-                color: white;
-                text-decoration: none;
-                font-weight: bold;
-            }}
-            .spacer {{
-                flex: 1;
-            }}
-            .container {{
-                padding: 25px;
-            }}
-            .card {{
-                background: white;
-                border-radius: 8px;
-                padding: 18px;
-                margin-bottom: 18px;
-                box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-            }}
-            .grid {{
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 15px;
-            }}
-            .metric {{
-                background: white;
-                border-radius: 8px;
-                padding: 18px;
-                box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-            }}
-            .metric h2 {{
-                margin: 0;
-                font-size: 28px;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                background: white;
-            }}
-            th, td {{
-                padding: 10px;
-                border-bottom: 1px solid #eee;
-                text-align: left;
-                font-size: 14px;
-            }}
-            th {{
-                background: #edf1f7;
-            }}
-            input, textarea, select {{
-                width: 100%;
-                padding: 9px;
-                margin: 6px 0 12px;
-                border: 1px solid #ccc;
-                border-radius: 5px;
-            }}
-            button {{
-                background: #0b5cab;
-                color: white;
-                border: none;
-                padding: 10px 16px;
-                border-radius: 5px;
-                cursor: pointer;
-            }}
-            .danger-note {{
-                color: #a40000;
-                font-weight: bold;
-            }}
-            .small {{
-                color: #666;
-                font-size: 13px;
-            }}
-            audio {{
-                width: 300px;
-            }}
-        </style>
-    </head>
-    <body>
-        {nav}
-        <div class="container">
-            {body}
-        </div>
-    </body>
-    </html>
-    """
-
-
 def recording_files():
     base = Path(RECORDING_DIR)
+
     if not base.exists():
         return []
 
     files = []
+
     for file in sorted(base.glob("*.wav"), reverse=True):
         stat = file.stat()
         caller = "unknown"
 
         parts = file.name.split("-")
+
         if len(parts) >= 4:
             caller = parts[2]
 
@@ -344,6 +240,423 @@ def recording_files():
     return files
 
 
+def layout(title, user, body):
+    role = user["role"] if user else ""
+    nav = ""
+
+    if user:
+        nav_links = """
+            <a href="/dashboard">Dashboard</a>
+        """
+
+        if role in ["admin", "user"]:
+            nav_links += """
+            <a href="/calls">Calls</a>
+            """
+
+        if role in ["admin", "quality_reviewer"]:
+            nav_links += """
+            <a href="/recordings">Recordings</a>
+            """
+
+        if role == "admin":
+            nav_links += """
+            <a href="/settings">Settings</a>
+            """
+
+        nav = f"""
+        <div class="nav">
+            <div class="brand">
+                <div class="brand-mark">NF</div>
+                <div>
+                    <div class="brand-title">National Finance Oman</div>
+                    <div class="brand-subtitle">AI IT Support Dashboard</div>
+                </div>
+            </div>
+
+            <div class="nav-links">
+                {nav_links}
+            </div>
+
+            <div class="nav-user">
+                <span>{escape(user["username"])} ({escape(role)})</span>
+                <a href="/logout" class="logout">Logout</a>
+            </div>
+        </div>
+        """
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{escape(title)}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <style>
+            :root {{
+                --nf-navy: #1B2F6B;
+                --nf-navy-dark: #132250;
+                --nf-blue: #2B4A9F;
+                --nf-red: #C8102E;
+                --nf-bg: #F4F6FB;
+                --nf-card: #FFFFFF;
+                --nf-border: #D1D9F0;
+                --nf-text: #1F2937;
+                --nf-muted: #6B7280;
+                --nf-success: #10B981;
+                --nf-warning: #F59E0B;
+                --nf-danger: #C8102E;
+            }}
+
+            * {{
+                box-sizing: border-box;
+            }}
+
+            body {{
+                font-family: "Segoe UI", Arial, sans-serif;
+                margin: 0;
+                background: var(--nf-bg);
+                color: var(--nf-text);
+            }}
+
+            .nav {{
+                background: linear-gradient(90deg, var(--nf-navy-dark) 0%, var(--nf-navy) 75%);
+                color: white;
+                padding: 14px 24px;
+                display: flex;
+                align-items: center;
+                gap: 28px;
+                box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }}
+
+            .brand {{
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                min-width: 300px;
+            }}
+
+            .brand-mark {{
+                width: 42px;
+                height: 42px;
+                border-radius: 12px;
+                background: white;
+                color: var(--nf-navy);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 800;
+                font-size: 15px;
+                border-top: 4px solid var(--nf-red);
+            }}
+
+            .brand-title {{
+                font-size: 15px;
+                font-weight: 800;
+                letter-spacing: 0.2px;
+            }}
+
+            .brand-subtitle {{
+                font-size: 11px;
+                opacity: 0.78;
+                margin-top: 2px;
+            }}
+
+            .nav-links {{
+                display: flex;
+                align-items: center;
+                gap: 18px;
+                flex: 1;
+            }}
+
+            .nav a {{
+                color: white;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 14px;
+                opacity: 0.9;
+            }}
+
+            .nav a:hover {{
+                opacity: 1;
+                color: #dce7ff;
+            }}
+
+            .nav-user {{
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                font-size: 13px;
+            }}
+
+            .logout {{
+                background: rgba(255, 255, 255, 0.12);
+                padding: 8px 12px;
+                border-radius: 8px;
+            }}
+
+            .container {{
+                padding: 28px;
+                max-width: 1500px;
+                margin: 0 auto;
+            }}
+
+            h1 {{
+                margin: 0 0 4px;
+                color: var(--nf-navy);
+                font-size: 28px;
+                font-weight: 800;
+            }}
+
+            h2, h3 {{
+                color: var(--nf-navy);
+            }}
+
+            .subtitle {{
+                margin: 0 0 22px;
+                color: var(--nf-muted);
+                font-size: 14px;
+            }}
+
+            .grid {{
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 18px;
+                margin-bottom: 22px;
+            }}
+
+            .metric {{
+                background: var(--nf-card);
+                border-radius: 16px;
+                padding: 22px;
+                box-shadow: 0 4px 16px rgba(27, 47, 107, 0.10);
+                border: 1px solid var(--nf-border);
+                border-top: 4px solid var(--nf-red);
+            }}
+
+            .metric h2 {{
+                margin: 0;
+                font-size: 34px;
+                color: var(--nf-navy);
+                font-weight: 800;
+            }}
+
+            .metric p {{
+                margin: 8px 0 0;
+                color: var(--nf-muted);
+                font-weight: 600;
+                font-size: 14px;
+            }}
+
+            .card {{
+                background: var(--nf-card);
+                border-radius: 16px;
+                padding: 22px;
+                margin-bottom: 22px;
+                box-shadow: 0 4px 16px rgba(27, 47, 107, 0.10);
+                border: 1px solid var(--nf-border);
+            }}
+
+            .card h3 {{
+                margin-top: 0;
+            }}
+
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                background: white;
+                border-radius: 12px;
+                overflow: hidden;
+            }}
+
+            th, td {{
+                padding: 12px;
+                border-bottom: 1px solid #e5e7eb;
+                text-align: left;
+                font-size: 14px;
+                vertical-align: top;
+            }}
+
+            th {{
+                background: var(--nf-navy);
+                color: white;
+                font-weight: 700;
+                white-space: nowrap;
+            }}
+
+            tr:hover td {{
+                background: #E8EDF8;
+            }}
+
+            .status-pill {{
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 999px;
+                font-size: 12px;
+                font-weight: 700;
+                background: #E8EDF8;
+                color: var(--nf-navy);
+            }}
+
+            .ticket-pill {{
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 999px;
+                font-size: 12px;
+                font-weight: 800;
+                background: #FEE2E2;
+                color: var(--nf-red);
+            }}
+
+            input, textarea, select {{
+                width: 100%;
+                padding: 10px;
+                margin: 6px 0 12px;
+                border: 1px solid var(--nf-border);
+                border-radius: 8px;
+                font-family: inherit;
+            }}
+
+            textarea {{
+                min-height: 80px;
+            }}
+
+            button {{
+                background: var(--nf-navy);
+                color: white;
+                border: none;
+                padding: 10px 18px;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 700;
+            }}
+
+            button:hover {{
+                background: var(--nf-blue);
+            }}
+
+            .btn-link {{
+                display: inline-block;
+                background: var(--nf-navy);
+                color: white;
+                text-decoration: none;
+                padding: 7px 12px;
+                border-radius: 8px;
+                font-weight: 700;
+                font-size: 13px;
+            }}
+
+            .btn-link:hover {{
+                background: var(--nf-blue);
+            }}
+
+            .danger-note {{
+                color: var(--nf-danger);
+                font-weight: bold;
+            }}
+
+            .small {{
+                color: var(--nf-muted);
+                font-size: 13px;
+            }}
+
+            audio {{
+                width: 300px;
+            }}
+
+            .login-wrap {{
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: radial-gradient(circle at center, #2B4A9F 0%, #132250 75%);
+                padding: 20px;
+            }}
+
+            .login-card {{
+                max-width: 420px;
+                width: 100%;
+                background: white;
+                border-radius: 18px;
+                padding: 34px;
+                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.30);
+                border-top: 5px solid var(--nf-red);
+            }}
+
+            .login-card h2 {{
+                margin: 0 0 8px;
+                color: var(--nf-navy);
+                font-size: 25px;
+            }}
+
+            .login-card p {{
+                margin-top: 0;
+                color: var(--nf-muted);
+                font-size: 14px;
+            }}
+
+            .login-card label {{
+                color: var(--nf-navy);
+                font-weight: 700;
+                font-size: 12px;
+                text-transform: uppercase;
+            }}
+
+            .login-card input {{
+                background: #ffffff;
+                border: 1.5px solid #b8c4e3;
+                min-height: 42px;
+            }}
+
+            .login-card button {{
+                width: 100%;
+                min-height: 44px;
+                margin-top: 10px;
+            }}
+
+            @media (max-width: 900px) {{
+                .grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+
+                .nav {{
+                    flex-wrap: wrap;
+                }}
+
+                .brand {{
+                    min-width: auto;
+                }}
+            }}
+
+            @media (max-width: 600px) {{
+                .grid {{
+                    grid-template-columns: 1fr;
+                }}
+
+                .container {{
+                    padding: 18px;
+                }}
+
+                table {{
+                    display: block;
+                    overflow-x: auto;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        {nav}
+        <div class="container">
+            {body}
+        </div>
+    </body>
+    </html>
+    """
+
+
 @app.on_event("startup")
 def startup():
     init_db()
@@ -352,6 +665,7 @@ def startup():
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     user = current_user(request)
+
     if not user:
         return RedirectResponse("/login", status_code=302)
 
@@ -360,22 +674,130 @@ def home(request: Request):
 
     return RedirectResponse("/dashboard", status_code=302)
 
+
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     body = """
-    <div class="card" style="max-width:400px;margin:60px auto;">
-        <h2>AI IT Support Dashboard</h2>
-        <form method="post" action="/login">
-            <label>Username</label>
-            <input name="username" required>
-            <label>Password</label>
-            <input name="password" type="password" required>
-            <button type="submit">Login</button>
-        </form>
-        <p class="small">Default users: admin/admin123, user/user123, reviewer/reviewer123</p>
+    <div class="login-wrap">
+        <div class="login-card">
+            <h2>AI IT Support Dashboard</h2>
+            <p>National Finance Oman — Secure Operations Portal</p>
+
+            <form method="post" action="/login">
+                <label>Username</label>
+                <input name="username" required>
+
+                <label>Password</label>
+                <input name="password" type="password" required>
+
+                <button type="submit">Login</button>
+            </form>
+        </div>
     </div>
     """
-    return layout("Login", None, body)
+
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Login</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            :root {{
+                --nf-navy: #1B2F6B;
+                --nf-blue: #2B4A9F;
+                --nf-red: #C8102E;
+                --nf-muted: #6B7280;
+            }}
+
+            * {{
+                box-sizing: border-box;
+            }}
+
+            body {{
+                margin: 0;
+                font-family: "Segoe UI", Arial, sans-serif;
+            }}
+
+            .login-wrap {{
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: radial-gradient(circle at center, #2B4A9F 0%, #132250 75%);
+                padding: 20px;
+            }}
+
+            .login-card {{
+                max-width: 420px;
+                width: 100%;
+                background: white;
+                border-radius: 18px;
+                padding: 34px;
+                box-shadow: 0 24px 60px rgba(0, 0, 0, 0.30);
+                border-top: 5px solid var(--nf-red);
+            }}
+
+            h2 {{
+                margin: 0 0 8px;
+                color: var(--nf-navy);
+                font-size: 25px;
+            }}
+
+            p {{
+                margin-top: 0;
+                color: var(--nf-muted);
+                font-size: 14px;
+            }}
+
+            label {{
+                color: var(--nf-navy);
+                font-weight: 700;
+                font-size: 12px;
+                text-transform: uppercase;
+                display: block;
+                margin-bottom: 6px;
+            }}
+
+            input {{
+                width: 100%;
+                padding: 10px;
+                margin-bottom: 14px;
+                border: 1.5px solid #b8c4e3;
+                border-radius: 8px;
+                min-height: 42px;
+                font-size: 14px;
+            }}
+
+            input:focus {{
+                border-color: var(--nf-blue);
+                box-shadow: 0 0 0 3px rgba(43, 74, 159, 0.15);
+                outline: none;
+            }}
+
+            button {{
+                width: 100%;
+                min-height: 44px;
+                margin-top: 10px;
+                background: var(--nf-navy);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 700;
+                font-size: 14px;
+            }}
+
+            button:hover {{
+                background: var(--nf-blue);
+            }}
+        </style>
+    </head>
+    <body>
+        {body}
+    </body>
+    </html>
+    """
 
 
 @app.post("/login")
@@ -388,11 +810,15 @@ def login(username: str = Form(...), password: str = Form(...)):
     conn.close()
 
     if not user or user["password_hash"] != hash_password(password):
-        return HTMLResponse("Invalid login. <a href='/login'>Try again</a>", status_code=401)
+        return HTMLResponse(
+            "Invalid login. <a href='/login'>Try again</a>",
+            status_code=401
+        )
 
     token = sign_token(username)
     resp = RedirectResponse("/dashboard", status_code=302)
     resp.set_cookie("ai_dashboard_token", token, httponly=True, max_age=28800)
+
     return resp
 
 
@@ -411,25 +837,43 @@ def dashboard(request: Request):
     total_calls = conn.execute("SELECT COUNT(*) c FROM calls").fetchone()["c"]
     tickets = conn.execute("SELECT COUNT(*) c FROM calls WHERE ticket_created=1").fetchone()["c"]
     failed = conn.execute("SELECT COUNT(*) c FROM calls WHERE status='failed'").fetchone()["c"]
+    verified = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE verified_name IS NOT NULL AND verified_name != ''"
+    ).fetchone()["c"]
     conn.close()
 
-    recordings_count = len(recording_files())
+    if user["role"] == "admin":
+        recordings_count = len(recording_files())
 
-    body = f"""
-    <h1>Dashboard</h1>
-    <div class="grid">
-        <div class="metric"><h2>{total_calls}</h2><p>Total Calls Logged</p></div>
+        metrics = f"""
+        <div class="metric"><h2>{total_calls}</h2><p>Total Calls</p></div>
         <div class="metric"><h2>{recordings_count}</h2><p>Recordings</p></div>
         <div class="metric"><h2>{tickets}</h2><p>Tickets Created</p></div>
+        <div class="metric"><h2>{verified}</h2><p>Verified Callers</p></div>
+        """
+    else:
+        metrics = f"""
+        <div class="metric"><h2>{total_calls}</h2><p>Total Calls</p></div>
+        <div class="metric"><h2>{tickets}</h2><p>Tickets Created</p></div>
+        <div class="metric"><h2>{verified}</h2><p>Verified Callers</p></div>
         <div class="metric"><h2>{failed}</h2><p>Failed Calls</p></div>
+        """
+
+    body = f"""
+    <h1>AI IT Support Dashboard</h1>
+    <p class="subtitle">National Finance Oman — Voice AI Support Operations</p>
+
+    <div class="grid">
+        {metrics}
     </div>
 
     <div class="card">
-        <h3>System Notes</h3>
+        <h3>System Overview</h3>
         <ul>
+            <li>AI voice agent is available for IT support calls.</li>
+            <li>Zammad tickets are created for unresolved incidents.</li>
+            <li>Call metadata is logged for operational visibility.</li>
             <li>No delete actions are available in this dashboard.</li>
-            <li>Recordings are read-only from dashboard.</li>
-            <li>SQLite is used for POC and can later migrate to PostgreSQL.</li>
         </ul>
     </div>
     """
@@ -447,45 +891,87 @@ def calls(request: Request):
     ).fetchall()
     conn.close()
 
-    table = """
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Caller</th>
-            <th>Employee</th>
-            <th>Name</th>
-            <th>Language</th>
-            <th>Duration</th>
-            <th>Status</th>
-            <th>Ticket</th>
-            <th>Recording</th>
-        </tr>
-    """
+    show_recording = user["role"] == "admin"
+
+    if show_recording:
+        table = """
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Caller</th>
+                <th>Employee</th>
+                <th>Name</th>
+                <th>Language</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Ticket</th>
+                <th>Recording</th>
+            </tr>
+        """
+    else:
+        table = """
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Caller</th>
+                <th>Employee</th>
+                <th>Name</th>
+                <th>Language</th>
+                <th>Duration</th>
+                <th>Status</th>
+                <th>Ticket</th>
+            </tr>
+        """
 
     for r in rows:
-        rec = r["recording_file"] or ""
-        rec_link = f"<a href='/recordings/play?file={quote(Path(rec).name)}'>Play</a>" if rec else ""
+        status = escape(str(r["status"] or ""))
+        ticket = escape(str(r["ticket_number"] or ""))
 
-        table += f"""
-        <tr>
-            <td>{r["id"]}</td>
-            <td>{r["caller_number"] or ""}</td>
-            <td>{r["employee_id"] or ""}</td>
-            <td>{r["verified_name"] or ""}</td>
-            <td>{r["language"] or ""}</td>
-            <td>{r["duration_seconds"] or ""}</td>
-            <td>{r["status"] or ""}</td>
-            <td>{r["ticket_number"] or ""}</td>
-            <td>{rec_link}</td>
-        </tr>
-        """
+        status_html = f"<span class='status-pill'>{status}</span>" if status else ""
+        ticket_html = f"<span class='ticket-pill'>{ticket}</span>" if ticket else ""
+
+        if show_recording:
+            rec = r["recording_file"] or ""
+            rec_name = Path(rec).name if rec else ""
+            rec_link = ""
+
+            if rec_name:
+                rec_link = f"<a class='btn-link' href='/recordings/play?file={quote(rec_name)}'>Play</a>"
+
+            table += f"""
+            <tr>
+                <td>{r["id"]}</td>
+                <td>{escape(str(r["caller_number"] or ""))}</td>
+                <td>{escape(str(r["employee_id"] or ""))}</td>
+                <td>{escape(str(r["verified_name"] or ""))}</td>
+                <td>{escape(str(r["language"] or ""))}</td>
+                <td>{escape(str(r["duration_seconds"] or ""))}</td>
+                <td>{status_html}</td>
+                <td>{ticket_html}</td>
+                <td>{rec_link}</td>
+            </tr>
+            """
+        else:
+            table += f"""
+            <tr>
+                <td>{r["id"]}</td>
+                <td>{escape(str(r["caller_number"] or ""))}</td>
+                <td>{escape(str(r["employee_id"] or ""))}</td>
+                <td>{escape(str(r["verified_name"] or ""))}</td>
+                <td>{escape(str(r["language"] or ""))}</td>
+                <td>{escape(str(r["duration_seconds"] or ""))}</td>
+                <td>{status_html}</td>
+                <td>{ticket_html}</td>
+            </tr>
+            """
 
     table += "</table>"
 
     body = f"""
     <h1>Call History</h1>
+    <p class="subtitle">Recent AI support interactions</p>
+
     <div class="card">
-        <p class="small">This page will show full call records once bridge logging is added.</p>
         {table}
     </div>
     """
@@ -511,17 +997,20 @@ def recordings(request: Request):
 
     for f in files:
         encoded = quote(f["name"])
+
         table += f"""
         <tr>
-            <td>{f["name"]}</td>
-            <td>{f["caller"]}</td>
+            <td>{escape(f["name"])}</td>
+            <td>{escape(f["caller"])}</td>
             <td>{f["size_mb"]}</td>
             <td>
-                <audio controls src="/recordings/play?file={encoded}"></audio>
+                <audio controls>
+                    <source src="/recordings/play?file={encoded}" type="audio/wav">
+                </audio>
             </td>
             <td>
                 <form method="post" action="/quality/review">
-                    <input type="hidden" name="recording_file" value="{f["name"]}">
+                    <input type="hidden" name="recording_file" value="{escape(f["name"])}">
                     <select name="rating">
                         <option>Good</option>
                         <option>Needs Improvement</option>
@@ -538,6 +1027,8 @@ def recordings(request: Request):
 
     body = f"""
     <h1>Recordings</h1>
+    <p class="subtitle">Quality review and playback</p>
+
     <div class="card">
         <p class="danger-note">Delete is disabled by design. Recordings are read-only.</p>
         {table}
@@ -605,8 +1096,8 @@ def settings_page(request: Request):
 
     for r in rows:
         form += f"""
-        <label>{r["key"]}</label>
-        <textarea name="{r["key"]}">{r["value"] or ""}</textarea>
+        <label>{escape(r["key"])}</label>
+        <textarea name="{escape(r["key"])}">{escape(r["value"] or "")}</textarea>
         """
 
     form += """
@@ -616,8 +1107,10 @@ def settings_page(request: Request):
 
     body = f"""
     <h1>Settings</h1>
+    <p class="subtitle">Dashboard and AI support configuration</p>
+
     <div class="card">
-        <p class="small">Phase 1 stores settings here. Bridge integration will read these later.</p>
+        <p class="small">Phase 1 stores settings here. Bridge integration can read these later.</p>
         {form}
     </div>
     """
