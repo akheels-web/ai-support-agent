@@ -989,7 +989,7 @@ def dashboard(request: Request):
         <h3>System Overview</h3>
         <ul>
             <li>AI voice agent is available for IT support calls.</li>
-            <li>Zammad tickets are created for unresolved incidents.</li>
+            <li>Tickets are created for unresolved incidents.</li>
             <li>Call metadata is logged for operational visibility.</li>
             <li>No delete actions are available in this dashboard.</li>
         </ul>
