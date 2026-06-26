@@ -14,7 +14,7 @@ FIRST_NAME_MATCH_THRESHOLD = 82
 
 COMMON_TOKENS = {
     "al", "bin", "bint", "ibn", "abu", "umm",
-    "ال", "بن", "بنت", "ابن", "أبو", "ام", "أم"
+    "ال", "بن", "بنت", "ابن", "أبو", "ابو", "ام", "أم"
 }
 
 
@@ -29,21 +29,24 @@ def _load_users():
             for row in reader:
                 employee_id = row.get("employee_id", "").strip()
 
-                if employee_id:
-                    aliases_raw = row.get("aliases", "").strip()
-                    aliases = []
+                if not employee_id:
+                    continue
 
-                    if aliases_raw:
-                        aliases = [a.strip() for a in aliases_raw.split("|") if a.strip()]
+                aliases_raw = row.get("aliases", "").strip()
+                aliases = [a.strip() for a in aliases_raw.split("|") if a.strip()] if aliases_raw else []
 
-                    users[employee_id] = {
-                        "employee_id": employee_id,
-                        "name": row.get("name", "").strip(),
-                        "aliases": aliases,
-                        "email": row.get("email", "").strip(),
-                        "phone": row.get("phone", "").strip(),
-                        "department": row.get("department", "").strip(),
-                    }
+                vip_raw = str(row.get("vip", "false")).strip().lower()
+                vip = vip_raw in ("true", "1", "yes", "y")
+
+                users[employee_id] = {
+                    "employee_id": employee_id,
+                    "name": row.get("name", "").strip(),
+                    "aliases": aliases,
+                    "email": row.get("email", "").strip(),
+                    "phone": row.get("phone", "").strip(),
+                    "department": row.get("department", "").strip(),
+                    "vip": vip,
+                }
 
     except FileNotFoundError:
         print(f"[VERIFY] users.csv not found at {USERS_CSV}")
@@ -79,11 +82,7 @@ def _similarity(a, b):
 
 def _first_name(value):
     tokens = _tokens(value)
-
-    if not tokens:
-        return ""
-
-    return tokens[0]
+    return tokens[0] if tokens else ""
 
 
 def _first_name_matches(provided_name, official_name, aliases):
@@ -92,9 +91,7 @@ def _first_name_matches(provided_name, official_name, aliases):
     if not provided_first:
         return False
 
-    candidate_names = [official_name] + (aliases or [])
-
-    for candidate in candidate_names:
+    for candidate in [official_name] + (aliases or []):
         candidate_first = _first_name(candidate)
 
         if not candidate_first:
@@ -115,9 +112,7 @@ def _full_name_matches(provided_name, official_name, aliases):
     if not provided:
         return False
 
-    candidate_names = [official_name] + (aliases or [])
-
-    for candidate in candidate_names:
+    for candidate in [official_name] + (aliases or []):
         candidate_norm = _normalize(candidate)
 
         if not candidate_norm:
@@ -133,19 +128,8 @@ def _full_name_matches(provided_name, official_name, aliases):
 
 
 def _secure_name_match(provided_name, official_name, aliases):
-    """
-    Security rule:
-    - Full name/alias should match closely.
-    - First/given name must also match.
-    - Common family/tribe names alone are not enough.
-    """
-
-    if not provided_name or not official_name:
-        return False
-
     first_ok = _first_name_matches(provided_name, official_name, aliases)
     full_ok = _full_name_matches(provided_name, official_name, aliases)
-
     return first_ok and full_ok
 
 
@@ -156,24 +140,15 @@ def verify_user(employee_id, employee_name):
     employee_name = str(employee_name).strip()
 
     if not employee_id:
-        return {
-            "verified": False,
-            "reason": "employee_id_missing"
-        }
+        return {"verified": False, "reason": "employee_id_missing"}
 
     if not employee_name:
-        return {
-            "verified": False,
-            "reason": "employee_name_missing"
-        }
+        return {"verified": False, "reason": "employee_name_missing"}
 
     record = users.get(employee_id)
 
     if not record:
-        return {
-            "verified": False,
-            "reason": "employee_id_not_found"
-        }
+        return {"verified": False, "reason": "employee_id_not_found"}
 
     official_name = record.get("name", "")
     aliases = record.get("aliases", [])
@@ -183,11 +158,7 @@ def verify_user(employee_id, employee_name):
             f"[VERIFY] Name mismatch. Provided='{employee_name}', "
             f"Expected='{official_name}', EmployeeID='{employee_id}'"
         )
-
-        return {
-            "verified": False,
-            "reason": "name_mismatch"
-        }
+        return {"verified": False, "reason": "name_mismatch"}
 
     return {
         "verified": True,
@@ -196,4 +167,5 @@ def verify_user(employee_id, employee_name):
         "email": record["email"],
         "phone": record["phone"],
         "department": record["department"],
+        "vip": record.get("vip", False),
     }

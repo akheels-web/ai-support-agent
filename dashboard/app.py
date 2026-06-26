@@ -6,12 +6,15 @@ import hashlib
 from pathlib import Path
 from urllib.parse import quote
 from html import escape
+import secrets
+from app.config import validate_dashboard_config, DASHBOARD_SECRET, DASHBOARD_COOKIE_SECURE
 
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-APP_SECRET = os.getenv("DASHBOARD_SECRET", "change-this-dashboard-secret")
+validate_dashboard_config()
+APP_SECRET = DASHBOARD_SECRET
 DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
 RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
 BRAND_ASSETS_DIR = "/opt/ai-support-agent/zammad-branding/assets"
@@ -59,10 +62,12 @@ def verify_token(token):
 
 def current_user(request: Request):
     token = request.cookies.get("ai_dashboard_token")
+
     if not token:
         return None
 
-    username = verify_token(token)
+    username = get_session_user(token)
+
     if not username:
         return None
 
@@ -72,6 +77,7 @@ def current_user(request: Request):
         (username,)
     ).fetchone()
     conn.close()
+
     return user
 
 
@@ -176,6 +182,15 @@ def init_db():
         entity_type TEXT,
         entity_id TEXT,
         created_at INTEGER
+    )
+    """)
+
+    conn.execute("""
+    CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        username TEXT,
+        created_at INTEGER,
+        expires_at INTEGER
     )
     """)
 
@@ -904,15 +919,26 @@ def login(username: str = Form(...), password: str = Form(...)):
             status_code=401
         )
 
-    token = sign_token(username)
+    cleanup_expired_sessions()
+    token = create_session(username)
     resp = RedirectResponse("/dashboard", status_code=302)
-    resp.set_cookie("ai_dashboard_token", token, httponly=True, max_age=28800)
+    resp.set_cookie(
+    "ai_dashboard_token",
+    token,
+    httponly=True,
+    secure=DASHBOARD_COOKIE_SECURE,
+    samesite="strict",
+    max_age=28800
+)
 
     return resp
 
 
 @app.get("/logout")
-def logout():
+def logout(request: Request):
+    token = request.cookies.get("ai_dashboard_token")
+    delete_session(token)
+
     resp = RedirectResponse("/login", status_code=302)
     resp.delete_cookie("ai_dashboard_token")
     return resp

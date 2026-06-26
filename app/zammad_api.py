@@ -2,11 +2,15 @@ import os
 import requests
 from dotenv import load_dotenv
 
-load_dotenv("/opt/ai-support-agent/.env")
+load_dotenv("/opt/ai-support-agent/.env", override=True)
 
 ZAMMAD_URL = os.getenv("ZAMMAD_URL", "http://127.0.0.1:8080").rstrip("/")
 ZAMMAD_TOKEN = os.getenv("ZAMMAD_TOKEN")
 DEFAULT_ZAMMAD_GROUP = os.getenv("DEFAULT_ZAMMAD_GROUP", "Service Desk")
+ZAMMAD_TIMEOUT = int(os.getenv("ZAMMAD_TIMEOUT", "8"))
+
+if not ZAMMAD_TOKEN:
+    raise RuntimeError("ZAMMAD_TOKEN is missing")
 
 HEADERS = {
     "Authorization": f"Token token={ZAMMAD_TOKEN}",
@@ -26,7 +30,7 @@ def find_user_by_email(email):
         f"{ZAMMAD_URL}/api/v1/users/search",
         headers=HEADERS,
         params={"query": email},
-        timeout=20
+        timeout=ZAMMAD_TIMEOUT
     )
 
     _raise_with_body(response)
@@ -59,7 +63,7 @@ def create_customer_if_missing(email, firstname="AI", lastname="Caller"):
         f"{ZAMMAD_URL}/api/v1/users",
         headers=HEADERS,
         json=payload,
-        timeout=20
+        timeout=ZAMMAD_TIMEOUT
     )
 
     _raise_with_body(response)
@@ -73,7 +77,7 @@ def _post_ticket(payload):
         f"{ZAMMAD_URL}/api/v1/tickets",
         headers=HEADERS,
         json=payload,
-        timeout=20
+        timeout=ZAMMAD_TIMEOUT
     )
 
     _raise_with_body(response)
@@ -108,7 +112,6 @@ def create_ticket(customer_email, title, body, group=None, priority="2 normal"):
     try:
         data = _post_ticket(payload)
     except requests.exceptions.HTTPError as exc:
-        # If a non-existing group was requested by AI, retry with default Service Desk group.
         if group != DEFAULT_ZAMMAD_GROUP:
             print(f"[ZAMMAD] Retrying ticket with default group: {DEFAULT_ZAMMAD_GROUP}")
             payload["group"] = DEFAULT_ZAMMAD_GROUP
@@ -129,34 +132,5 @@ def create_ticket(customer_email, title, body, group=None, priority="2 normal"):
         "success": True,
         "ticket_id": ticket_id,
         "ticket_number": ticket_number,
-        "raw": data
-    }
-
-
-def update_ticket(ticket_id, note):
-    payload = {
-        "article": {
-            "subject": "Update from AI voice agent",
-            "body": note,
-            "type": "note",
-            "internal": False
-        }
-    }
-
-    response = requests.put(
-        f"{ZAMMAD_URL}/api/v1/tickets/{ticket_id}",
-        headers=HEADERS,
-        json=payload,
-        timeout=20
-    )
-
-    _raise_with_body(response)
-
-    data = response.json()
-
-    return {
-        "success": True,
-        "ticket_id": data.get("id"),
-        "ticket_number": data.get("number"),
         "raw": data
     }

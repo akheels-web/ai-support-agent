@@ -2,8 +2,20 @@
 .env
 .env.*
 *.env
-
-# Optional
-node_modules/
+venv/
 __pycache__/
+*.pyc
+
+data/dashboard.db
+data/users.csv
+data/*.db
+data/*.sqlite
+
+errors
+error*
+zerror
+fixes
 *.log
+
+.DS_Store
+.vscode/
