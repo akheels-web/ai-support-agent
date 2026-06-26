@@ -1,9 +1,10 @@
-
 import asyncio
 import base64
 import json
 import os
 import time
+
+from app.security_guard import check_rate_limit, log_security_event
 
 import websockets
 from dotenv import load_dotenv
@@ -27,6 +28,14 @@ from app.call_logger import (
 )
 
 load_dotenv("/opt/ai-support-agent/.env", override=True)
+
+CALLS_PER_NUMBER_LIMIT = int(os.getenv("CALLS_PER_NUMBER_LIMIT", "5"))
+CALLS_PER_NUMBER_WINDOW = int(os.getenv("CALLS_PER_NUMBER_WINDOW", "600"))
+CALLS_PER_NUMBER_LOCK = int(os.getenv("CALLS_PER_NUMBER_LOCK", "900"))
+
+VERIFY_FAIL_LIMIT = int(os.getenv("VERIFY_FAIL_LIMIT", "5"))
+VERIFY_FAIL_WINDOW = int(os.getenv("VERIFY_FAIL_WINDOW", "3600"))
+VERIFY_FAIL_LOCK = int(os.getenv("VERIFY_FAIL_LOCK", "3600"))
 
 ASTERISK_WS_HOST = "127.0.0.1"
 ASTERISK_WS_PORT = 8765

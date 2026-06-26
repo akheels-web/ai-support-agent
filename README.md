@@ -1,286 +1,142 @@
-# AI IT Support Voice Agent — Arif
 
-## 1. Project Overview
-
-**Arif** is a bilingual AI voice agent for National Finance Oman IT Support. The system receives phone calls through Asterisk, streams live audio to OpenAI Realtime, verifies the caller, performs controlled IT support workflow, creates support tickets, records calls, and exposes operational data in a FastAPI dashboard.
-
-The current POC supports:
-
-- English and Arabic voice interaction
-- Asterisk SIP calling using G.711 u-law audio
-- OpenAI Realtime voice agent bridge
-- Caller verification using `users.csv`
-- Zammad ticket creation
-- Call recording through Asterisk
-- SQLite call logging
-- FastAPI dashboard on port `8090`
-- Admin, user, and quality reviewer roles
-- Health, active calls, failed calls, recordings, settings, users, and prompt history pages
 
 ---
 
-## 2. High-Level Architecture
+## 15. Security and Abuse Protection
 
-```text
-Caller
-  ↓
-SIP Provider / DID
-  ↓
-Asterisk PBX
-  ↓
-WebSocket Media Bridge on 127.0.0.1:8765
-  ↓
-Python OpenAI Realtime Bridge
-  ├── OpenAI Realtime API
-  ├── verify.py using users.csv
-  ├── Zammad API ticket creation
-  ├── call_logger.py SQLite logging
-  └── optional transfer_to_agent via Asterisk AMI
-  ↓
-Dashboard FastAPI on 0.0.0.0:8090
+This project includes additional security and anti-abuse controls to protect both the voice agent and the dashboard.
+
+### 15.1 Asterisk / AI Voice Call Rate Limiting
+
+The bridge can rate-limit repeated calls from the same caller number to reduce spam, bot calls, and denial-of-service attempts.
+
+Recommended `.env` values:
+
+```ini
+CALLS_PER_NUMBER_LIMIT=5
+CALLS_PER_NUMBER_WINDOW=600
+CALLS_PER_NUMBER_LOCK=900
 ```
 
----
-
-## 3. Main Components
-
-### 3.1 Asterisk
-
-Asterisk handles:
-
-- SIP trunk registration
-- Incoming call routing
-- Media WebSocket connection to Python bridge
-- Call recording using WAV files
-- Optional queue or transfer to live agents
-
-Important ports:
+Meaning:
 
 ```text
-5060/5061  SIP, depending on trunk setup
-8765       Local WebSocket bridge, bound to 127.0.0.1
-5038       AMI, only if transfer-to-agent is enabled
+Maximum 5 calls from the same caller number within 10 minutes.
+If exceeded, block the caller for 15 minutes.
 ```
 
----
+Implementation file:
 
-### 3.2 OpenAI Realtime Bridge
+```text
+app/security_guard.py
+```
 
-Main file:
+Bridge integration file:
 
 ```text
 app/openai_realtime_bridge.py
 ```
 
-Responsibilities:
-
-- Accept Asterisk WebSocket media
-- Connect to OpenAI Realtime API
-- Send and receive u-law audio
-- Manage call lifecycle
-- Apply strict call flow state machine
-- Handle language selection
-- Verify users
-- Create tickets
-- Queue responses safely
-- Prevent overlapping active responses
-- Log calls to dashboard database
-
-Important local port:
+Rejected or rate-limited calls should be logged with statuses such as:
 
 ```text
-127.0.0.1:8765
+rejected
+verification_blocked
 ```
 
 ---
 
-### 3.3 Verification
+### 15.2 Verification Abuse Protection
 
-Main file:
+The system can lock out repeated failed verification attempts to prevent attackers from guessing employee ID and name combinations.
+
+Recommended `.env` values:
+
+```ini
+VERIFY_FAIL_LIMIT=5
+VERIFY_FAIL_WINDOW=3600
+VERIFY_FAIL_LOCK=3600
+```
+
+Meaning:
 
 ```text
-app/verify.py
+Maximum 5 failed verification attempts per caller or employee ID within 1 hour.
+If exceeded, block further verification attempts for 1 hour.
 ```
 
-Verification uses:
+Events are logged in the `security_events` table.
+
+Common event types:
 
 ```text
-data/users.csv
+verification_failed
+verification_blocked
+call_rate_limited
 ```
-
-Expected CSV format:
-
-```csv
-employee_id,name,aliases,email,phone,department,vip
-1002,Mohammed Akheel,Mohammed Aqeel|Mohammad Akheel,makheel@example.com,+919000000001,IT,true
-```
-
-Verification rules:
-
-- Employee ID must match exactly.
-- Name must match official name or alias.
-- First name/given name must match.
-- Common family tokens like `Al`, `bin`, `bint`, and Arabic equivalents are ignored for stronger matching.
-- VIP users can be flagged using `vip=true`.
 
 ---
 
-### 3.4 Ticketing
+### 15.3 Dashboard Login Rate Limiting
 
-Current ticketing backend:
+The dashboard login page should rate-limit failed login attempts by client IP address.
 
-```text
-Zammad
-```
-
-Main file:
+Recommended policy:
 
 ```text
-app/zammad_api.py
+Maximum 5 failed login attempts within 5 minutes.
+Lock login attempts from that IP for 15 minutes.
 ```
 
-The bridge creates tickets with:
-
-- Caller name
-- Employee ID
-- Email
-- Department
-- Issue summary
-- Key points collected
-- Troubleshooting steps
-- Created by AI Voice Agent Arif
-
-Future recommended backend:
+Common event types:
 
 ```text
-Frappe Helpdesk
+dashboard_login_failed
+dashboard_login_rate_limited
+dashboard_login_success
 ```
 
-Reason:
+Implementation file:
 
-- Modern UI
-- Better customer-facing experience
-- Good fit for a clean helpdesk portal
-- Better long-term replacement for Zammad if customer rejects Zammad UI
+```text
+app/security_guard.py
+```
 
----
-
-### 3.5 Dashboard
-
-Main file:
+Dashboard integration file:
 
 ```text
 dashboard/app.py
 ```
 
-Dashboard service:
-
-```text
-ai-dashboard.service
-```
-
-Dashboard URL:
-
-```text
-http://SERVER-IP:8090
-```
-
-Dashboard roles:
-
-| Role | Access |
-|---|---|
-| admin | Dashboard, calls, active calls, failed calls, recordings, health, prompts, users, settings |
-| user | Dashboard, calls, active calls, failed calls, change password |
-| quality_reviewer | Recordings, quality review, change password |
-
-Security notes:
-
-- Users should use strong passwords.
-- Default credentials must be changed before customer demo or pilot.
-- Dashboard should only be exposed over VPN or internal secure network.
-- Do not expose dashboard directly to the public internet.
-
 ---
 
-## 4. Directory Structure
+### 15.4 Dashboard Session Security
 
-```text
-/opt/ai-support-agent
-├── app/
-│   ├── openai_realtime_bridge.py
-│   ├── config.py
-│   ├── verify.py
-│   ├── zammad_api.py
-│   ├── call_logger.py
-│   └── transfer.py
-│
-├── dashboard/
-│   └── app.py
-│
-├── data/
-│   ├── users.csv
-│   ├── users.example.csv
-│   └── dashboard.db
-│
-├── zammad-branding/
-│   ├── apply_zammad_branding.sh
-│   ├── national_finance.css
-│   └── assets/
-│       ├── nfc-logo.svg
-│       └── tct-logo.png
-│
-├── .env
-├── .env.example
-├── .gitignore
-├── README.md
-└── DEPLOYMENT.md
+Dashboard sessions should use server-side session tokens instead of signing only the username.
+
+Required cookie settings:
+
+```python
+httponly=True
+samesite="strict"
+secure=True  # when HTTPS is enabled
+max_age=28800
 ```
 
----
-
-## 5. Environment Variables
-
-Main config file:
-
-```text
-/opt/ai-support-agent/.env
-```
-
-Example:
+Required `.env` values:
 
 ```ini
-OPENAI_API_KEY=sk-proj-CHANGE_ME
-OPENAI_REALTIME_MODEL=gpt-realtime
-
-ZAMMAD_URL=http://127.0.0.1:8080
-ZAMMAD_TOKEN=CHANGE_ME
-DEFAULT_ZAMMAD_GROUP=Service Desk
-ZAMMAD_TIMEOUT=8
-
-CSV_USERS_FILE=/opt/ai-support-agent/data/users.csv
-
-MAX_CONCURRENT_CALLS=10
-CALL_MAX_SECONDS=1800
-
-VAD_THRESHOLD=0.75
-VAD_SILENCE_MS=1700
-VAD_IDLE_TIMEOUT_MS=30000
-
-DASHBOARD_SECRET=CHANGE_ME_LONG_RANDOM_SECRET
+DASHBOARD_SECRET=<long-random-secret>
 DASHBOARD_COOKIE_SECURE=false
-
-SIMPLE_ISSUE_AUTO_TICKET=true
-
-ASTERISK_AMI_HOST=127.0.0.1
-ASTERISK_AMI_PORT=5038
-ASTERISK_AMI_USER=aiagent
-ASTERISK_AMI_SECRET=CHANGE_ME
-ASTERISK_TRANSFER_CONTEXT=from-internal
-ASTERISK_AGENT_EXTENSION=7001
-ASTERISK_TRANSFER_PRIORITY=1
 ```
 
-Generate dashboard secret:
+For HTTPS deployments, use:
+
+```ini
+DASHBOARD_COOKIE_SECURE=true
+```
+
+Generate a strong dashboard secret:
 
 ```bash
 openssl rand -hex 32
@@ -288,166 +144,80 @@ openssl rand -hex 32
 
 ---
 
-## 6. Services
+### 15.5 CSRF Protection for Dashboard Forms
 
-### 6.1 AI Bridge Service
+All dashboard POST actions should use CSRF tokens.
 
-Service file:
-
-```text
-/etc/systemd/system/ai-support-bridge.service
-```
-
-Useful commands:
-
-```bash
-systemctl status ai-support-bridge
-systemctl restart ai-support-bridge
-journalctl -u ai-support-bridge -f
-```
-
-Check bridge port:
-
-```bash
-ss -lntp | grep 8765
-```
-
----
-
-### 6.2 Dashboard Service
-
-Service file:
+High-risk routes that must validate CSRF tokens:
 
 ```text
-/etc/systemd/system/ai-dashboard.service
+POST /login
+POST /settings
+POST /users/add
+POST /users/update
+POST /users/reset-password
+POST /change-password
+POST /prompts/add
+POST /prompts/activate
+POST /quality/review
 ```
 
-Useful commands:
-
-```bash
-systemctl status ai-dashboard
-systemctl restart ai-dashboard
-journalctl -u ai-dashboard -f
-```
-
-Check dashboard port:
-
-```bash
-ss -lntp | grep 8090
-```
+The dashboard should generate a CSRF token on GET pages with forms and validate it on all POST requests.
 
 ---
 
-### 6.3 Asterisk Service
+### 15.6 Security Events Page
 
-Useful commands:
-
-```bash
-systemctl status asterisk
-systemctl restart asterisk
-asterisk -rx "core show uptime"
-```
-
----
-
-## 7. Call Flow
+Admins should have access to a security events page:
 
 ```text
-1. Caller dials IT support number.
-2. Asterisk receives the call and starts recording.
-3. Asterisk opens WebSocket media to 127.0.0.1:8765.
-4. Python bridge connects to OpenAI Realtime.
-5. AI says greeting and asks Arabic or English.
-6. Caller selects language.
-7. AI asks name and employee ID.
-8. Backend verifies user from users.csv.
-9. AI asks issue details.
-10. AI performs troubleshooting or simple issue ticket flow.
-11. If required, AI creates ticket in Zammad.
-12. AI reads ticket number.
-13. AI asks if anything else is needed.
-14. AI says goodbye.
-15. Call is closed and logged in dashboard DB.
+/security-events
 ```
 
----
+This page should show:
 
-## 8. Dashboard Features
+- Failed dashboard logins
+- Dashboard login lockouts
+- Voice-call rate limit events
+- Failed verification attempts
+- Verification lockouts
+- Other abuse-related events
 
-Current dashboard includes:
-
-- Login page with National Finance branding
-- TCT Enterprise footer credit
-- Dashboard summary
-- Call history with filters
-- Active calls
-- Failed/rejected calls
-- Health checks
-- Recordings review
-- Admin settings
-- User management
-- Prompt version history
-- Change password
-
----
-
-## 9. Health Checks
-
-Dashboard health page:
+Primary table:
 
 ```text
-/health
+security_events
 ```
 
-Checks:
+Recommended columns:
 
-- AI bridge port `8765`
-- AI bridge service
-- Asterisk service
-- Dashboard service
-- Zammad API reachability
-- OpenAI key configured status without exposing the key
-
-CLI checks:
-
-```bash
-systemctl status ai-support-bridge
-systemctl status ai-dashboard
-systemctl status asterisk
-ss -lntp | grep 8765
-ss -lntp | grep 8090
-curl http://127.0.0.1:8090/login
+```text
+id
+event_type
+key
+details
+created_at
 ```
 
 ---
 
-## 10. Security Notes
+### 15.7 Sensitive Files That Must Not Be Committed
 
-Before any customer-facing pilot:
-
-- Set a strong `DASHBOARD_SECRET`.
-- Change all default dashboard passwords.
-- Do not commit `.env`, `users.csv`, or `dashboard.db` to Git.
-- Restrict dashboard port `8090` to VPN/internal users only.
-- Restrict Asterisk AMI port `5038` to localhost or trusted hosts only.
-- Use HTTPS or VPN access for dashboard.
-- Set `DASHBOARD_COOKIE_SECURE=true` when HTTPS is enabled.
-
----
-
-## 11. Git Hygiene
-
-Sensitive files that must not be tracked:
+These files must stay out of Git:
 
 ```text
 .env
 data/users.csv
 data/dashboard.db
+data/*.db
+data/*.sqlite
 errors
 error*
 zerror
 fixes
 *.log
+__pycache__/
+*.pyc
 ```
 
 Use example files instead:
@@ -459,100 +229,55 @@ data/users.example.csv
 
 ---
 
-## 12. Known Limitations
+### 15.8 Security Validation Commands
 
-- Webex integration is not implemented yet.
-- Zammad is the current ticketing backend, but customer may prefer a modern replacement.
-- Frappe Helpdesk is recommended as the next ticketing POC.
-- Live speaker diarization is not implemented; background voices can still affect AI accuracy.
-- Noise suppression is limited by the PSTN/SIP audio path.
-- Existing dashboard uses SQLite; PostgreSQL is recommended before production.
+Validate Python files:
+
+```bash
+cd /opt/ai-support-agent
+source venv/bin/activate
+
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/security_guard.py
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
+PYTHONPATH=/opt/ai-support-agent python -m py_compile dashboard/app.py
+```
+
+Initialize security tables manually:
+
+```bash
+PYTHONPATH=/opt/ai-support-agent python -c "from app.security_guard import init_security_db; init_security_db(); print('Security DB initialized')"
+```
+
+Inspect security events:
+
+```bash
+sqlite3 /opt/ai-support-agent/data/dashboard.db "SELECT id, event_type, key, details, datetime(created_at, 'unixepoch') FROM security_events ORDER BY id DESC LIMIT 20;"
+```
+
+Inspect rate limits:
+
+```bash
+sqlite3 /opt/ai-support-agent/data/dashboard.db "SELECT key, counter, datetime(window_start, 'unixepoch'), datetime(locked_until, 'unixepoch') FROM rate_limits ORDER BY locked_until DESC LIMIT 20;"
+```
 
 ---
 
-## 13. Recommended Roadmap
+### 15.9 Security Checklist Before Customer Demo
 
-### Phase 1 — Security and reliability
+Before any customer-facing demo or pilot, confirm:
 
-- Secure sessions
-- Required dashboard secret
-- Duplicate call row fix
-- Stale call reconciliation
-- Config validation
-- Non-blocking verify and ticket operations
-
-### Phase 2 — Customer call behavior
-
-- VIP users
-- Simple issue auto-ticket
-- Transfer to human queue
-- Better Asterisk queue status
-
-### Phase 3 — Ticketing replacement
-
-- Evaluate Frappe Helpdesk
-- Build ticketing abstraction
-- Implement Frappe API client
-- Migrate away from Zammad if approved
-
-### Phase 4 — Webex Calling stats
-
-- Confirm Webex Calling API access
-- Pull Detailed Call History records
-- Show Webex stats in dashboard
-
-### Phase 5 — Production hardening
-
-- PostgreSQL migration
-- HTTPS
-- Backup and restore plan
-- Monitoring and alerting
-- Structured JSON logs
-- Automated test suite
-
----
-
-## 14. Useful Commands
-
-Restart everything:
-
-```bash
-systemctl restart asterisk
-systemctl restart ai-support-bridge
-systemctl restart ai-dashboard
-```
-
-Watch bridge logs:
-
-```bash
-journalctl -u ai-support-bridge -f
-```
-
-Watch dashboard logs:
-
-```bash
-journalctl -u ai-dashboard -f
-```
-
-Check latest calls:
-
-```bash
-sqlite3 /opt/ai-support-agent/data/dashboard.db "select id, call_id, caller_number, employee_id, verified_name, status, ticket_number from calls order by id desc limit 10;"
-```
-
-Clean stale calls manually:
-
-```bash
-sqlite3 /opt/ai-support-agent/data/dashboard.db "
-UPDATE calls
-SET status='ended',
-    end_time=COALESCE(end_time, strftime('%s','now')),
-    duration_seconds=CASE
-        WHEN start_time IS NOT NULL THEN strftime('%s','now') - start_time
-        ELSE duration_seconds
-    END
-WHERE end_time IS NULL
-AND start_time < strftime('%s','now') - 1800
-AND status IN ('in_progress','language_selected','verified','troubleshooting');
-"
+```text
+[ ] DASHBOARD_SECRET is set and is not default.
+[ ] Default dashboard passwords are changed.
+[ ] Dashboard is accessible only internally or through VPN.
+[ ] DASHBOARD_COOKIE_SECURE=true if HTTPS is enabled.
+[ ] .env is not committed to Git.
+[ ] users.csv is not committed to Git.
+[ ] dashboard.db is not committed to Git.
+[ ] Login rate limiting is enabled.
+[ ] Verification rate limiting is enabled.
+[ ] Call spam protection is enabled.
+[ ] Security Events page is available for admin.
+[ ] Asterisk AMI is not exposed publicly.
+[ ] Port 8765 is bound to 127.0.0.1 only.
 ```
