@@ -7,12 +7,30 @@ security events.
 
 ## Architecture
 
-```text
-Caller → Asterisk PBX → WebSocket bridge (app/openai_realtime_bridge.py)
-             → OpenAI Realtime API (voice agent "Arif")
-             → verify.py (users.csv)  →  zammad_api.py (tickets)
-             → transfer.py (Asterisk AMI, optional)
-             → SQLite (data/dashboard.db)  →  FastAPI dashboard/app.py
+```mermaid
+flowchart TD
+    Caller([📞 Caller]) --> Asterisk[Asterisk PBX]
+    Asterisk <-->|audio WS :8765| Bridge[Voice Bridge<br/>openai_realtime_bridge.py]
+    Bridge <-->|Realtime API| OpenAI[OpenAI Realtime<br/>agent Arif]
+
+    Bridge --> Verify[verify.py]
+    Verify --> CSV[(users.csv)]
+    Bridge --> Zammad[zammad_api.py] --> ZammadSrv[(Zammad<br/>tickets)]
+    Bridge -.->|optional| Transfer[transfer.py] -.->|AMI :5038| Asterisk
+    Bridge --> Guard[security_guard.py<br/>rate limits + lockouts]
+
+    Bridge --> Log[call_logger.py]
+    Log --> DB[(SQLite<br/>dashboard.db)]
+    Guard --> DB
+    DB --> Dashboard[FastAPI Dashboard<br/>:8090]
+    Admin([👤 Admin]) --> Dashboard
+
+    classDef ext fill:#FEE2E2,stroke:#C8102E,color:#1F2937;
+    classDef core fill:#E8EDF8,stroke:#1B2F6B,color:#1F2937;
+    classDef store fill:#D1FAE5,stroke:#065F46,color:#1F2937;
+    class Caller,Admin,OpenAI,Asterisk ext;
+    class Bridge,Verify,Zammad,Transfer,Guard,Log,Dashboard core;
+    class CSV,ZammadSrv,DB store;
 ```
 
 | Component | File | Purpose |
