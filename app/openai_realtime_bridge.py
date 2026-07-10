@@ -4,7 +4,7 @@ import json
 import os
 import time
 
-from app.security_guard import check_rate_limit, log_security_event
+from app.security_guard import check_rate_limit, log_security_event, reset_rate_limit, is_locked
 
 import websockets
 from dotenv import load_dotenv
@@ -458,6 +458,7 @@ async def handle_single_call(asterisk_ws):
         "closing": False,
         "background_noise_warning_count": 0,
         "asterisk_channel": None,
+        "caller_number": None,
         "transfer_attempted": False,
         "transfer_target": ASTERISK_AGENT_EXTENSION,
         "started_monotonic": time.monotonic(),
@@ -575,9 +576,24 @@ async def handle_single_call(asterisk_ws):
                 state["caller_name"] = employee_name
                 state["employee_id"] = employee_id
 
+                verify_key = f"verify:{state.get('caller_number') or employee_id}"
+
+                lock_remaining = await asyncio.to_thread(is_locked, verify_key)
+                if lock_remaining > 0:
+                    log_security_event("verification_blocked", verify_key, f"retry_after={lock_remaining}")
+                    state["current_state"] = "closing"
+                    update_call(state["call_id"], status="verification_blocked")
+                    queue_goodbye("verification_failed")
+                    return {
+                        "verified": False,
+                        "action": "call_will_end",
+                        "message": "Too many failed verification attempts. Please try again later.",
+                    }
+
                 result = await asyncio.to_thread(verify_user, employee_id, employee_name)
 
                 if result.get("verified"):
+                    await asyncio.to_thread(reset_rate_limit, verify_key)
                     state["verified_user"] = result
                     state["verification_attempts"] = 0
                     state["is_vip"] = bool(result.get("vip", False))
@@ -606,6 +622,22 @@ async def handle_single_call(asterisk_ws):
                 state["verification_attempts"] += 1
                 attempts_left = 3 - state["verification_attempts"]
                 print(f"[VERIFY] Failed attempt {state['verification_attempts']}/3")
+
+                verify_rl = await asyncio.to_thread(
+                    check_rate_limit, verify_key, VERIFY_FAIL_LIMIT, VERIFY_FAIL_WINDOW, VERIFY_FAIL_LOCK
+                )
+                log_security_event("verification_failed", verify_key, f"employee_id={employee_id}")
+                if not verify_rl["allowed"]:
+                    log_security_event("verification_blocked", verify_key, f"retry_after={verify_rl['retry_after']}")
+                    state["current_state"] = "closing"
+                    update_call(state["call_id"], status="verification_blocked")
+                    queue_goodbye("verification_failed")
+                    return {
+                        "verified": False,
+                        "attempts_left": 0,
+                        "action": "call_will_end",
+                        "message": "Too many failed verification attempts.",
+                    }
 
                 if state["verification_attempts"] >= 3:
                     state["current_state"] = "closing"
@@ -1025,6 +1057,13 @@ async def handle_single_call(asterisk_ws):
                                 state["asterisk_channel"] = part.replace("channel:", "").strip()
                                 print(f"[CALL] Asterisk channel detected: {state['asterisk_channel']}")
 
+                            if part.startswith("caller:"):
+                                caller_number = part.replace("caller:", "").strip()
+                                if caller_number:
+                                    state["caller_number"] = caller_number
+                                    update_call(state["call_id"], caller_number=caller_number)
+                                    print(f"[CALL] Caller number detected: {caller_number}")
+
                             if part.startswith("channel_id:"):
                                 real_call_id = part.replace("channel_id:", "").strip()
                                 if real_call_id:
@@ -1033,6 +1072,26 @@ async def handle_single_call(asterisk_ws):
                                     rename_call_id(old_call_id, real_call_id)
                                     update_call(state["call_id"], status="in_progress")
                                     print(f"[CALL] Asterisk call ID detected: {real_call_id}")
+
+                        # Rate-limit repeated calls from the same number (spam / DoS).
+                        if state["caller_number"]:
+                            rl = check_rate_limit(
+                                f"call:{state['caller_number']}",
+                                CALLS_PER_NUMBER_LIMIT,
+                                CALLS_PER_NUMBER_WINDOW,
+                                CALLS_PER_NUMBER_LOCK,
+                            )
+                            if not rl["allowed"]:
+                                log_security_event(
+                                    "call_rate_limited",
+                                    state["caller_number"],
+                                    f"reason={rl['reason']} retry_after={rl['retry_after']}",
+                                )
+                                update_call(state["call_id"], status="rejected")
+                                print(f"[CALL] Rate limited caller {state['caller_number']}. Rejecting.")
+                                state["call_ending"] = True
+                                await asterisk_ws.close()
+                                return
 
         except websockets.exceptions.ConnectionClosed:
             pass

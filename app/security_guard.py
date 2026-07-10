@@ -147,6 +147,21 @@ def check_rate_limit(key, limit, window_seconds, lock_seconds):
     }
 
 
+def is_locked(key):
+    """Read-only lock check. Returns remaining lock seconds, or 0 if not locked.
+    Does NOT increment the counter (unlike check_rate_limit)."""
+    init_security_db()
+
+    now = int(time.time())
+    conn = _db()
+    row = conn.execute("SELECT locked_until FROM rate_limits WHERE key=?", (key,)).fetchone()
+    conn.close()
+
+    if row and int(row["locked_until"] or 0) > now:
+        return int(row["locked_until"]) - now
+    return 0
+
+
 def reset_rate_limit(key):
     init_security_db()
 

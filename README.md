@@ -1,4 +1,61 @@
+# AI IT Support Voice Agent
 
+An AI voice agent ("Arif") that answers IT support calls for National Finance,
+verifies the caller, troubleshoots, creates Zammad tickets, and can transfer to
+a human. English and Arabic. A FastAPI dashboard shows calls, recordings, and
+security events.
+
+## Architecture
+
+```text
+Caller → Asterisk PBX → WebSocket bridge (app/openai_realtime_bridge.py)
+             → OpenAI Realtime API (voice agent "Arif")
+             → verify.py (users.csv)  →  zammad_api.py (tickets)
+             → transfer.py (Asterisk AMI, optional)
+             → SQLite (data/dashboard.db)  →  FastAPI dashboard/app.py
+```
+
+| Component | File | Purpose |
+|---|---|---|
+| Voice bridge | `app/openai_realtime_bridge.py` | Asterisk ↔ OpenAI audio, call flow, tools |
+| Verification | `app/verify.py` | Match caller name + employee ID against `users.csv` |
+| Ticketing | `app/zammad_api.py` | Create Zammad tickets |
+| Transfer | `app/transfer.py` | Redirect a live call to a human via AMI |
+| Call log | `app/call_logger.py` | Persist call metadata to SQLite |
+| Abuse protection | `app/security_guard.py` | Rate limits + lockouts (calls, verification, login) |
+| Dashboard | `dashboard/app.py` | Ops UI: calls, recordings, users, security events |
+
+## Quickstart
+
+Runs from `/opt/ai-support-agent`. Requires Python 3.10+, an Asterisk PBX, a
+Zammad instance, and an OpenAI API key.
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+pip install fastapi uvicorn websockets python-dotenv requests python-multipart jinja2
+
+cp .env.example .env      # then edit: OPENAI_API_KEY, ZAMMAD_TOKEN, DASHBOARD_SECRET
+openssl rand -hex 32      # use for DASHBOARD_SECRET
+
+# Caller verification data
+nano data/users.csv       # columns: employee_id,name,aliases,email,phone,department,vip
+
+# Run the voice bridge (listens on 127.0.0.1:8765)
+PYTHONPATH=. python app/openai_realtime_bridge.py
+
+# Run the dashboard (separate process)
+uvicorn dashboard.app:app --host 0.0.0.0 --port 8090
+```
+
+Default dashboard logins are created on first run (`admin`/`admin123`,
+`user`/`user123`, `reviewer`/`reviewer123`) — **change these before any
+non-demo use.**
+
+## Documentation
+
+- `DEPLOYMENT.md` — full install, systemd units, Asterisk config, troubleshooting.
+- `PRODUCTION_DEPLOYMENT_GUIDE.md` — production hardening, PostgreSQL, Webex Calling design.
+- Section 15 below — security and abuse protection.
 
 ---
 
