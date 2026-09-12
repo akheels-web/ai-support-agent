@@ -119,6 +119,29 @@ SMALL IT ISSUES & TROUBLESHOOTING RULE:
   - Call create_ticket directly.
   - Give caller their ticket number clearly.
 
+HARDWARE REQUESTS & MANAGER APPROVAL RULE:
+- For any hardware requests (laptop, desktop, monitor, keyboard, mouse, dock, charger, phone, headset, or replacement):
+- Call create_ticket with group="Hardware Request".
+- The ticket is automatically assigned status 'Pending Approval'.
+- Tell the caller clearly: "Your hardware request has been logged under ticket [number] with status 'Pending Manager Approval'. Per National Finance policy, your Department Manager must approve this in the IT Helpdesk before our IT team can dispatch the equipment."
+
+NON-IT INQUIRY HANDLING (LOANS, BANKING, CAR FINANCE):
+- If the caller asks about non-IT topics such as personal loans, vehicle financing, interest rates, credit cards, bank account balances, or HR payroll:
+- Do NOT create an IT ticket or escalate to IT queues.
+- Politely explain: "This line is strictly dedicated to National Finance internal IT Support. For loan applications or banking inquiries, please reach out to our Customer Care team."
+
+CONFIDENTIALITY & SYSTEM NAMING RULES:
+- NEVER mention the names of backend software, tools, servers, vendors, or technologies to the caller.
+- Do NOT say "Frappe", "ERPNext", "Zammad", "OpenAI", "Asterisk", "PostgreSQL", "SQLite", "Python", etc.
+- Always refer to the system simply as "the IT Helpdesk" or "IT Support" or "our ticketing system".
+
+ANTI-HALLUCINATION & BOUNDARY INTEGRITY RULES:
+- You are an internal IT Support voice agent exclusively for National Finance employees.
+- NEVER invent or guess ticket numbers. Only recite ticket numbers returned directly by create_ticket or record_resolution.
+- NEVER claim you directly unlocked an Active Directory account or changed a password on the server yourself. You provide the self-service steps from lookup_knowledge_base or log a service desk ticket for IT administrators.
+- Ground all technical troubleshooting strictly in verified playbooks via lookup_knowledge_base.
+- Never create more than one ticket per issue.
+
 STANDARD CALL FLOW:
 1. Greet caller: "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue."
 2. Caller selects language -> call set_language.
@@ -232,7 +255,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "create_ticket",
-        "description": "Create helpdesk ticket in Frappe Helpdesk.",
+        "description": "Create ticket in the IT Helpdesk.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -691,10 +714,24 @@ async def handle_single_call(asterisk_ws):
                 }
 
             if tool_name == "record_resolution":
+                verified_user = state.get("verified_user") or {}
+                if not verified_user.get("employee_id"):
+                    return {
+                        "success": False,
+                        "error": "Caller must be verified with full name and employee ID before recording a resolution.",
+                    }
+
+                if state.get("resolution_recorded") or state.get("ticket_created"):
+                    existing_ticket = state.get("last_ticket_number") or "recorded"
+                    return {
+                        "success": True,
+                        "ticket_number": existing_ticket,
+                        "message": f"Resolution already logged for this call (Ticket: {existing_ticket}).",
+                    }
+
                 title = arguments.get("title", "IT Issue Resolved on Call")
                 resolution_summary = arguments.get("resolution_summary", "Issue resolved via AI diagnostics.")
 
-                verified_user = state.get("verified_user") or {}
                 customer_email = verified_user.get("email") or f"caller_{state['call_id']}@nationalfinance.com"
 
                 client = get_ticketing_client()
@@ -719,6 +756,9 @@ async def handle_single_call(asterisk_ws):
                 )
 
                 ticket_number = result.get("ticket_number")
+                state["resolution_recorded"] = True
+                state["last_ticket_number"] = ticket_number
+
                 update_call(
                     state["call_id"],
                     status="resolved",
@@ -743,11 +783,67 @@ async def handle_single_call(asterisk_ws):
 
             if tool_name == "create_ticket":
                 verified_user = state.get("verified_user") or {}
-                customer_email = verified_user.get("email") or f"caller_{state['call_id']}@nationalfinance.com"
-                title = arguments.get("title", "IT Support Request")
-                description = arguments.get("description", state.get("issue_summary") or "Reported via AI voice agent.")
+
+                # 1. Verification Gate: Unverified callers cannot create tickets
+                if not verified_user.get("employee_id"):
+                    return {
+                        "success": False,
+                        "error": "Caller identity must be verified before creating an IT ticket. Ask for the caller's full name and employee ID first.",
+                    }
+
+                # 2. Duplicate Prevention Gate: Only 1 ticket per call session
+                if state.get("ticket_created") and state.get("last_ticket_number"):
+                    return {
+                        "success": False,
+                        "duplicate_prevented": True,
+                        "ticket_number": state["last_ticket_number"],
+                        "ticket_number_spoken": digit_by_digit(state["last_ticket_number"]),
+                        "message": f"A ticket ({state['last_ticket_number']}) was already created during this call session. Do not create duplicate tickets.",
+                    }
+
+                title = arguments.get("title", "IT Support Request").strip()
+                description = arguments.get("description", state.get("issue_summary") or "").strip()
                 priority = arguments.get("priority", "2 normal")
                 group = arguments.get("group", "Service Desk")
+
+                combined_text = f"{title} {description}".lower()
+
+                # 3. Non-IT Scope Gate: Block customer loans and personal finance
+                non_it_terms = {
+                    "loan", "personal loan", "car loan", "auto loan", "vehicle finance",
+                    "interest rate", "credit card", "debit card", "account balance",
+                    "bank statement", "branch location", "salary advance", "payroll",
+                    "قرض", "تمويل", "سلفة", "كشف حساب", "بطاقة ائتمان"
+                }
+                if any(term in combined_text for term in non_it_terms):
+                    return {
+                        "success": False,
+                        "out_of_scope": True,
+                        "error": "This inquiry relates to customer loans or banking rather than IT Support. Do not create an IT ticket. Politely inform the caller that this line is for internal IT Support only.",
+                    }
+
+                # 4. Description Quality Gate: Require substantive detail
+                if len(description) < 10 or description.lower() in {"hi", "hello", "test", "issue", "problem", "help", "broken", "it issue", "none", "n/a"}:
+                    return {
+                        "success": False,
+                        "error": "Issue description is too brief or vague. Please ask the caller to describe the specific technical issue or error message before raising a ticket.",
+                    }
+
+                # 5. Hardware Detection & Manager Approval Flag
+                hardware_keywords = {
+                    "laptop", "desktop", "computer", "pc", "monitor", "screen", "keyboard",
+                    "mouse", "headset", "headphone", "dock", "docking", "charger", "adapter",
+                    "printer", "toner", "scanner", "phone", "hardware", "device", "cables",
+                    "replacement", "new laptop", "لوحة مفاتيح", "فأرة", "شاشة", "كمبيوتر", "شاحن", "طابعة"
+                }
+                is_hardware = (
+                    group == "Hardware Request"
+                    or any(kw in combined_text for kw in hardware_keywords)
+                )
+                if is_hardware:
+                    group = "Hardware Request"
+
+                customer_email = verified_user.get("email") or f"caller_{state['call_id']}@nationalfinance.com"
 
                 if state.get("is_vip") or state.get("tier") in ("P0_EXECUTIVE", "P1_VIP"):
                     priority = "3 high"
@@ -777,7 +873,10 @@ async def handle_single_call(asterisk_ws):
                         priority=priority,
                         category=group,
                         caller_info=verified_user,
-                        custom_fields={"call_id": state["call_id"]},
+                        custom_fields={
+                            "call_id": state["call_id"],
+                            "requires_approval": is_hardware,
+                        },
                         status="Open",
                     )
 
@@ -787,6 +886,7 @@ async def handle_single_call(asterisk_ws):
                         state["ticket_created"] = True
                         state["current_state"] = "wrap_up"
 
+                        ticket_status = result.get("status", "Open")
                         update_call(
                             state["call_id"],
                             ticket_number=ticket_number,
@@ -795,10 +895,25 @@ async def handle_single_call(asterisk_ws):
                             summary=description,
                         )
 
+                        if result.get("requires_approval"):
+                            return {
+                                "success": True,
+                                "ticket_number": ticket_number,
+                                "ticket_number_spoken": digit_by_digit(ticket_number),
+                                "status": ticket_status,
+                                "requires_approval": True,
+                                "message": (
+                                    f"Hardware ticket {ticket_number} created with status 'Pending Manager Approval'. "
+                                    f"Explain clearly to the caller: 'I have submitted your hardware request under reference {ticket_number}. "
+                                    f"Per company policy, your Department Manager will need to approve this in the IT Helpdesk before IT can dispatch the equipment.'"
+                                )
+                            }
+
                         return {
                             "success": True,
                             "ticket_number": ticket_number,
                             "ticket_number_spoken": digit_by_digit(ticket_number),
+                            "status": ticket_status,
                             "message": "Ticket created successfully.",
                         }
 
@@ -871,7 +986,7 @@ async def handle_single_call(asterisk_ws):
 
                 channel = state.get("asterisk_channel")
                 if not channel:
-                    return {"success": False, "error": "Asterisk channel not available for transfer."}
+                    return {"success": False, "error": "Telephony line not available for transfer."}
 
                 target_extension = ASTERISK_QUEUE_EXECUTIVE if queue_type == "executive" else ASTERISK_QUEUE_STANDARD
                 print(f"[TRANSFER] Transferring {channel} to {queue_type} ({target_extension}). Reason={reason}")

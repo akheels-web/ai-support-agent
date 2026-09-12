@@ -49,13 +49,13 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
     if not channel:
         return {
             "success": False,
-            "error": "Asterisk channel was empty. Cannot transfer."
+            "error": "Telephony line was empty. Cannot transfer."
         }
 
     if not ASTERISK_AMI_USER or not ASTERISK_AMI_SECRET:
         return {
             "success": False,
-            "error": "AMI credentials missing. Set ASTERISK_AMI_USER and ASTERISK_AMI_SECRET."
+            "error": "Telephony control credentials not configured."
         }
 
     target_extension = resolve_queue_target(queue_type, extension)

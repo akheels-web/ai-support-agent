@@ -107,6 +107,19 @@ class FrappeProvider(BaseTicketingProvider):
             logger.warning(f"Failed to create {contact_doctype}: {exc}. Using fallback dict.")
             return {"email_id": email, "first_name": name or "Caller"}
 
+    HARDWARE_KEYWORDS = {
+        "laptop", "desktop", "computer", "pc", "monitor", "screen", "keyboard",
+        "mouse", "headset", "headphone", "dock", "docking", "charger", "adapter",
+        "printer", "toner", "scanner", "phone", "hardware", "device", "cables",
+        "replacement", "لوحة مفاتيح", "فأرة", "شاشة", "كمبيوتر", "شاحن", "طابعة"
+    }
+
+    def _is_hardware_request(self, title: str, body: str, category: Optional[str]) -> bool:
+        if category and "hardware" in category.lower():
+            return True
+        combined = f"{title} {body}".lower()
+        return any(kw in combined for kw in self.HARDWARE_KEYWORDS)
+
     def create_ticket(
         self,
         customer_email: str,
@@ -136,13 +149,44 @@ class FrappeProvider(BaseTicketingProvider):
 
         frappe_priority = self._normalize_priority(priority)
 
+        # Check for hardware approval requirement
+        is_hardware = (
+            custom_fields.get("requires_approval")
+            or category == "Hardware Request"
+            or self._is_hardware_request(title, body, category)
+        )
+
+        ticket_status = status
+        workflow_state = "Open"
+        requires_approval = False
+        approval_status = "Not Required"
+
+        if is_hardware and status.lower() == "open":
+            ticket_status = "Pending Approval"
+            workflow_state = "Pending Approval"
+            requires_approval = True
+            approval_status = "Pending Manager Approval"
+            category = category or "Hardware Request"
+
+            approval_header = (
+                "============================================================\n"
+                "[ACTION REQUIRED: DEPARTMENT MANAGER APPROVAL]\n"
+                "This hardware request was created via AI Support Agent (Arif).\n"
+                "In accordance with National Finance IT governance, physical\n"
+                "equipment dispatch requires Department Manager approval.\n"
+                f"Caller Department: {caller_info.get('department', 'General')}\n"
+                "Status: Pending Manager Approval\n"
+                "============================================================\n\n"
+            )
+            body = approval_header + body
+
         # Build payload based on DocType
         if self.ticket_doctype == "HD Ticket":
             payload = {
                 "subject": title,
                 "description": body,
                 "priority": frappe_priority,
-                "status": status,
+                "status": ticket_status,
                 "ticket_type": category or "Service Request",
                 "customer": customer_email,
                 "customer_name": caller_name or customer_email,
@@ -151,13 +195,17 @@ class FrappeProvider(BaseTicketingProvider):
             if self.default_team:
                 payload["team"] = self.default_team
 
-            # Custom telephony & audit attributes
+            # Custom telephony, audit & approval attributes
             payload["custom_call_id"] = custom_fields.get("call_id", "")
             payload["custom_caller_phone"] = caller_info.get("phone", "")
             payload["custom_employee_id"] = caller_info.get("employee_id", "")
             payload["custom_tier"] = caller_info.get("tier", "STANDARD")
             payload["custom_recording_file"] = custom_fields.get("recording_file", "")
-            payload["custom_ai_deflected"] = 1 if status.lower() in ("resolved", "closed") else 0
+            payload["custom_ai_deflected"] = 1 if ticket_status.lower() in ("resolved", "closed") else 0
+            payload["custom_requires_approval"] = 1 if requires_approval else 0
+            payload["custom_approval_status"] = approval_status
+            payload["custom_approver_role"] = "Department Manager" if requires_approval else ""
+            payload["workflow_state"] = workflow_state
 
         else:
             # Fallback to ERPNext standard 'Issue' DocType
@@ -165,14 +213,15 @@ class FrappeProvider(BaseTicketingProvider):
                 "subject": title,
                 "description": body,
                 "priority": frappe_priority,
-                "status": status,
+                "status": ticket_status,
                 "raised_by": customer_email,
                 "issue_type": category or "IT Support",
                 "custom_call_id": custom_fields.get("call_id", ""),
                 "custom_caller_phone": caller_info.get("phone", ""),
                 "custom_employee_id": caller_info.get("employee_id", ""),
                 "custom_tier": caller_info.get("tier", "STANDARD"),
-                "custom_ai_deflected": 1 if status.lower() in ("resolved", "closed") else 0,
+                "custom_ai_deflected": 1 if ticket_status.lower() in ("resolved", "closed") else 0,
+                "custom_requires_approval": 1 if requires_approval else 0
             }
 
         resp = self._request("POST", f"/api/resource/{self.ticket_doctype}", json=payload)
@@ -181,14 +230,17 @@ class FrappeProvider(BaseTicketingProvider):
         ticket_id = ticket_data.get("name")
         ticket_number = str(ticket_id)
 
-        logger.info(f"[FRAPPE] Created {self.ticket_doctype} {ticket_number} for {customer_email}")
+        logger.info(f"[FRAPPE] Created {self.ticket_doctype} {ticket_number} (status={ticket_status}, approval={approval_status})")
 
         return {
             "success": True,
             "ticket_id": ticket_id,
             "ticket_number": ticket_number,
             "priority": frappe_priority,
-            "status": status,
+            "status": ticket_status,
+            "requires_approval": requires_approval,
+            "approval_status": approval_status,
+            "approval_note": "Requires Department Manager approval in the IT Helpdesk before IT dispatch." if requires_approval else "",
             "raw": ticket_data,
         }
 

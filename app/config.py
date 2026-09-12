@@ -63,6 +63,11 @@ ZAMMAD_TIMEOUT = _int_env("ZAMMAD_TIMEOUT", 8, min_value=3, max_value=30)
 CSV_USERS_FILE = os.getenv("CSV_USERS_FILE", str(BASE_DIR / "data" / "users.csv"))
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "data" / "dashboard.db"))
 
+# Database Configuration (PostgreSQL 16 Enterprise with SQLite fallback)
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+DB_POOL_MIN = _int_env("DB_POOL_MIN", 2, min_value=1, max_value=50)
+DB_POOL_MAX = _int_env("DB_POOL_MAX", 20, min_value=2, max_value=100)
+
 # Telephony & Escalation Queues
 ASTERISK_QUEUE_STANDARD = os.getenv("ASTERISK_QUEUE_STANDARD", os.getenv("ASTERISK_AGENT_EXTENSION", "7001"))
 ASTERISK_QUEUE_EXECUTIVE = os.getenv("ASTERISK_QUEUE_EXECUTIVE", "7002")

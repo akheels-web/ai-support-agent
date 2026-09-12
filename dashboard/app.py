@@ -38,24 +38,18 @@ Path(BRAND_ASSETS_DIR).mkdir(parents=True, exist_ok=True)
 app.mount("/brand-assets", StaticFiles(directory=BRAND_ASSETS_DIR), name="brand-assets")
 
 
+import app.db as app_db
+
 # -----------------------------------------------------------------------------
 # Database helpers
 # -----------------------------------------------------------------------------
 
 def db():
-    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    return conn
+    return app_db.get_db()
 
 
 def _ensure_column(conn, table, column, definition):
-    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    existing = {r["name"] for r in rows}
-    if column not in existing:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    app_db._ensure_column(conn, table, column, definition)
 
 
 # -----------------------------------------------------------------------------
@@ -252,111 +246,8 @@ def save_setting(conn, key, value):
 # -----------------------------------------------------------------------------
 
 def init_db():
-    Path("/opt/ai-support-agent/data").mkdir(parents=True, exist_ok=True)
+    app_db.init_all_tables()
     conn = db()
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password_hash TEXT,
-            role TEXT,
-            active INTEGER DEFAULT 1,
-            created_at INTEGER
-        )
-        """
-    )
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS calls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            call_id TEXT,
-            caller_number TEXT,
-            called_number TEXT,
-            employee_id TEXT,
-            verified_name TEXT,
-            language TEXT,
-            start_time INTEGER,
-            end_time INTEGER,
-            duration_seconds INTEGER,
-            status TEXT,
-            ticket_number TEXT,
-            ticket_created INTEGER DEFAULT 0,
-            recording_file TEXT,
-            summary TEXT
-        )
-        """
-    )
-    _ensure_column(conn, "calls", "is_vip", "INTEGER DEFAULT 0")
-    _ensure_column(conn, "calls", "transferred", "INTEGER DEFAULT 0")
-    _ensure_column(conn, "calls", "transfer_target", "TEXT")
-    _ensure_column(conn, "calls", "tier", "TEXT DEFAULT 'STANDARD'")
-    _ensure_column(conn, "calls", "escalation_reason", "TEXT")
-    _ensure_column(conn, "calls", "resolution_type", "TEXT")
-    _ensure_column(conn, "calls", "ai_deflected", "INTEGER DEFAULT 0")
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS quality_reviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            recording_file TEXT,
-            reviewer TEXT,
-            rating TEXT,
-            notes TEXT,
-            created_at INTEGER
-        )
-        """
-    )
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT,
-            updated_at INTEGER
-        )
-        """
-    )
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            action TEXT,
-            entity_type TEXT,
-            entity_id TEXT,
-            created_at INTEGER
-        )
-        """
-    )
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS sessions (
-            token TEXT PRIMARY KEY,
-            username TEXT,
-            created_at INTEGER,
-            expires_at INTEGER
-        )
-        """
-    )
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS prompt_versions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            greeting TEXT,
-            system_prompt TEXT,
-            active INTEGER DEFAULT 0,
-            created_by TEXT,
-            created_at INTEGER
-        )
-        """
-    )
 
     default_users = [
         ("admin", "admin123", "admin"),

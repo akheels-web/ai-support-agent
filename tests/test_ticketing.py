@@ -45,6 +45,9 @@ class TestTicketingProviders(unittest.TestCase):
         self.assertEqual(result["ticket_id"], "HD-2026-00042")
         self.assertEqual(result["ticket_number"], "HD-2026-00042")
         self.assertEqual(result["priority"], "High")
+        self.assertEqual(result["status"], "Pending Approval")
+        self.assertTrue(result["requires_approval"])
+        self.assertEqual(result["approval_status"], "Pending Manager Approval")
 
         # Verify auth headers
         self.assertEqual(provider.headers["Authorization"], "token test_key:test_secret")
