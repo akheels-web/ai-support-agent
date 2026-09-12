@@ -79,8 +79,8 @@ MAX_CONCURRENT_CALLS = _int_env("MAX_CONCURRENT_CALLS", 10, min_value=1, max_val
 CALL_MAX_SECONDS = _int_env("CALL_MAX_SECONDS", 1800, min_value=60, max_value=7200)
 
 # Voice Activity Detection (VAD)
-VAD_THRESHOLD = _float_env("VAD_THRESHOLD", 0.75, min_value=0.1, max_value=1.0)
-VAD_SILENCE_MS = _int_env("VAD_SILENCE_MS", 1700, min_value=500, max_value=3000)
+VAD_THRESHOLD = _float_env("VAD_THRESHOLD", 0.65, min_value=0.1, max_value=1.0)
+VAD_SILENCE_MS = _int_env("VAD_SILENCE_MS", 750, min_value=300, max_value=3000)
 VAD_IDLE_TIMEOUT_MS = _int_env("VAD_IDLE_TIMEOUT_MS", 30000, min_value=5000, max_value=30000)
 
 # Dashboard

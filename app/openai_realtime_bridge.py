@@ -324,7 +324,7 @@ def build_session_config():
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": VAD_THRESHOLD,
-                        "prefix_padding_ms": 300,
+                        "prefix_padding_ms": 200,
                         "silence_duration_ms": VAD_SILENCE_MS,
                         "create_response": True,
                         "interrupt_response": True,  # Full-duplex barge-in enabled
@@ -1133,7 +1133,11 @@ async def handle_single_call(asterisk_ws):
                         break
                     audio_b64 = event.get("delta", "")
                     if audio_b64:
-                        await asterisk_ws.send(base64.b64decode(audio_b64))
+                        raw_pcm = base64.b64decode(audio_b64)
+                        # Chunk into 320-byte (40ms @ 8kHz PCMU) frames to prevent jitter buffer underrun/overflow
+                        chunk_size = 320
+                        for i in range(0, len(raw_pcm), chunk_size):
+                            await asterisk_ws.send(raw_pcm[i:i + chunk_size])
 
                 elif event_type == "response.output_item.done":
                     item = event.get("item", {})

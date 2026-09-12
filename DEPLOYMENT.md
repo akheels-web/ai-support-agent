@@ -277,30 +277,44 @@ ASTERISK_TRANSFER_PRIORITY=1
 
 ---
 
-## 11. Optional Human Support Queue
+## 11. Multi-Queue Escalation & Audio Quality Tuning
 
-Edit:
+To eliminate background noise and jitter stuttering ("broken drum" / audio underrun beeps), configure Asterisk with DSP noise reduction, adaptive jitter buffering, and tiered human queues.
 
-```bash
-nano /etc/asterisk/extensions.conf
-```
-
-Example:
+### 11.1 Asterisk Audio Clean-Up & Dialplan
+Edit `/etc/asterisk/extensions.conf`:
 
 ```ini
 [from-internal]
+; Inbound AI Bridge setup with hardware/DSP audio clean-up
+exten => 7000,1,Answer()
+ same => n,Set(JITTERBUFFER(adaptive)=default)
+ same => n,Set(DENOISE(rx)=on)  ; Scans and cleans background noise/office murmurs
+ same => n,Set(DENOISE(tx)=on)
+ same => n,AudioSocket(127.0.0.1:8765) ; Or WebSocket media bridge
+ same => n,Hangup()
+
+; Queue 7001: Standard L1 IT Support Queue
 exten => 7001,1,Answer()
+ same => n,Set(JITTERBUFFER(adaptive)=default)
  same => n,Queue(it-support,t,,,300)
+ same => n,Hangup()
+
+; Queue 7002: Executive & VIP Concierge Queue (CEO, CFO, C-Suite)
+exten => 7002,1,Answer()
+ same => n,Set(JITTERBUFFER(adaptive)=default)
+ same => n,Queue(it-vip-exec,t,,,60)
+ same => n,Hangup()
+
+; Queue 7003: Sev-1 Emergency & Outage Incident Queue
+exten => 7003,1,Answer()
+ same => n,Set(JITTERBUFFER(adaptive)=default)
+ same => n,Queue(it-emergency,t,,,30)
  same => n,Hangup()
 ```
 
-Edit:
-
-```bash
-nano /etc/asterisk/queues.conf
-```
-
-Example:
+### 11.2 Multi-Queue Definitions
+Edit `/etc/asterisk/queues.conf`:
 
 ```ini
 [it-support]
@@ -311,9 +325,27 @@ retry=5
 maxlen=20
 joinempty=yes
 leavewhenempty=no
+
+[it-vip-exec]
+musicclass=default
+strategy=ringall
+timeout=15
+retry=3
+maxlen=5
+joinempty=yes
+leavewhenempty=no
+
+[it-emergency]
+musicclass=default
+strategy=ringall
+timeout=10
+retry=2
+maxlen=10
+joinempty=yes
+leavewhenempty=no
 ```
 
-Reload:
+Reload Asterisk dialplan and queues:
 
 ```bash
 asterisk -rx "dialplan reload"
