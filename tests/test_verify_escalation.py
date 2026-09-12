@@ -8,10 +8,32 @@ class TestVerifyAndEscalation(unittest.TestCase):
         clear_cache()
 
     def test_digit_normalization(self):
+        # Digit by digit
         self.assertEqual(normalize_digits("1002"), "1002")
         self.assertEqual(normalize_digits("one zero zero two"), "1002")
         self.assertEqual(normalize_digits("واحد صفر صفر اثنين"), "1002")
         self.assertEqual(normalize_digits("One Zero One Zero"), "1010")
+
+        # Compound English
+        self.assertEqual(normalize_digits("one thousand and two"), "1002")
+        self.assertEqual(normalize_digits("twenty five"), "25")
+        self.assertEqual(normalize_digits("one thousand and ten"), "1010")
+
+        # Compound Arabic
+        self.assertEqual(normalize_digits("أحد عشر"), "11")
+        self.assertEqual(normalize_digits("خمسة وعشرين"), "25")
+        self.assertEqual(normalize_digits("ألف واثنين"), "1002")
+        self.assertEqual(normalize_digits("ألف وعشرة"), "1010")
+
+    def test_voice_bridge_tools_registration(self):
+        from app.openai_realtime_bridge import TOOLS
+        tool_names = {t["name"] for t in TOOLS if t.get("type") == "function"}
+        self.assertIn("repeat_ticket_number", tool_names)
+        self.assertIn("request_callback", tool_names)
+        self.assertIn("create_ticket", tool_names)
+        self.assertIn("record_resolution", tool_names)
+        self.assertIn("transfer_to_agent", tool_names)
+        self.assertIn("escalate_emergency", tool_names)
 
     def test_executive_caller_id_lookup(self):
         # CEO Phone

@@ -76,3 +76,18 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
 - **Automated Retention Pruning**: `enforce_recording_retention()` periodically scans telephony storage and prunes `.wav` audio files older than `recording_retention_days` (default 30 days) to prevent disk exhaustion.
 - **Security Headers Middleware**: Injected `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, and strict `Content-Security-Policy`.
 - **Sanitized Diagnostics**: `/health` hides raw daemon names and internal paths, reporting standardized operational state.
+
+## 8. Voice AI Resilience & Caller Experience Enhancements
+- **Digit-by-Digit Recital & Repetition (`repeat_ticket_number`)**:
+  - Automatically recites ticket reference numbers slowly and spaced digit-by-digit (`H D 2 0 2 6 0 0 1 2`).
+  - Dedicated `repeat_ticket_number` tool allows callers to ask Arif to repeat the reference number at any point without re-triggering ticket creation.
+- **Scheduled Callbacks (`request_callback`)**:
+  - Automatically logs a callback request ticket in Frappe Helpdesk when callers prefer not to wait on hold or when transfer queues fail.
+  - Captures preferred callback time ("ASAP", "within 1 hour", "morning"), caller contact phone, and issue context.
+- **Graceful Asterisk Transfer Recovery**:
+  - Eliminates dead air drops: if Asterisk AMI queue transfer fails or agents are unavailable, Arif sincerely apologizes, confirms the ticket reference number, and immediately offers a scheduled callback.
+- **Advanced Bilingual Compound Digit Normalization (`app/verify.py`)**:
+  - Parses single digits (0–9), colloquial Gulf/Omani Arabic teens (`أحد عشر`, `احداعش`, `حداعش`, `اثنعش`, `طنعش`, `تلطعش`, `اربعطعش`, `خمسطعش`, `ستطعش`, `سبعطعش`, `ثمانطعش`, `تسعطعش`), tens (20–90), hundreds (100–900), and thousands.
+  - Strips Arabic conjunction prefix `و` (`وعشرين` -> `20`, `واثنين` -> `2`) and English `and`.
+  - Performs composite summation (`ألف واثنين` -> `1002`, `one thousand and two` -> `1002`, `خمسة وعشرين` -> `25`, `twenty five` -> `25`) or direct concatenation for digit-by-digit dictation (`واحد صفر صفر اثنين` -> `1002`).
+

@@ -146,6 +146,18 @@ class TestAIGuardrails(unittest.TestCase):
             for word in forbidden:
                 self.assertNotIn(word, dialog_lower, f"Spoken dialog '{dialog}' exposes backend name '{word}'.")
 
+    def test_repeat_ticket_and_digit_by_digit(self):
+        from app.openai_realtime_bridge import digit_by_digit
+        self.assertEqual(digit_by_digit("HD-2026-0012"), "H D - 2 0 2 6 - 0 0 1 2")
+        self.assertEqual(digit_by_digit("1002"), "1 0 0 2")
+
+    def test_callback_request_tool_schema(self):
+        from app.openai_realtime_bridge import TOOLS
+        callback_tool = next((t for t in TOOLS if t.get("name") == "request_callback"), None)
+        self.assertIsNotNone(callback_tool)
+        self.assertIn("preferred_time", callback_tool["parameters"]["required"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

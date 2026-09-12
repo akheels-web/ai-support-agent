@@ -125,6 +125,16 @@ HARDWARE REQUESTS & MANAGER APPROVAL RULE:
 - The ticket is automatically assigned status 'Pending Approval'.
 - Tell the caller clearly: "Your hardware request has been logged under ticket [number] with status 'Pending Manager Approval'. Per National Finance policy, your Department Manager must approve this in the IT Helpdesk before our IT team can dispatch the equipment."
 
+TICKET NUMBER RECITAL & REPEAT RULE:
+- Whenever you share a ticket reference number with the caller, recite it clearly and slowly, digit by digit (e.g. "H D 2 0 2 6 0 0 1 2").
+- If the caller asks you to repeat the ticket number or asks "what was my ticket number?", call the repeat_ticket_number tool immediately and recite the number slowly digit-by-digit.
+- Never invent or fabricate ticket numbers.
+
+TRANSFER FALLBACK & CALLBACK RULE:
+- If a transfer to a human support queue cannot be completed or lines are busy, DO NOT hang up or leave silence.
+- Apologize politely, confirm their reference ticket number, and offer to schedule a callback using request_callback.
+- If the caller says they cannot wait on hold or asks for a callback, call request_callback with their preferred time.
+
 NON-IT INQUIRY HANDLING (LOANS, BANKING, CAR FINANCE):
 - If the caller asks about non-IT topics such as personal loans, vehicle financing, interest rates, credit cards, bank account balances, or HR payroll:
 - Do NOT create an IT ticket or escalate to IT queues.
@@ -137,7 +147,7 @@ CONFIDENTIALITY & SYSTEM NAMING RULES:
 
 ANTI-HALLUCINATION & BOUNDARY INTEGRITY RULES:
 - You are an internal IT Support voice agent exclusively for National Finance employees.
-- NEVER invent or guess ticket numbers. Only recite ticket numbers returned directly by create_ticket or record_resolution.
+- NEVER invent or guess ticket numbers. Only recite ticket numbers returned directly by create_ticket, record_resolution, or request_callback.
 - NEVER claim you directly unlocked an Active Directory account or changed a password on the server yourself. You provide the self-service steps from lookup_knowledge_base or log a service desk ticket for IT administrators.
 - Ground all technical troubleshooting strictly in verified playbooks via lookup_knowledge_base.
 - Never create more than one ticket per issue.
@@ -305,6 +315,38 @@ TOOLS = [
             "type": "object",
             "properties": {"issue": {"type": "string"}},
             "required": ["issue"],
+        },
+    },
+    {
+        "type": "function",
+        "name": "repeat_ticket_number",
+        "description": "Repeat the created or resolved reference ticket number clearly to the caller digit-by-digit.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "type": "function",
+        "name": "request_callback",
+        "description": "Schedule a callback from human IT support when caller does not want to wait on hold or when transfer fails.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "preferred_time": {
+                    "type": "string",
+                    "description": "Preferred callback time or urgency (e.g. 'ASAP', 'within 1 hour', 'morning')",
+                },
+                "contact_number": {
+                    "type": "string",
+                    "description": "Phone number for callback if different from caller ID",
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Brief notes on why callback was requested and issue context",
+                },
+            },
+            "required": ["preferred_time"],
         },
     },
     {
@@ -977,6 +1019,85 @@ async def handle_single_call(asterisk_ws):
 
                 return {"success": True, "escalated": True, "target": ASTERISK_QUEUE_EMERGENCY}
 
+            if tool_name == "repeat_ticket_number":
+                ticket_num = state.get("last_ticket_number")
+                if not ticket_num:
+                    return {
+                        "success": False,
+                        "error": "No ticket has been created or recorded yet in this call session.",
+                    }
+                return {
+                    "success": True,
+                    "ticket_number": ticket_num,
+                    "ticket_number_spoken": digit_by_digit(ticket_num),
+                    "message": f"Reference ticket number is {ticket_num}.",
+                }
+
+            if tool_name == "request_callback":
+                verified_user = state.get("verified_user") or {}
+                callback_phone = arguments.get("contact_number") or state.get("caller_number") or "N/A"
+                pref_time = arguments.get("preferred_time", "ASAP")
+                notes = arguments.get("notes") or state.get("issue_summary") or "Caller requested callback"
+
+                customer_email = verified_user.get("email") or f"callback_{state['call_id']}@nationalfinance.com"
+                client = get_ticketing_client()
+
+                ticket_title = f"📞 Callback Request: {verified_user.get('name', 'Caller')} ({pref_time})"
+                ticket_body = (
+                    f"SCHEDULED CALLBACK REQUEST:\n\n"
+                    f"Caller: {verified_user.get('name', 'Unverified Caller')}\n"
+                    f"Employee ID: {verified_user.get('employee_id', state.get('employee_id', 'N/A'))}\n"
+                    f"Department: {verified_user.get('department', 'N/A')}\n"
+                    f"Tier: {state.get('tier', 'STANDARD')}\n"
+                    f"Callback Phone Number: {callback_phone}\n"
+                    f"Preferred Time: {pref_time}\n"
+                    f"Issue / Reason: {notes}\n\n"
+                    f"Status: Scheduled Callback Request via Voice Agent Arif"
+                )
+
+                try:
+                    result = await asyncio.to_thread(
+                        client.create_ticket,
+                        customer_email=customer_email,
+                        title=ticket_title,
+                        body=ticket_body,
+                        priority="2 normal" if state.get("tier") == "STANDARD" else "3 high",
+                        category="Callback Request",
+                        caller_info=verified_user,
+                        custom_fields={
+                            "call_id": state["call_id"],
+                            "callback_phone": callback_phone,
+                            "preferred_time": pref_time,
+                        },
+                        status="Open",
+                    )
+                    ticket_number = result.get("ticket_number")
+                    if ticket_number:
+                        state["last_ticket_number"] = ticket_number
+                        state["ticket_created"] = True
+                        state["current_state"] = "wrap_up"
+
+                        update_call(
+                            state["call_id"],
+                            ticket_number=ticket_number,
+                            status="callback_scheduled",
+                            summary=f"Callback requested: {notes} (Phone: {callback_phone}, Time: {pref_time})",
+                        )
+
+                        return {
+                            "success": True,
+                            "ticket_number": ticket_number,
+                            "ticket_number_spoken": digit_by_digit(ticket_number),
+                            "callback_phone": callback_phone,
+                            "preferred_time": pref_time,
+                            "message": f"Callback ticket {ticket_number} scheduled for {pref_time} at {callback_phone}.",
+                        }
+
+                    return {"success": False, "error": "Ticketing backend did not return ticket number."}
+                except Exception as exc:
+                    print(f"[CALLBACK TICKET ERROR] {exc!r}")
+                    return {"success": False, "error": str(exc)}
+
             if tool_name == "transfer_to_agent":
                 reason = arguments.get("reason", "caller_requested_human_agent")
                 queue_type = arguments.get("queue_type", "standard")
@@ -985,8 +1106,17 @@ async def handle_single_call(asterisk_ws):
                     queue_type = "executive"
 
                 channel = state.get("asterisk_channel")
+                ticket_ref = state.get("last_ticket_number")
+                ticket_spoken = digit_by_digit(ticket_ref) if ticket_ref else None
+
                 if not channel:
-                    return {"success": False, "error": "Telephony line not available for transfer."}
+                    return {
+                        "success": False,
+                        "error": "Telephony line not available for transfer.",
+                        "ticket_number": ticket_ref,
+                        "ticket_number_spoken": ticket_spoken,
+                        "fallback_action": "offer_callback",
+                    }
 
                 target_extension = ASTERISK_QUEUE_EXECUTIVE if queue_type == "executive" else ASTERISK_QUEUE_STANDARD
                 print(f"[TRANSFER] Transferring {channel} to {queue_type} ({target_extension}). Reason={reason}")
@@ -1016,7 +1146,13 @@ async def handle_single_call(asterisk_ws):
                     return {"success": True, "message": f"Transferred to {queue_type} queue."}
 
                 update_call(state["call_id"], status="transfer_failed", summary=result.get("error", "Transfer failed"))
-                return {"success": False, "error": result.get("error", "Transfer failed")}
+                return {
+                    "success": False,
+                    "error": result.get("error", "Transfer failed"),
+                    "ticket_number": ticket_ref,
+                    "ticket_number_spoken": ticket_spoken,
+                    "fallback_action": "offer_callback",
+                }
 
             if tool_name == "report_audio_issue":
                 state["background_noise_warning_count"] += 1
@@ -1131,6 +1267,53 @@ async def handle_single_call(asterisk_ws):
             else:
                 queue_response(
                     f"Respond only in English. Say: Your ticket has been created successfully. Your ticket number is {ticket_spoken}. Is there anything else I can help you with?"
+                )
+
+        elif tool_name == "repeat_ticket_number":
+            if result.get("success"):
+                ticket_spoken = result.get("ticket_number_spoken")
+                if state["language"] == "ar":
+                    queue_response(
+                        f"Respond only in Arabic. Say clearly: رقم التذكرة هو {ticket_spoken}. Repeat it slowly digit by digit. Then ask if they need anything else."
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Say clearly: Your ticket number is {ticket_spoken}. Repeat it slowly digit by digit. Then ask if they need anything else."
+                    )
+            else:
+                if state["language"] == "ar":
+                    queue_response(
+                        "Respond only in Arabic. Politely inform the caller that no ticket has been created yet for this call, and ask how you can help."
+                    )
+                else:
+                    queue_response(
+                        "Respond only in English. Politely inform the caller that no ticket has been created yet for this call, and ask how you can help."
+                    )
+
+        elif tool_name == "request_callback" and result.get("success"):
+            ticket_spoken = result.get("ticket_number_spoken")
+            pref = result.get("preferred_time")
+            phone = result.get("callback_phone")
+            if state["language"] == "ar":
+                queue_response(
+                    f"Respond only in Arabic. Say: تم تسجيل طلب معاودة الاتصال بنجاح تحت رقم التذكرة {ticket_spoken}. سيتواصل معك أحد مهندسي الدعم الفني على الرقم {phone}. هل هناك أي استفسار آخر؟"
+                )
+            else:
+                queue_response(
+                    f"Respond only in English. Say: Your callback request has been registered under ticket {ticket_spoken}. An IT support specialist will call you back at {phone}. Is there anything else I can help you with?"
+                )
+
+        elif tool_name == "transfer_to_agent" and not result.get("success"):
+            ticket_spoken = result.get("ticket_number_spoken")
+            ticket_part_en = f" Your reference ticket number is {ticket_spoken}." if ticket_spoken else ""
+            ticket_part_ar = f" رقم التذكرة المرجعي الخاص بك هو {ticket_spoken}." if ticket_spoken else ""
+            if state["language"] == "ar":
+                queue_response(
+                    f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني مشغولون حالياً.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
+                )
+            else:
+                queue_response(
+                    f"Respond only in English. Say: I apologize, all our IT support specialists are currently assisting other callers.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
                 )
 
         elif tool_name == "escalate_emergency":
