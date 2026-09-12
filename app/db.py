@@ -504,7 +504,9 @@ def init_all_tables():
                 action VARCHAR(100) NOT NULL,
                 entity_type VARCHAR(100),
                 entity_id VARCHAR(100),
-                created_at BIGINT NOT NULL
+                created_at BIGINT NOT NULL,
+                prev_hash VARCHAR(64),
+                record_hash VARCHAR(64)
             );
             """)
 
@@ -537,6 +539,8 @@ def init_all_tables():
             conn.execute("CREATE INDEX IF NOT EXISTS idx_security_created ON security_events(created_at);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);")
+            _ensure_column(conn, "audit_logs", "prev_hash", "VARCHAR(64)")
+            _ensure_column(conn, "audit_logs", "record_hash", "VARCHAR(64)")
 
         else:
             # SQLite schema
@@ -624,7 +628,9 @@ def init_all_tables():
                 action TEXT,
                 entity_type TEXT,
                 entity_id TEXT,
-                created_at INTEGER
+                created_at INTEGER,
+                prev_hash TEXT,
+                record_hash TEXT
             );
             """)
 
@@ -656,6 +662,8 @@ def init_all_tables():
             conn.execute("CREATE INDEX IF NOT EXISTS idx_security_created ON security_events(created_at);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);")
+            _ensure_column(conn, "audit_logs", "prev_hash", "TEXT")
+            _ensure_column(conn, "audit_logs", "record_hash", "TEXT")
 
         conn.commit()
 

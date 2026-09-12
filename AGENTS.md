@@ -76,6 +76,11 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
 - **Automated Retention Pruning**: `enforce_recording_retention()` periodically scans telephony storage and prunes `.wav` audio files older than `recording_retention_days` (default 30 days) to prevent disk exhaustion.
 - **Security Headers Middleware**: Injected `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, and strict `Content-Security-Policy`.
 - **Sanitized Diagnostics**: `/health` hides raw daemon names and internal paths, reporting standardized operational state.
+- **WSS / TLS Media Channel**: Added native SSLContext support to `app/openai_realtime_bridge.py` (`ASTERISK_WS_SSL_CERT` and `ASTERISK_WS_SSL_KEY`), allowing encrypted `wss://` on port 8765 while maintaining loopback efficiency for colocated deployments.
+- **TLS AMI Channel**: Added TLS socket wrapping to `app/transfer.py` (`ASTERISK_AMI_TLS`) for secure Asterisk Manager Interface actions over port 5038/5039.
+- **Cryptographic Audit Log Hash Chaining**: `audit_logs` table links rows via `prev_hash` and `record_hash` computing an append-only SHA-256 tamper-evident ledger, verifiable via `verify_audit_trail()`.
+- **Global Route Rate Limiting**: Added sliding-window in-memory IP rate limiter (120 req/min per client IP) across all dashboard pages and APIs in `dashboard/app.py`.
+- **Enforced Host Isolation**: Configured dashboard daemon to bind strictly to `127.0.0.1` (`DASHBOARD_HOST`), isolating service behind reverse proxy.
 
 ## 8. Voice AI Resilience & Caller Experience Enhancements
 - **Digit-by-Digit Recital & Repetition (`repeat_ticket_number`)**:

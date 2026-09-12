@@ -11,6 +11,8 @@ ASTERISK_AMI_HOST = os.getenv("ASTERISK_AMI_HOST", "127.0.0.1")
 ASTERISK_AMI_PORT = int(os.getenv("ASTERISK_AMI_PORT", "5038"))
 ASTERISK_AMI_USER = os.getenv("ASTERISK_AMI_USER", "")
 ASTERISK_AMI_SECRET = os.getenv("ASTERISK_AMI_SECRET", "")
+ASTERISK_AMI_TLS = os.getenv("ASTERISK_AMI_TLS", "false").lower() in ("1", "true", "yes")
+ASTERISK_AMI_TLS_VERIFY = os.getenv("ASTERISK_AMI_TLS_VERIFY", "true").lower() in ("1", "true", "yes")
 
 TRANSFER_CONTEXT = os.getenv("ASTERISK_TRANSFER_CONTEXT", "from-internal")
 TRANSFER_PRIORITY = os.getenv("ASTERISK_TRANSFER_PRIORITY", "1")
@@ -62,7 +64,17 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
     target_context = context or TRANSFER_CONTEXT
 
     try:
-        with socket.create_connection((ASTERISK_AMI_HOST, ASTERISK_AMI_PORT), timeout=5) as sock:
+        with socket.create_connection((ASTERISK_AMI_HOST, ASTERISK_AMI_PORT), timeout=5) as raw_sock:
+            if ASTERISK_AMI_TLS:
+                import ssl
+                ssl_ctx = ssl.create_default_context()
+                if not ASTERISK_AMI_TLS_VERIFY:
+                    ssl_ctx.check_hostname = False
+                    ssl_ctx.verify_mode = ssl.CERT_NONE
+                sock = ssl_ctx.wrap_socket(raw_sock, server_hostname=ASTERISK_AMI_HOST)
+            else:
+                sock = raw_sock
+
             sock.recv(1024)
 
             _ami_send(sock, {

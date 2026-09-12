@@ -113,6 +113,16 @@ class TestDashboardRoutes(unittest.TestCase):
         invalidate_user_sessions("test_temp_user")
         self.assertIsNone(get_session_user(token))
 
+    def test_audit_log_hash_chaining_and_integrity(self):
+        from dashboard.app import audit, verify_audit_trail
+        audit("security_test_admin", "user_login", "auth", "127.0.0.1")
+        audit("security_test_admin", "update_setting", "config", "timeout")
+        audit("security_test_admin", "logout", "auth", "127.0.0.1")
+
+        result = verify_audit_trail()
+        self.assertTrue(result["valid"], f"Audit trail failed verification: {result}")
+        self.assertGreaterEqual(result["verified_records"], 3)
+
 
 if __name__ == "__main__":
     unittest.main()

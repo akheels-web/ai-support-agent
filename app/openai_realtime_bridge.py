@@ -45,8 +45,10 @@ VERIFY_FAIL_LIMIT = int(os.getenv("VERIFY_FAIL_LIMIT", "5"))
 VERIFY_FAIL_WINDOW = int(os.getenv("VERIFY_FAIL_WINDOW", "3600"))
 VERIFY_FAIL_LOCK = int(os.getenv("VERIFY_FAIL_LOCK", "3600"))
 
-ASTERISK_WS_HOST = "127.0.0.1"
-ASTERISK_WS_PORT = 8765
+ASTERISK_WS_HOST = os.getenv("ASTERISK_WS_HOST", "127.0.0.1")
+ASTERISK_WS_PORT = int(os.getenv("ASTERISK_WS_PORT", "8765"))
+ASTERISK_WS_SSL_CERT = os.getenv("ASTERISK_WS_SSL_CERT", "").strip()
+ASTERISK_WS_SSL_KEY = os.getenv("ASTERISK_WS_SSL_KEY", "").strip()
 
 ACTIVE_CALLS = 0
 ACTIVE_CALLS_LOCK = asyncio.Lock()
@@ -1507,7 +1509,18 @@ async def main():
     validate_bridge_config()
     reconcile_stale_calls(CALL_MAX_SECONDS)
 
-    print(f"[SERVER] Starting on {ASTERISK_WS_HOST}:{ASTERISK_WS_PORT}")
+    ssl_context = None
+    if ASTERISK_WS_SSL_CERT and ASTERISK_WS_SSL_KEY:
+        if os.path.exists(ASTERISK_WS_SSL_CERT) and os.path.exists(ASTERISK_WS_SSL_KEY):
+            import ssl
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_context.load_cert_chain(ASTERISK_WS_SSL_CERT, ASTERISK_WS_SSL_KEY)
+            print(f"[SERVER] WSS/TLS enabled with certificate: {ASTERISK_WS_SSL_CERT}")
+        else:
+            print("[SERVER] Notice: ASTERISK_WS_SSL_CERT/KEY configured but files not found. Using plain WS on loopback.")
+
+    proto = "wss" if ssl_context else "ws"
+    print(f"[SERVER] Starting on {proto}://{ASTERISK_WS_HOST}:{ASTERISK_WS_PORT}")
     print(f"[SERVER] Model: {OPENAI_REALTIME_MODEL}")
     print(f"[SERVER] Ticketing Provider: Frappe Helpdesk")
     print(f"[SERVER] Loaded {len(KNOWLEDGE_BASE)} Knowledge Base Playbooks: {list(KNOWLEDGE_BASE.keys())}")
@@ -1516,6 +1529,7 @@ async def main():
         handle_asterisk_call,
         ASTERISK_WS_HOST,
         ASTERISK_WS_PORT,
+        ssl=ssl_context,
         max_size=None,
         ping_interval=20,
         ping_timeout=10,

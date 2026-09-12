@@ -1,4 +1,5 @@
 import os
+import asyncio
 import csv
 import io
 import re
@@ -74,6 +75,43 @@ async def security_headers_middleware(request: Request, call_next):
         "connect-src 'self';"
     )
     return response
+
+
+# -----------------------------------------------------------------------------
+# Global Route Rate Limiting Middleware
+# -----------------------------------------------------------------------------
+
+DASHBOARD_RATE_LIMIT = int(os.getenv("DASHBOARD_RATE_LIMIT", "120"))
+DASHBOARD_RATE_WINDOW = int(os.getenv("DASHBOARD_RATE_WINDOW", "60"))
+_RATE_LIMIT_STORE = {}
+_RATE_LIMIT_LOCK = asyncio.Lock()
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/static") or path.startswith("/brand-assets"):
+        return await call_next(request)
+
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+
+    now = time.time()
+    async with _RATE_LIMIT_LOCK:
+        timestamps = _RATE_LIMIT_STORE.get(client_ip, [])
+        timestamps = [t for t in timestamps if now - t < DASHBOARD_RATE_WINDOW]
+        if len(timestamps) >= DASHBOARD_RATE_LIMIT:
+            return JSONResponse(
+                {"error": "Too many requests. Rate limit exceeded. Please try again later."},
+                status_code=429,
+                headers={"Retry-After": str(DASHBOARD_RATE_WINDOW)},
+            )
+        timestamps.append(now)
+        _RATE_LIMIT_STORE[client_ip] = timestamps
+
+    return await call_next(request)
 
 
 # -----------------------------------------------------------------------------
@@ -250,15 +288,53 @@ def require_roles(request: Request, allowed_roles):
 
 def audit(username, action, entity_type="", entity_id=""):
     conn = db()
+    created_at = int(time.time())
+    try:
+        last_row = conn.execute(
+            "SELECT record_hash FROM audit_logs WHERE record_hash IS NOT NULL ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        prev_hash = last_row["record_hash"] if last_row and last_row["record_hash"] else "GENESIS"
+    except Exception:
+        prev_hash = "GENESIS"
+
+    raw_payload = f"{prev_hash}|{username}|{action}|{entity_type}|{entity_id}|{created_at}".encode("utf-8")
+    record_hash = hashlib.sha256(raw_payload).hexdigest()
+
     conn.execute(
         """
-        INSERT INTO audit_logs(username, action, entity_type, entity_id, created_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO audit_logs(username, action, entity_type, entity_id, created_at, prev_hash, record_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (username, action, entity_type, entity_id, int(time.time())),
+        (username, action, entity_type, entity_id, created_at, prev_hash, record_hash),
     )
     conn.commit()
     conn.close()
+
+
+def verify_audit_trail() -> dict:
+    conn = db()
+    rows = conn.execute(
+        "SELECT id, username, action, entity_type, entity_id, created_at, prev_hash, record_hash FROM audit_logs ORDER BY id ASC"
+    ).fetchall()
+    conn.close()
+
+    expected_prev = "GENESIS"
+    verified_count = 0
+    for r in rows:
+        prev_h = r["prev_hash"]
+        rec_h = r["record_hash"]
+        if not rec_h:
+            continue
+        if prev_h != expected_prev:
+            return {"valid": False, "compromised_id": r["id"], "reason": f"broken chain at id {r['id']}"}
+        payload = f"{prev_h}|{r['username']}|{r['action']}|{r['entity_type'] or ''}|{r['entity_id'] or ''}|{r['created_at']}".encode("utf-8")
+        calc_hash = hashlib.sha256(payload).hexdigest()
+        if rec_h != calc_hash:
+            return {"valid": False, "compromised_id": r["id"], "reason": f"tampered record hash at id {r['id']}"}
+        expected_prev = rec_h
+        verified_count += 1
+
+    return {"valid": True, "verified_records": verified_count}
 
 
 def get_setting(key, default=""):
@@ -1480,3 +1556,8 @@ def activate_prompt(request: Request, prompt_id: int = Form(...), csrf_token: st
     conn.close()
     audit(user["username"], "activate_prompt", "prompt", str(prompt_id))
     return RedirectResponse("/prompts", status_code=302)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("dashboard.app:app", host=DASHBOARD_HOST, port=DASHBOARD_PORT, reload=False)

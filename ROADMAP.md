@@ -25,6 +25,20 @@ This document outlines upcoming strategic enhancements and future feature phases
 ### Phase 7: WhatsApp & Omnichannel Ticket Updates
 - Automatic WhatsApp / SMS notification sent to the caller upon ticket creation and SLA resolution with live tracking link in Frappe Helpdesk.
 
+### Phase 8: Enterprise Security Hardening & Zero-Trust Governance (Future)
+- **8.1 Multi-Factor Authentication (MFA / 2FA) for Operations Dashboard**:
+  - Time-based One-Time Password (TOTP via RFC 6238 / `pyotp`) for administrator and supervisor logins.
+  - QR-code based enrollment compatible with Google Authenticator, Microsoft Authenticator, and 1Password.
+  - Encrypted emergency single-use backup recovery codes stored in the `users` table.
+- **8.2 PII Encryption-at-Rest (Application-Level AES-256-GCM / `pgcrypto`)**:
+  - Field-level encryption for sensitive personally identifiable information (`phone`, `email`, `caller_name`, `transcripts`) in PostgreSQL 16.
+  - Key rotation pipeline supporting integration with enterprise Key Management Systems (KMS) or HashiCorp Vault.
+- **8.3 Telephony Cryptographic Anti-Spoofing (STIR/SHAKEN & ANI Validation)**:
+  - Carrier-grade validation of incoming SIP headers (`P-Asserted-Identity`, `Remote-Party-ID`, and STIR/SHAKEN attestation) to detect and reject spoofed caller IDs before PBX queue routing.
+  - In-band acoustic voice biometrics (Phase 5) integration for high-privilege executive calls.
+- **8.4 Mutual TLS (mTLS) for Private Internal Microservices**:
+  - X.509 client certificate pinning and mutual TLS between Asterisk voice bridge, private Frappe Helpdesk instances, and enterprise directory services.
+
 ---
 
 ## 2. Completed Milestones
@@ -35,3 +49,12 @@ This document outlines upcoming strategic enhancements and future feature phases
 - [x] Manager approval workflow for hardware requests in Frappe Helpdesk.
 - [x] PostgreSQL 16 enterprise database migration with connection pooling.
 - [x] AI Anti-Hallucination and ghost ticket prevention guardrails.
+- [x] Zero default credentials and first-run `/setup` administrator wizard.
+- [x] Immediate session invalidation on password change and administrative reset.
+- [x] Automated recording retention pruning policy (`recording_retention_days`).
+- [x] Strict SQL identifier whitelisting and CSP/security headers middleware.
+- [x] Compound bilingual Arabic and English digit normalization (`normalize_digits`).
+- [x] Digit-by-digit ticket number recital and repetition (`repeat_ticket_number`).
+- [x] Scheduled callback ticketing in Frappe Helpdesk (`request_callback`).
+- [x] Graceful Asterisk AMI transfer failure recovery (eliminating dead-air drops).
+

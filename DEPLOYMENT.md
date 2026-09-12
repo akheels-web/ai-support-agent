@@ -429,7 +429,7 @@ After=network.target
 [Service]
 WorkingDirectory=/opt/ai-support-agent
 Environment=PYTHONPATH=/opt/ai-support-agent
-ExecStart=/opt/ai-support-agent/venv/bin/uvicorn dashboard.app:app --host 0.0.0.0 --port 8090
+ExecStart=/opt/ai-support-agent/venv/bin/uvicorn dashboard.app:app --host 127.0.0.1 --port 8090
 Restart=always
 RestartSec=5
 User=root
