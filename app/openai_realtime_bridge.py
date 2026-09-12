@@ -1326,7 +1326,7 @@ async def main():
 
     print(f"[SERVER] Starting on {ASTERISK_WS_HOST}:{ASTERISK_WS_PORT}")
     print(f"[SERVER] Model: {OPENAI_REALTIME_MODEL}")
-    print(f"[SERVER] Ticketing Provider: {os.getenv('TICKETING_SYSTEM', 'frappe').upper()}")
+    print(f"[SERVER] Ticketing Provider: Frappe Helpdesk")
     print(f"[SERVER] Loaded {len(KNOWLEDGE_BASE)} Knowledge Base Playbooks: {list(KNOWLEDGE_BASE.keys())}")
 
     async with websockets.serve(

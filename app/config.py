@@ -45,19 +45,12 @@ def _float_env(name, default, min_value=None, max_value=None):
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
 OPENAI_REALTIME_MODEL = (os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime") or "gpt-realtime").strip()
 
-# Ticketing Configuration (Frappe is primary, Zammad is alternate)
-TICKETING_SYSTEM = (os.getenv("TICKETING_SYSTEM", "frappe") or "frappe").strip().lower()
-
+# Ticketing Configuration (Frappe Helpdesk)
 FRAPPE_URL = (os.getenv("FRAPPE_URL", "http://127.0.0.1:8000") or "").rstrip("/")
 FRAPPE_API_KEY = (os.getenv("FRAPPE_API_KEY") or "").strip()
 FRAPPE_API_SECRET = (os.getenv("FRAPPE_API_SECRET") or "").strip()
 FRAPPE_TICKET_DOCTYPE = (os.getenv("FRAPPE_TICKET_DOCTYPE", "HD Ticket") or "HD Ticket").strip()
 FRAPPE_DEFAULT_TEAM = os.getenv("FRAPPE_DEFAULT_TEAM", "IT Support")
-
-ZAMMAD_URL = (os.getenv("ZAMMAD_URL", "http://127.0.0.1:8080") or "").rstrip("/")
-ZAMMAD_TOKEN = (os.getenv("ZAMMAD_TOKEN") or "").strip()
-DEFAULT_ZAMMAD_GROUP = os.getenv("DEFAULT_ZAMMAD_GROUP", "Service Desk")
-ZAMMAD_TIMEOUT = _int_env("ZAMMAD_TIMEOUT", 8, min_value=3, max_value=30)
 
 # Paths & Storage
 CSV_USERS_FILE = os.getenv("CSV_USERS_FILE", str(BASE_DIR / "data" / "users.csv"))
@@ -100,14 +93,8 @@ def validate_bridge_config():
     if not OPENAI_API_KEY.startswith("sk-"):
         raise RuntimeError("OPENAI_API_KEY format looks invalid")
 
-    if TICKETING_SYSTEM == "frappe":
-        if not FRAPPE_URL:
-            raise RuntimeError("FRAPPE_URL is missing in .env")
-    elif TICKETING_SYSTEM == "zammad":
-        if not ZAMMAD_URL:
-            raise RuntimeError("ZAMMAD_URL is missing in .env")
-        if not ZAMMAD_TOKEN:
-            raise RuntimeError("ZAMMAD_TOKEN is missing in .env")
+    if not FRAPPE_URL:
+        raise RuntimeError("FRAPPE_URL is missing in .env")
 
     if VAD_IDLE_TIMEOUT_MS > 30000:
         raise RuntimeError("VAD_IDLE_TIMEOUT_MS must be <= 30000")

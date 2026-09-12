@@ -8,10 +8,13 @@ The system includes:
 
 - Asterisk PBX
 - Python OpenAI Realtime bridge
-- Zammad ticketing integration
-- SQLite dashboard database
+- Frappe Helpdesk ticketing integration
+- PostgreSQL 16 / SQLite dashboard database
 - FastAPI dashboard
-- Optional Asterisk AMI transfer-to-agent support
+- Asterisk AMI multi-queue transfer-to-agent support
+
+> [!NOTE]
+> For production 2-VM deployment (VM 1: Voice Edge, VM 2: Frappe & PostgreSQL Core), refer to [TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md](file:///e:/Github/callcenter/ai-support-agent/TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md).
 
 All commands assume the project runs from:
 
@@ -30,12 +33,12 @@ OS: Ubuntu Server 22.04 or 24.04
 CPU: 8 vCPU
 RAM: 16 GB
 Disk: 100 GB or more
-Network: Access to SIP provider, OpenAI API, Zammad, and internal/VPN users
+Network: Access to SIP provider, OpenAI API, Frappe Helpdesk, and internal/VPN users
 ```
 
 Recommended production changes:
 
-- Move SQLite to PostgreSQL
+- Move SQLite to PostgreSQL 16
 - Use HTTPS reverse proxy
 - Restrict dashboard and AMI ports
 - Add backup and monitoring
@@ -48,7 +51,7 @@ Recommended production changes:
 |---|---|---|
 | 8765 | Asterisk to AI bridge WebSocket | Localhost only |
 | 8090 | FastAPI dashboard | VPN/internal only |
-| 8080 | Zammad web UI/API | VPN/internal only |
+| 8000 | Frappe Helpdesk web UI/API | VPN/internal only |
 | 5038 | Asterisk AMI | Localhost only preferred |
 | 5060/5061 | SIP trunk | As required by SIP provider |
 
@@ -114,18 +117,21 @@ Minimum required configuration:
 OPENAI_API_KEY=sk-proj-CHANGE_ME
 OPENAI_REALTIME_MODEL=gpt-realtime
 
-ZAMMAD_URL=http://127.0.0.1:8080
-ZAMMAD_TOKEN=CHANGE_ME
-DEFAULT_ZAMMAD_GROUP=Service Desk
-ZAMMAD_TIMEOUT=8
+FRAPPE_URL=http://127.0.0.1:8000
+FRAPPE_API_KEY=CHANGE_ME
+FRAPPE_API_SECRET=CHANGE_ME
+FRAPPE_TICKET_DOCTYPE=HD Ticket
+FRAPPE_DEFAULT_TEAM=IT Support
+
+DATABASE_URL=postgresql://ai_user:SecurePass@127.0.0.1:5432/ai_dashboard
 
 CSV_USERS_FILE=/opt/ai-support-agent/data/users.csv
 
 MAX_CONCURRENT_CALLS=10
 CALL_MAX_SECONDS=1800
 
-VAD_THRESHOLD=0.75
-VAD_SILENCE_MS=1700
+VAD_THRESHOLD=0.65
+VAD_SILENCE_MS=750
 VAD_IDLE_TIMEOUT_MS=30000
 
 DASHBOARD_SECRET=CHANGE_ME_LONG_RANDOM_SECRET
@@ -197,9 +203,10 @@ cd /opt/ai-support-agent
 source venv/bin/activate
 
 PYTHONPATH=/opt/ai-support-agent python -m py_compile app/config.py
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/db.py
 PYTHONPATH=/opt/ai-support-agent python -m py_compile app/call_logger.py
 PYTHONPATH=/opt/ai-support-agent python -m py_compile app/verify.py
-PYTHONPATH=/opt/ai-support-agent python -m py_compile app/zammad_api.py
+PYTHONPATH=/opt/ai-support-agent python -m py_compile app/ticketing/frappe_provider.py
 PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
 PYTHONPATH=/opt/ai-support-agent python -m py_compile dashboard/app.py
 ```
@@ -511,15 +518,15 @@ ss -lntp | grep 8090
 
 ---
 
-## 16. Zammad Integration Test
+## 16. Frappe Helpdesk Integration Test
 
-Check Zammad URL:
+Check Frappe Helpdesk URL:
 
 ```bash
-curl -I http://127.0.0.1:8080
+curl -I http://127.0.0.1:8000
 ```
 
-Check token manually by creating a test via bridge call or direct script if available.
+Check API credentials manually by creating a test ticket or placing a test call.
 
 If tickets fail:
 
@@ -529,10 +536,9 @@ journalctl -u ai-support-bridge -f
 
 Common issues:
 
-- `ZAMMAD_TOKEN` missing
-- Wrong group name
-- Zammad API not reachable
-- Customer email missing from verified user
+- `FRAPPE_API_KEY` / `FRAPPE_API_SECRET` missing or invalid
+- Frappe container not reachable on port 8000
+- Caller email not found in user verification record
 
 ---
 
@@ -634,12 +640,12 @@ AND status IN ('in_progress','language_selected','verified','troubleshooting');
 "
 ```
 
-### Zammad ticket group error
+### Frappe ticket team error
 
-If Zammad returns group lookup error, set fallback group:
+If Frappe returns team assignment error, ensure the default team exists in Frappe Helpdesk:
 
 ```ini
-DEFAULT_ZAMMAD_GROUP=Service Desk
+FRAPPE_DEFAULT_TEAM=IT Support
 ```
 
 ---
@@ -651,10 +657,10 @@ Back up these items:
 ```text
 /opt/ai-support-agent/.env
 /opt/ai-support-agent/data/users.csv
-/opt/ai-support-agent/data/dashboard.db
 /var/spool/asterisk/monitor/ai-support
 /etc/asterisk
-/opt/zammad-docker-compose
+PostgreSQL database dump (pg_dump)
+Frappe backup (bench --site ... backup)
 ```
 
 Example:
@@ -673,17 +679,16 @@ tar -czf /root/ai-support-agent-backup-$(date +%F).tar.gz \
 
 Before production:
 
-- Replace SQLite with PostgreSQL.
+- Replace SQLite with PostgreSQL 16.
 - Enable HTTPS for dashboard.
 - Set `DASHBOARD_COOKIE_SECURE=true`.
 - Remove default users.
 - Add CSRF protection for dashboard forms.
 - Use named admin accounts.
 - Add structured JSON logs.
-- Add monitoring for Asterisk, bridge, dashboard, Zammad, disk space.
+- Add monitoring for Asterisk, bridge, dashboard, Frappe Helpdesk, disk space.
 - Add backup and restore testing.
-- Add pytest suite for `verify.py`.
-- Add Webex Calling CDR integration only after API access is confirmed.
+- Run the full test suite in `tests/`.
 
 ---
 
@@ -704,12 +709,6 @@ systemctl restart ai-dashboard
 
 systemctl status ai-support-bridge
 systemctl status ai-dashboard
-```
-
-If Zammad branding is still used:
-
-```bash
-/opt/ai-support-agent/zammad-branding/apply_zammad_branding.sh
 ```
 
 ---
@@ -735,7 +734,7 @@ Test call flow:
 4. Report VPN issue.
 5. Confirm ticket creation.
 6. Confirm ticket number is read aloud.
-7. Check ticket in Zammad.
+7. Check ticket in Frappe Helpdesk.
 8. Check dashboard call history.
 ```
 

@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 
 class BaseTicketingProvider(ABC):
     """
-    Abstract interface for ticketing backends (Frappe Helpdesk, ERPNext, Zammad, etc.).
+    Abstract interface for ticketing backends (Frappe Helpdesk, ERPNext, GLPI, etc.).
     """
 
     @abstractmethod

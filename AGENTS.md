@@ -2,7 +2,7 @@
 
 ## 1. Project Overview
 AI voice assistant ("Arif") serving IT Support for National Finance (bilingual English/Arabic).
-Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realtime`), verifying callers from `data/users.csv`, managing tickets in Frappe Helpdesk (or Zammad), and presenting telemetry in a FastAPI dashboard (:8090).
+Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realtime`), verifying callers from `data/users.csv`, managing tickets in Frappe Helpdesk, and presenting telemetry in a FastAPI dashboard (:8090).
 
 ## 2. Telephony & Media Flow
 - Asterisk routes audio to WebSocket at `127.0.0.1:8765` (`app/openai_realtime_bridge.py`).
@@ -13,12 +13,11 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - `7002`: Executive & VIP Concierge Queue (CEO, CFO, C-Suite)
   - `7003`: Sev-1 Emergency & Outage Incident Queue
 
-## 3. Ticketing Architecture (Frappe Helpdesk Primary)
+## 3. Ticketing Architecture (Frappe Helpdesk)
 - Modular provider framework in `app/ticketing/`:
-  - `base.py`: Abstract Base Class `BaseTicketingProvider`.
-  - `frappe_provider.py`: Frappe Helpdesk (`HD Ticket`) & ERPNext (`Issue`) client. Handles SLA mapping, employee asset linkage (`lookup_assets`), custom telephony metadata, and **Department Manager approval workflow** for physical hardware requests (`workflow_state: Pending Approval`, `custom_approval_status: Pending Manager Approval`).
-  - `zammad_provider.py`: Refactored Zammad client with accurate caller name and custom metadata.
-  - `__init__.py`: Factory client resolver driven by `TICKETING_SYSTEM` in `.env`.
+  - `base.py`: Abstract Base Class `BaseTicketingProvider` for future extensibility (e.g. GLPI if needed).
+  - `frappe_provider.py`: Dedicated Frappe Helpdesk (`HD Ticket`) & ERPNext (`Issue`) client. Handles SLA mapping, employee asset linkage (`lookup_assets`), custom telephony metadata, and **Department Manager approval workflow** for physical hardware requests (`workflow_state: Pending Approval`, `custom_approval_status: Pending Manager Approval`).
+  - `__init__.py`: Singleton resolver `get_ticketing_client()` instantiating `FrappeProvider`.
 - Resolved tickets created for first-contact resolution deflection metrics (`record_resolution`).
 - Emergency P1 Critical tickets created automatically on Sev-1 escalation (`escalate_emergency`).
 

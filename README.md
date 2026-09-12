@@ -1,7 +1,7 @@
 # AI IT Support Voice Agent
 
 An AI voice agent ("Arif") that answers IT support calls for National Finance,
-verifies the caller, troubleshoots, creates Zammad tickets, and can transfer to
+verifies the caller, troubleshoots, creates Frappe Helpdesk tickets, and can transfer to
 a human. English and Arabic. A FastAPI dashboard shows calls, recordings, and
 security events.
 
@@ -15,12 +15,12 @@ flowchart TD
 
     Bridge --> Verify[verify.py]
     Verify --> CSV[(users.csv)]
-    Bridge --> Zammad[zammad_api.py] --> ZammadSrv[(Zammad<br/>tickets)]
-    Bridge -.->|optional| Transfer[transfer.py] -.->|AMI :5038| Asterisk
-    Bridge --> Guard[security_guard.py<br/>rate limits + lockouts]
+    Bridge --> Frappe[app/ticketing] --> FrappeHD[(Frappe Helpdesk<br/>tickets)]
+    Bridge -.->|multi-queue| Transfer[transfer.py] -.->|AMI :5038| Asterisk
+    Bridge --> Guard[security_guard.py<br/>atomic rate limits]
 
     Bridge --> Log[call_logger.py]
-    Log --> DB[(SQLite<br/>dashboard.db)]
+    Log --> DB[(PostgreSQL 16 /<br/>dashboard.db)]
     Guard --> DB
     DB --> Dashboard[FastAPI Dashboard<br/>:8090]
     Admin([👤 Admin]) --> Dashboard
@@ -29,30 +29,31 @@ flowchart TD
     classDef core fill:#E8EDF8,stroke:#1B2F6B,color:#1F2937;
     classDef store fill:#D1FAE5,stroke:#065F46,color:#1F2937;
     class Caller,Admin,OpenAI,Asterisk ext;
-    class Bridge,Verify,Zammad,Transfer,Guard,Log,Dashboard core;
-    class CSV,ZammadSrv,DB store;
+    class Bridge,Verify,Frappe,Transfer,Guard,Log,Dashboard core;
+    class CSV,FrappeHD,DB store;
 ```
 
 | Component | File | Purpose |
 |---|---|---|
 | Voice bridge | `app/openai_realtime_bridge.py` | Asterisk ↔ OpenAI audio, call flow, tools |
 | Verification | `app/verify.py` | Match caller name + employee ID against `users.csv` |
-| Ticketing | `app/zammad_api.py` | Create Zammad tickets |
-| Transfer | `app/transfer.py` | Redirect a live call to a human via AMI |
-| Call log | `app/call_logger.py` | Persist call metadata to SQLite |
-| Abuse protection | `app/security_guard.py` | Rate limits + lockouts (calls, verification, login) |
+| Ticketing | `app/ticketing/frappe_provider.py` | Create Frappe Helpdesk tickets & manager approval |
+| Database Layer | `app/db.py` | PostgreSQL 16 connection pooling with SQLite fallback |
+| Transfer | `app/transfer.py` | Redirect live calls to Standard, Executive, or Emergency queues |
+| Call log | `app/call_logger.py` | Persist call metadata via `app.db` |
+| Abuse protection | `app/security_guard.py` | Atomic rate limits + lockouts (calls, verification, login) |
 | Dashboard | `dashboard/app.py` | Ops UI: calls, recordings, users, security events |
 
 ## Quickstart
 
 Runs from `/opt/ai-support-agent`. Requires Python 3.10+, an Asterisk PBX, a
-Zammad instance, and an OpenAI API key.
+Frappe Helpdesk instance, and an OpenAI API key.
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
-pip install fastapi uvicorn websockets python-dotenv requests python-multipart jinja2
+pip install -r requirements.txt
 
-cp .env.example .env      # then edit: OPENAI_API_KEY, ZAMMAD_TOKEN, DASHBOARD_SECRET
+cp .env.example .env      # then edit: OPENAI_API_KEY, FRAPPE_API_KEY, FRAPPE_API_SECRET, DASHBOARD_SECRET
 openssl rand -hex 32      # use for DASHBOARD_SECRET
 
 # Caller verification data

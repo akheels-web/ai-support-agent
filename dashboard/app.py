@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 APP_SECRET = DASHBOARD_SECRET
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "data" / "dashboard.db"))
 RECORDING_DIR = os.getenv("RECORDING_DIR", "/var/spool/asterisk/monitor/ai-support")
-BRAND_ASSETS_DIR = os.getenv("BRAND_ASSETS_DIR", str(BASE_DIR / "zammad-branding" / "assets"))
+BRAND_ASSETS_DIR = os.getenv("BRAND_ASSETS_DIR", str(BASE_DIR / "brand-assets"))
 
 NF_LOGO_LOCAL = "/brand-assets/nfc-logo.svg"
 TCT_LOGO_LOCAL = "/brand-assets/tct-logo.png"
@@ -274,7 +274,7 @@ def init_db():
         "system_prompt": "You are Arif, an AI IT Support voice agent for National Finance IT Support team.",
         "max_concurrent_calls": "10",
         "recording_retention_days": "30",
-        "zammad_enabled": "true",
+        "frappe_enabled": "true",
         "profile_icon_text": "NF",
     }
 
@@ -1053,7 +1053,8 @@ def health_page(request: Request):
     bridge_status = check_systemd_service("ai-support-bridge")
     asterisk_status = check_systemd_service("asterisk")
     dashboard_status = check_systemd_service("ai-dashboard")
-    zammad_ok = check_url("http://127.0.0.1:8080/api/v1")
+    frappe_url = os.getenv("FRAPPE_URL", "http://127.0.0.1:8000")
+    frappe_ok = check_url(f"{frappe_url}/api/method/ping") or check_url(frappe_url)
     openai_key_configured = bool(os.getenv("OPENAI_API_KEY"))
 
     body = f"""
@@ -1066,7 +1067,7 @@ def health_page(request: Request):
             <tr><td>AI Bridge Service</td><td>{health_badge(bridge_status == 'active')}</td><td>{escape(bridge_status)}</td></tr>
             <tr><td>Asterisk Service</td><td>{health_badge(asterisk_status == 'active')}</td><td>{escape(asterisk_status)}</td></tr>
             <tr><td>Dashboard Service</td><td>{health_badge(dashboard_status == 'active')}</td><td>{escape(dashboard_status)}</td></tr>
-            <tr><td>Zammad API</td><td>{health_badge(zammad_ok)}</td><td>{'Reachable' if zammad_ok else 'Not reachable'}</td></tr>
+            <tr><td>Frappe Helpdesk API</td><td>{health_badge(frappe_ok)}</td><td>{'Reachable' if frappe_ok else 'Not reachable'}</td></tr>
             <tr><td>OpenAI API Key</td><td>{health_badge(openai_key_configured)}</td><td>{'Configured' if openai_key_configured else 'Missing'} — key is not displayed</td></tr>
         </table>
     </div>
@@ -1123,7 +1124,7 @@ def settings_page(request: Request):
         "system_prompt": "System Prompt",
         "max_concurrent_calls": "Max Concurrent Calls",
         "recording_retention_days": "Recording Retention Days",
-        "zammad_enabled": "Zammad Enabled",
+        "frappe_enabled": "Frappe Helpdesk Enabled",
     }
     editable_keys = list(label_map.keys())
 
@@ -1152,7 +1153,7 @@ async def save_settings(request: Request):
 
     allowed_keys = {
         "organization_name", "dashboard_title", "dashboard_subtitle", "profile_icon_text",
-        "ai_greeting", "system_prompt", "max_concurrent_calls", "recording_retention_days", "zammad_enabled",
+        "ai_greeting", "system_prompt", "max_concurrent_calls", "recording_retention_days", "frappe_enabled",
     }
 
     conn = db()
