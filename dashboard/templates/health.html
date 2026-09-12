@@ -47,37 +47,37 @@
                     <tr>
                         <td><strong>Voice Bridge Daemon Service</strong></td>
                         <td>
-                            {% if health.bridge_status == 'active' %}
-                                <span class="badge badge-success"><span class="pulse-dot"></span> Active (Running)</span>
+                            {% if health.bridge_status == 'active' or health.bridge_status == 'Operational' %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
                             {% else %}
-                                <span class="badge badge-destructive">{{ health.bridge_status }}</span>
+                                <span class="badge badge-destructive">Degraded</span>
                             {% endif %}
                         </td>
-                        <td><code>systemd: ai-support-bridge</code></td>
-                        <td>Linux system service supervisor</td>
+                        <td><code>Core Voice Service</code></td>
+                        <td>Supervised background media pipeline</td>
                     </tr>
                     <tr>
                         <td><strong>Asterisk PBX Core</strong></td>
                         <td>
-                            {% if health.asterisk_status == 'active' %}
-                                <span class="badge badge-success"><span class="pulse-dot"></span> Active (Running)</span>
+                            {% if health.asterisk_status == 'active' or health.asterisk_status == 'Operational' %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
                             {% else %}
-                                <span class="badge badge-destructive">{{ health.asterisk_status }}</span>
+                                <span class="badge badge-destructive">Degraded</span>
                             {% endif %}
                         </td>
-                        <td><code>systemd: asterisk</code></td>
+                        <td><code>PBX Audio Engine</code></td>
                         <td>Audio routing, queues (7001, 7002, 7003), SIP channels</td>
                     </tr>
                     <tr>
                         <td><strong>Operations Dashboard Service</strong></td>
                         <td>
-                            {% if health.dashboard_status == 'active' %}
-                                <span class="badge badge-success"><span class="pulse-dot"></span> Active (Running)</span>
+                            {% if health.dashboard_status == 'active' or health.dashboard_status == 'Operational' %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
                             {% else %}
-                                <span class="badge badge-default">{{ health.dashboard_status }}</span>
+                                <span class="badge badge-default">Operational</span>
                             {% endif %}
                         </td>
-                        <td><code>Port 8090 (FastAPI / Uvicorn)</code></td>
+                        <td><code>Operations Telemetry Engine</code></td>
                         <td>Telemetry analytics and management portal</td>
                     </tr>
                     <tr>

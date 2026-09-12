@@ -378,9 +378,14 @@ VAD_IDLE_TIMEOUT_MS=30000
 MAX_CONCURRENT_CALLS=25
 CALL_MAX_SECONDS=1800
 
-# Dashboard Security
+# Dashboard Security & Network Binding
 DASHBOARD_SECRET="A_STRONG_RANDOM_32_CHAR_SECRET_KEY_HERE"
 DASHBOARD_COOKIE_SECURE="false"
+DASHBOARD_HOST="127.0.0.1"
+DASHBOARD_PORT=8090
+# Optional: Set initial admin password for headless deployment.
+# If left empty, visiting the dashboard redirects to the secure /setup wizard to define admin credentials.
+INITIAL_ADMIN_PASSWORD="YourSecureAdminPassword123!"
 ```
 
 ### 5.5 Create Systemd Services on VM 1

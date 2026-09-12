@@ -94,6 +94,25 @@ class TestDashboardRoutes(unittest.TestCase):
             resp = self.client.get(route)
             self.assertEqual(resp.status_code, 200, f"Failed for route {route}")
 
+    def test_security_headers_present(self):
+        resp = self.client.get("/login")
+        self.assertEqual(resp.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertIn("Content-Security-Policy", resp.headers)
+
+    def test_setup_locked_when_admin_exists(self):
+        # Admin already exists, so /setup must redirect to /login
+        resp = self.client.get("/setup")
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.headers.get("Location"), "/login")
+
+    def test_session_invalidation_helper(self):
+        from dashboard.app import invalidate_user_sessions, get_session_user
+        token = create_session("test_temp_user")
+        self.assertEqual(get_session_user(token), "test_temp_user")
+        invalidate_user_sessions("test_temp_user")
+        self.assertIsNone(get_session_user(token))
+
 
 if __name__ == "__main__":
     unittest.main()

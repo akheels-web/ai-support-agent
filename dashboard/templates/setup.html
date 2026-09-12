@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>First-Time Administrator Setup — National Finance AI Operations</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/shadcn.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .setup-viewport {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #1B2F6B 0%, #0F172A 100%);
+            padding: 1.5rem;
+            position: relative;
+        }
+        .setup-card {
+            max-width: 480px;
+            width: 100%;
+            background: hsl(var(--card));
+            border-radius: var(--radius);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+            border: 1px solid hsl(var(--border));
+            border-top: 4px solid var(--nf-crimson);
+            padding: 2.25rem;
+            position: relative;
+            z-index: 10;
+        }
+        .setup-logo {
+            display: block;
+            max-width: 200px;
+            max-height: 65px;
+            margin: 0 auto 1.25rem;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-viewport">
+        <div class="setup-card">
+            <img class="setup-logo" src="{{ nf_logo_url }}" alt="National Finance">
+            
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <div class="badge badge-warning" style="margin-bottom:0.5rem;">
+                    <i data-lucide="shield-alert"></i> Initial System Setup
+                </div>
+                <h2 style="font-size: 1.35rem; font-weight: 800; color: var(--nf-navy); letter-spacing: -0.02em;">Create Administrator Account</h2>
+                <p style="font-size: 0.8125rem; color: hsl(var(--muted-foreground)); margin-top: 0.25rem;">
+                    Zero default credentials exist in this installation. Define your root administrator credentials below.
+                </p>
+            </div>
+
+            {% if error %}
+            <div class="badge badge-destructive" style="width:100%; margin-bottom:1.25rem; padding:0.5rem; justify-content:center;">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            <form method="post" action="/setup">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="form-group">
+                    <label class="form-label">Admin Username</label>
+                    <input type="text" name="username" class="input" placeholder="e.g. admin" minlength="3" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="input" placeholder="Minimum 10 characters" minlength="10" required>
+                    <div style="font-size:0.75rem; color:hsl(var(--muted-foreground)); margin-top:0.25rem;">
+                        Must be at least 10 characters. Include letters and numbers.
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Confirm Password</label>
+                    <input type="password" name="confirm_password" class="input" placeholder="Confirm password" minlength="10" required>
+                </div>
+
+                <div style="background:hsl(var(--secondary)); border-radius:8px; padding:0.75rem; margin:1rem 0; font-size:0.75rem; color:hsl(var(--muted-foreground));">
+                    <div style="font-weight:700; color:hsl(var(--foreground)); margin-bottom:0.2rem;">Permanent Locking Notice</div>
+                    This setup wizard will automatically deactivate permanently once submitted. Additional operators can be added from User Management.
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.65rem;">
+                    <i data-lucide="shield-check"></i> Initialize Administrator & Login
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

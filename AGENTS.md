@@ -68,3 +68,11 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - `GET /api/dashboard/chart-data`: Time-series 24h buckets and queue breakdowns.
   - `GET /api/active-calls/data`: In-progress live channels.
   - `GET /api/calls/{call_id}`: Single call inspection payload.
+
+## 7. Security Hardening & Zero-Default Architecture
+- **Zero Default Passwords**: Removed hardcoded credentials (`admin123`/`user123`). If no administrator exists, the system automatically redirects to `/setup` (First-Time Administrator Setup Wizard) which permanently locks once an admin is created. Automated bootstrapping supported via `INITIAL_ADMIN_PASSWORD`.
+- **Session Revocation**: Password changes and admin resets invalidate all active sessions for that user (`DELETE FROM sessions WHERE username=?`), terminating stale or hijacked sessions.
+- **SQL Identifier Sanitization**: Added strict regex whitelisting (`^[a-zA-Z0-9_]+$`) in `app/db.py:_ensure_column` eliminating SQL injection vectors.
+- **Automated Retention Pruning**: `enforce_recording_retention()` periodically scans telephony storage and prunes `.wav` audio files older than `recording_retention_days` (default 30 days) to prevent disk exhaustion.
+- **Security Headers Middleware**: Injected `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, and strict `Content-Security-Policy`.
+- **Sanitized Diagnostics**: `/health` hides raw daemon names and internal paths, reporting standardized operational state.

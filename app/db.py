@@ -395,7 +395,12 @@ def atomic_check_rate_limit(key: str, limit: int, window_seconds: int, lock_seco
 
 
 def _ensure_column(conn, table: str, column: str, definition: str):
-    """Adds column if missing (SQLite specific migration helper)."""
+    """Adds column if missing (SQLite specific migration helper) with strict identifier sanitization."""
+    if not re.match(r"^[a-zA-Z0-9_]+$", table) or not re.match(r"^[a-zA-Z0-9_]+$", column):
+        raise ValueError(f"Invalid SQL identifier in _ensure_column: {table}.{column}")
+    if not re.match(r"^[a-zA-Z0-9_() ]+$", definition):
+        raise ValueError(f"Invalid SQL column definition: {definition}")
+
     if _db_manager.engine == "sqlite":
         try:
             columns = conn.execute(f"PRAGMA table_info({table})").fetchall()

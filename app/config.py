@@ -68,8 +68,8 @@ ASTERISK_QUEUE_EMERGENCY = os.getenv("ASTERISK_QUEUE_EMERGENCY", "7003")
 
 # Asterisk ARI Configuration
 ASTERISK_ARI_URL = os.getenv("ASTERISK_ARI_URL", "http://127.0.0.1:8088").rstrip("/")
-ASTERISK_ARI_USER = os.getenv("ASTERISK_ARI_USER", "asterisk")
-ASTERISK_ARI_PASSWORD = os.getenv("ASTERISK_ARI_PASSWORD", "asterisk")
+ASTERISK_ARI_USER = (os.getenv("ASTERISK_ARI_USER") or "asterisk").strip()
+ASTERISK_ARI_PASSWORD = (os.getenv("ASTERISK_ARI_PASSWORD") or "").strip()
 ASTERISK_ARI_APP = os.getenv("ASTERISK_ARI_APP", "ai-support")
 
 # Call Parameters
@@ -81,9 +81,12 @@ VAD_THRESHOLD = _float_env("VAD_THRESHOLD", 0.65, min_value=0.1, max_value=1.0)
 VAD_SILENCE_MS = _int_env("VAD_SILENCE_MS", 750, min_value=300, max_value=3000)
 VAD_IDLE_TIMEOUT_MS = _int_env("VAD_IDLE_TIMEOUT_MS", 30000, min_value=5000, max_value=30000)
 
-# Dashboard
+# Dashboard Operations & Security
 DASHBOARD_SECRET = (os.getenv("DASHBOARD_SECRET") or "").strip()
 DASHBOARD_COOKIE_SECURE = (os.getenv("DASHBOARD_COOKIE_SECURE", "false").lower() == "true")
+DASHBOARD_HOST = os.getenv("DASHBOARD_HOST", "127.0.0.1").strip()
+DASHBOARD_PORT = _int_env("DASHBOARD_PORT", 8090, min_value=1024, max_value=65535)
+INITIAL_ADMIN_PASSWORD = (os.getenv("INITIAL_ADMIN_PASSWORD") or "").strip()
 
 
 def validate_bridge_config():

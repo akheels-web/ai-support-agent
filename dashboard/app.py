@@ -1,6 +1,7 @@
 import os
 import csv
 import io
+import re
 import hmac
 import time
 import sqlite3
@@ -17,7 +18,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSON
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import validate_dashboard_config, DASHBOARD_SECRET, DASHBOARD_COOKIE_SECURE
+from app.config import (
+    validate_dashboard_config, DASHBOARD_SECRET, DASHBOARD_COOKIE_SECURE,
+    DASHBOARD_HOST, DASHBOARD_PORT, INITIAL_ADMIN_PASSWORD
+)
 from app.security_guard import check_rate_limit, log_security_event, reset_rate_limit, init_security_db
 import app.db as app_db
 
@@ -47,6 +51,29 @@ Path(TEMPLATES_DIR).mkdir(parents=True, exist_ok=True)
 app.mount("/brand-assets", StaticFiles(directory=BRAND_ASSETS_DIR), name="brand-assets")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+
+# -----------------------------------------------------------------------------
+# Enterprise Security Headers Middleware
+# -----------------------------------------------------------------------------
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "microphone=(self), camera=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: /brand-assets/; "
+        "media-src 'self'; "
+        "connect-src 'self';"
+    )
+    return response
 
 
 # -----------------------------------------------------------------------------
@@ -132,6 +159,16 @@ def delete_session(token):
     conn.close()
 
 
+def invalidate_user_sessions(username):
+    """Terminates all active sessions for a user (e.g. on password change/reset)."""
+    if not username:
+        return
+    conn = db()
+    conn.execute("DELETE FROM sessions WHERE username=?", (username,))
+    conn.commit()
+    conn.close()
+
+
 def cleanup_expired_sessions():
     now = int(time.time())
     conn = db()
@@ -160,8 +197,18 @@ def validate_csrf(request: Request, submitted_token):
 
 
 # -----------------------------------------------------------------------------
-# Auth helpers
+# Auth & First-Run Setup helpers
 # -----------------------------------------------------------------------------
+
+def has_admin_user() -> bool:
+    try:
+        conn = db()
+        row = conn.execute("SELECT COUNT(*) c FROM users WHERE role='admin' AND active=1").fetchone()
+        conn.close()
+        return (row["c"] if row else 0) > 0
+    except Exception:
+        return False
+
 
 def current_user(request: Request):
     token = request.cookies.get(COOKIE_NAME)
@@ -182,6 +229,8 @@ def current_user(request: Request):
 
 
 def require_user(request: Request):
+    if not has_admin_user():
+        raise HTTPException(status_code=302, headers={"Location": "/setup"})
     user = current_user(request)
     if not user:
         raise HTTPException(status_code=302, headers={"Location": "/login"})
@@ -233,8 +282,36 @@ def save_setting(conn, key, value):
 
 
 # -----------------------------------------------------------------------------
-# Display & Telemetry formatting helpers
+# Retention & Telemetry formatting helpers
 # -----------------------------------------------------------------------------
+
+def enforce_recording_retention():
+    """Prunes recording files older than recording_retention_days."""
+    try:
+        days_str = get_setting("recording_retention_days", "30")
+        days = int(days_str) if days_str.isdigit() else 30
+        if days <= 0:
+            return 0
+        cutoff = time.time() - (days * 86400)
+        base = Path(RECORDING_DIR)
+        if not base.exists():
+            return 0
+
+        deleted_count = 0
+        for f in base.glob("*.wav"):
+            try:
+                if f.stat().st_mtime < cutoff:
+                    f.unlink()
+                    deleted_count += 1
+            except Exception:
+                pass
+
+        if deleted_count > 0:
+            audit("system", "retention_prune", "recording", f"pruned {deleted_count} files older than {days} days")
+        return deleted_count
+    except Exception:
+        return 0
+
 
 def human_time(ts):
     if not ts:
@@ -379,29 +456,23 @@ def render_template(request: Request, template_name: str, context: dict = None, 
 
 
 # -----------------------------------------------------------------------------
-# Database Initialization
+# Database Initialization (Zero Default Passwords)
 # -----------------------------------------------------------------------------
 
 def init_db():
     app_db.init_all_tables()
     conn = db()
 
-    default_users = [
-        ("admin", "admin123", "admin"),
-        ("user", "user123", "user"),
-        ("reviewer", "reviewer123", "quality_reviewer"),
-    ]
-
-    for username, password, role in default_users:
-        exists = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
-        if not exists:
-            conn.execute(
-                """
-                INSERT INTO users(username, password_hash, role, active, created_at)
-                VALUES (?, ?, ?, 1, ?)
-                """,
-                (username, hash_password(password), role, int(time.time())),
-            )
+    # Zero hardcoded default passwords.
+    # Check if INITIAL_ADMIN_PASSWORD is provided via environment (optional bootstrap)
+    if INITIAL_ADMIN_PASSWORD and not has_admin_user():
+        conn.execute(
+            """
+            INSERT INTO users(username, password_hash, role, active, created_at)
+            VALUES (?, ?, 'admin', 1, ?)
+            """,
+            ("admin", hash_password(INITIAL_ADMIN_PASSWORD), int(time.time())),
+        )
 
     default_settings = {
         "organization_name": "National Finance Oman",
@@ -429,6 +500,95 @@ def init_db():
 def startup():
     init_db()
     cleanup_expired_sessions()
+    enforce_recording_retention()
+
+
+# -----------------------------------------------------------------------------
+# First-Run Setup Wizard Routes
+# -----------------------------------------------------------------------------
+
+@app.get("/setup", response_class=HTMLResponse)
+def setup_page(request: Request):
+    if has_admin_user():
+        return RedirectResponse("/login", status_code=302)
+    return render_template(request, "setup.html", {"title": "Administrator Setup"})
+
+
+@app.post("/setup", response_class=HTMLResponse)
+def setup_admin(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    if has_admin_user():
+        raise HTTPException(status_code=403, detail="Administrator setup is already completed and locked.")
+
+    if not check_rate_limit(f"setup_admin:{client_ip}", max_attempts=5, window_seconds=600):
+        return render_template(
+            request, "setup.html",
+            {"error": "Too many setup attempts. Please wait 10 minutes.", "title": "Administrator Setup"},
+            status_code=429
+        )
+
+    username = username.strip()
+    if len(username) < 3 or not re.match(r"^[a-zA-Z0-9_.-]+$", username):
+        return render_template(
+            request, "setup.html",
+            {"error": "Username must be at least 3 characters and alphanumeric.", "title": "Administrator Setup"},
+            status_code=400
+        )
+
+    if password != confirm_password:
+        return render_template(
+            request, "setup.html",
+            {"error": "Passwords do not match.", "title": "Administrator Setup"},
+            status_code=400
+        )
+
+    if len(password) < 10:
+        return render_template(
+            request, "setup.html",
+            {"error": "Password must be at least 10 characters long.", "title": "Administrator Setup"},
+            status_code=400
+        )
+
+    if not any(c.isdigit() or not c.isalnum() for c in password):
+        return render_template(
+            request, "setup.html",
+            {"error": "Password must contain at least one number or special symbol.", "title": "Administrator Setup"},
+            status_code=400
+        )
+
+    conn = db()
+    conn.execute(
+        """
+        INSERT INTO users(username, password_hash, role, active, created_at)
+        VALUES (?, ?, 'admin', 1, ?)
+        """,
+        (username, hash_password(password), int(time.time())),
+    )
+    conn.commit()
+    conn.close()
+
+    audit(username, "bootstrap_initial_admin", "user", username)
+    log_security_event("initial_admin_setup_success", client_ip, f"username={username}")
+
+    token = create_session(username)
+    response = RedirectResponse("/dashboard", status_code=302)
+    response.set_cookie(
+        COOKIE_NAME,
+        token,
+        httponly=True,
+        secure=DASHBOARD_COOKIE_SECURE,
+        samesite="strict",
+        max_age=SESSION_TTL_SECONDS,
+    )
+    return response
 
 
 # -----------------------------------------------------------------------------
@@ -437,6 +597,8 @@ def startup():
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
+    if not has_admin_user():
+        return RedirectResponse("/setup", status_code=302)
     user = current_user(request)
     if not user:
         return RedirectResponse("/login", status_code=302)
@@ -447,6 +609,8 @@ def home(request: Request):
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
+    if not has_admin_user():
+        return RedirectResponse("/setup", status_code=302)
     if current_user(request):
         return RedirectResponse("/dashboard", status_code=302)
     return render_template(request, "login.html", {"title": "Login"})
@@ -517,7 +681,7 @@ def logout(request: Request):
 
 
 # -----------------------------------------------------------------------------
-# REST API Endpoints (For Charts, Live Auto-Refresh, and Call Drawers)
+# REST API Endpoints
 # -----------------------------------------------------------------------------
 
 @app.get("/api/dashboard/stats")
@@ -578,7 +742,6 @@ def api_dashboard_chart_data(request: Request):
     one_day_ago = now - 86400
 
     conn = db()
-    # Fetch call history for the last 24h
     rows = conn.execute(
         """
         SELECT start_time, status, ai_deflected, resolution_type, tier, transferred, ticket_created
@@ -589,7 +752,6 @@ def api_dashboard_chart_data(request: Request):
         (one_day_ago,),
     ).fetchall()
 
-    # Breakdown overall
     deflected_count = conn.execute("SELECT COUNT(*) c FROM calls WHERE ai_deflected=1 OR resolution_type='AI_Resolved'").fetchone()["c"]
     transferred_l1 = conn.execute("SELECT COUNT(*) c FROM calls WHERE transferred=1 AND tier NOT IN ('P0_EXECUTIVE','P1_VIP','CRITICAL')").fetchone()["c"]
     transferred_vip = conn.execute("SELECT COUNT(*) c FROM calls WHERE transferred=1 AND tier IN ('P0_EXECUTIVE','P1_VIP')").fetchone()["c"]
@@ -597,7 +759,6 @@ def api_dashboard_chart_data(request: Request):
     tickets_count = conn.execute("SELECT COUNT(*) c FROM calls WHERE ticket_created=1").fetchone()["c"]
     conn.close()
 
-    # Generate 12 2-hour buckets for last 24h trend
     labels = []
     bucket_total = [0] * 12
     bucket_deflected = [0] * 12
@@ -878,6 +1039,7 @@ def failed_calls_page(request: Request):
 @app.get("/recordings", response_class=HTMLResponse)
 def recordings(request: Request):
     user = require_roles(request, ["admin", "quality_reviewer"])
+    enforce_recording_retention()
     files = recording_files()
 
     return render_template(
@@ -943,10 +1105,10 @@ def health_page(request: Request):
 
     health_info = {
         "bridge_ok": bridge_ok,
-        "bridge_status": bridge_status,
-        "asterisk_status": asterisk_status,
-        "dashboard_status": dashboard_status,
-        "frappe_url": frappe_url,
+        "bridge_status": "Operational" if (bridge_status == "active" or bridge_ok) else "Degraded",
+        "asterisk_status": "Operational" if asterisk_status == "active" else "Degraded",
+        "dashboard_status": "Operational",
+        "frappe_url": "Configured IT Helpdesk",
         "frappe_ok": frappe_ok,
         "openai_key_configured": openai_key_configured,
     }
@@ -1038,7 +1200,7 @@ async def save_settings(request: Request):
 
 
 # -----------------------------------------------------------------------------
-# Change Password
+# Change Password (With Full Session Invalidation)
 # -----------------------------------------------------------------------------
 
 @app.get("/change-password", response_class=HTMLResponse)
@@ -1064,6 +1226,14 @@ def change_password(
 ):
     validate_csrf(request, csrf_token)
     user = require_user(request)
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    if not check_rate_limit(f"change_pwd:{client_ip}", max_attempts=5, window_seconds=300):
+        return render_template(
+            request, "change_password.html",
+            {"error": "Too many password attempts. Please wait 5 minutes.", "title": "Change Password", "user": user},
+            status_code=429
+        )
 
     if new_password != confirm_password:
         return render_template(
@@ -1071,13 +1241,14 @@ def change_password(
             {"error": "New passwords do not match.", "title": "Change Password", "user": user},
             status_code=400
         )
-    if len(new_password) < 8:
+    if len(new_password) < 10:
         return render_template(
             request, "change_password.html",
-            {"error": "New password must be at least 8 characters.", "title": "Change Password", "user": user},
+            {"error": "New password must be at least 10 characters.", "title": "Change Password", "user": user},
             status_code=400
         )
     if not verify_password(current_password, user["password_hash"]):
+        log_security_event("change_password_failed", client_ip, f"username={user['username']}")
         return render_template(
             request, "change_password.html",
             {"error": "Current password is incorrect.", "title": "Change Password", "user": user},
@@ -1085,15 +1256,31 @@ def change_password(
         )
 
     conn = db()
+    # Invalidate all existing sessions for this user (terminating old stolen/stale sessions)
+    conn.execute("DELETE FROM sessions WHERE username=?", (user["username"],))
     conn.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(new_password), user["id"]))
     conn.commit()
     conn.close()
+
     audit(user["username"], "change_password", "user", str(user["id"]))
-    return RedirectResponse("/dashboard", status_code=302)
+    log_security_event("change_password_success", client_ip, f"username={user['username']}")
+
+    # Grant fresh session token to the current browser
+    new_token = create_session(user["username"])
+    response = RedirectResponse("/dashboard", status_code=302)
+    response.set_cookie(
+        COOKIE_NAME,
+        new_token,
+        httponly=True,
+        secure=DASHBOARD_COOKIE_SECURE,
+        samesite="strict",
+        max_age=SESSION_TTL_SECONDS,
+    )
+    return response
 
 
 # -----------------------------------------------------------------------------
-# User Management
+# User Management (With Full Session Invalidation on Reset)
 # -----------------------------------------------------------------------------
 
 @app.get("/users", response_class=HTMLResponse)
@@ -1125,22 +1312,32 @@ def add_user(
 ):
     validate_csrf(request, csrf_token)
     admin = require_roles(request, ["admin"])
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    if not check_rate_limit(f"add_user:{client_ip}", max_attempts=10, window_seconds=300):
+        raise HTTPException(status_code=429, detail="Too many user creation requests")
+
+    username = username.strip()
+    if not re.match(r"^[a-zA-Z0-9_.-]+$", username):
+        raise HTTPException(status_code=400, detail="Invalid username characters")
+
     if role not in ["admin", "user", "quality_reviewer"]:
         raise HTTPException(status_code=400, detail="Invalid role")
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if len(password) < 10:
+        raise HTTPException(status_code=400, detail="Password must be at least 10 characters")
 
     conn = db()
     try:
         conn.execute(
             "INSERT INTO users(username, password_hash, role, active, created_at) VALUES (?, ?, ?, 1, ?)",
-            (username.strip(), hash_password(password), role, int(time.time())),
+            (username, hash_password(password), role, int(time.time())),
         )
         conn.commit()
     except (sqlite3.IntegrityError, Exception):
         conn.close()
         raise HTTPException(status_code=400, detail="Username already exists or database error")
     conn.close()
+
     audit(admin["username"], "add_user", "user", username)
     return RedirectResponse("/users", status_code=302)
 
@@ -1160,6 +1357,13 @@ def update_user(
     active_value = 1 if active == "1" else 0
     conn = db()
     conn.execute("UPDATE users SET role=?, active=? WHERE id=?", (role, active_value, user_id))
+    
+    # If user is deactivated, immediately kill their active sessions
+    if active_value == 0:
+        target_user = conn.execute("SELECT username FROM users WHERE id=?", (user_id,)).fetchone()
+        if target_user:
+            conn.execute("DELETE FROM sessions WHERE username=?", (target_user["username"],))
+
     conn.commit()
     conn.close()
     audit(admin["username"], "update_user", "user", str(user_id))
@@ -1175,13 +1379,26 @@ def reset_user_password(
 ):
     validate_csrf(request, csrf_token)
     admin = require_roles(request, ["admin"])
-    if len(new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    if not check_rate_limit(f"reset_pwd:{client_ip}", max_attempts=10, window_seconds=300):
+        raise HTTPException(status_code=429, detail="Too many reset password requests")
+
+    if len(new_password) < 10:
+        raise HTTPException(status_code=400, detail="Password must be at least 10 characters")
+
     conn = db()
+    target_user = conn.execute("SELECT username FROM users WHERE id=?", (user_id,)).fetchone()
+    if target_user:
+        # Invalidate all active sessions for this target user immediately
+        conn.execute("DELETE FROM sessions WHERE username=?", (target_user["username"],))
+
     conn.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(new_password), user_id))
     conn.commit()
     conn.close()
+
     audit(admin["username"], "reset_password", "user", str(user_id))
+    log_security_event("admin_reset_user_password", client_ip, f"admin={admin['username']}, target_id={user_id}")
     return RedirectResponse("/users", status_code=302)
 
 
