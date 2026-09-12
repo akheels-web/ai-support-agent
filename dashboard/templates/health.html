@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>System Health & Component Status</h1>
+        <p>Live diagnostics across telephony bridge, database connection pool, Asterisk PBX, and helpdesk APIs</p>
+    </div>
+    <div class="page-actions">
+        <a href="/health" class="btn btn-secondary btn-sm">
+            <i data-lucide="refresh-cw"></i> Refresh Diagnostics
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Infrastructure Telemetry Matrix</h3>
+            <p class="card-description">Core service daemons and network communication ports</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border:none; border-radius:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>System Component</th>
+                        <th>Status</th>
+                        <th>Network Port / Address</th>
+                        <th>Diagnostic Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>AI Voice Bridge (WebSocket)</strong></td>
+                        <td>
+                            {% if health.bridge_ok %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
+                            {% else %}
+                                <span class="badge badge-destructive">Offline</span>
+                            {% endif %}
+                        </td>
+                        <td><code>127.0.0.1:8765</code></td>
+                        <td>Full-duplex WebSocket audio streaming</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Voice Bridge Daemon Service</strong></td>
+                        <td>
+                            {% if health.bridge_status == 'active' %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Active (Running)</span>
+                            {% else %}
+                                <span class="badge badge-destructive">{{ health.bridge_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>systemd: ai-support-bridge</code></td>
+                        <td>Linux system service supervisor</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Asterisk PBX Core</strong></td>
+                        <td>
+                            {% if health.asterisk_status == 'active' %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Active (Running)</span>
+                            {% else %}
+                                <span class="badge badge-destructive">{{ health.asterisk_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>systemd: asterisk</code></td>
+                        <td>Audio routing, queues (7001, 7002, 7003), SIP channels</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Operations Dashboard Service</strong></td>
+                        <td>
+                            {% if health.dashboard_status == 'active' %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Active (Running)</span>
+                            {% else %}
+                                <span class="badge badge-default">{{ health.dashboard_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>Port 8090 (FastAPI / Uvicorn)</code></td>
+                        <td>Telemetry analytics and management portal</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Enterprise Database Core</strong></td>
+                        <td>
+                            <span class="badge badge-success"><span class="pulse-dot"></span> Connected</span>
+                        </td>
+                        <td><code>app.db Connection Pool</code></td>
+                        <td>PostgreSQL 16 pool with thread-safe atomic operations</td>
+                    </tr>
+                    <tr>
+                        <td><strong>IT Helpdesk Synchronizer</strong></td>
+                        <td>
+                            {% if health.frappe_ok %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Reachable</span>
+                            {% else %}
+                                <span class="badge badge-warning">Unreachable / Retrying</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ health.frappe_url }}</code></td>
+                        <td>Ticket generation, SLA calculation, hardware manager approval</td>
+                    </tr>
+                    <tr>
+                        <td><strong>AI Voice Cognitive API</strong></td>
+                        <td>
+                            {% if health.openai_key_configured %}
+                                <span class="badge badge-success">Configured</span>
+                            {% else %}
+                                <span class="badge badge-destructive">Missing Key</span>
+                            {% endif %}
+                        </td>
+                        <td><code>OpenAI Realtime API</code></td>
+                        <td>Bilingual English/Arabic speech synthesis and intent reasoning</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

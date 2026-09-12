@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>Security Audit Trail</h1>
+        <p>Real-time security events, verification lockouts, brute-force rate limits, and audit logs</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Security Event Log</h3>
+            <p class="card-description">Immutable audit records captured by security guards</p>
+        </div>
+        <span class="badge badge-secondary">{{ rows|length }} Events</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border:none; border-radius:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Event Type</th>
+                        <th>IP / Key Target</th>
+                        <th>Diagnostic Details</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td>{{ r.id }}</td>
+                        <td>
+                            {% if 'fail' in r.event_type or 'lockout' in r.event_type or 'block' in r.event_type %}
+                                <span class="badge badge-destructive">{{ r.event_type }}</span>
+                            {% elif 'success' in r.event_type %}
+                                <span class="badge badge-success">{{ r.event_type }}</span>
+                            {% else %}
+                                <span class="badge badge-secondary">{{ r.event_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td><code>{{ r.key or '--' }}</code></td>
+                        <td>{{ r.details or '--' }}</td>
+                        <td>{{ r.created_at_human }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align:center; padding: 3rem; color: hsl(var(--muted-foreground));">
+                            No security incidents or lockouts recorded.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

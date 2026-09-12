@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>Active Live Calls</h1>
+        <p>Real-time monitoring of in-progress voice AI interactions and active Asterisk channels</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-secondary btn-sm" onclick="refreshActiveCalls()">
+            <i data-lucide="refresh-cw"></i>
+            <span>Refresh Now</span>
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Live Telephony Channels</h3>
+            <p class="card-description">Auto-refreshes every 10 seconds</p>
+        </div>
+        <div class="live-indicator">
+            <span class="pulse-dot"></span>
+            <span>Real-time Stream</span>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border:none; border-radius:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Call ID</th>
+                        <th>Caller ID</th>
+                        <th>Caller Name</th>
+                        <th>Employee</th>
+                        <th>Status</th>
+                        <th>Duration</th>
+                        <th>Started</th>
+                    </tr>
+                </thead>
+                <tbody id="active-calls-tbody">
+                    {% for r in rows %}
+                    <tr onclick="openCallDrawer('{{ r.call_id or r.id }}')">
+                        <td>{{ r.id }}</td>
+                        <td><code>{{ r.call_id or '--' }}</code></td>
+                        <td><strong>{{ r.caller_number or '--' }}</strong></td>
+                        <td>{{ r.verified_name or 'Unverified' }}</td>
+                        <td>{{ r.employee_id or '--' }}</td>
+                        <td>
+                            <span class="badge badge-success">
+                                <span class="pulse-dot"></span>
+                                {{ r.status or 'in_progress' }}
+                            </span>
+                        </td>
+                        <td>{{ r.duration_minutes }}m</td>
+                        <td>{{ r.started_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" style="text-align:center; padding: 3rem; color: hsl(var(--muted-foreground));">
+                            <div style="margin-bottom:0.5rem;"><i data-lucide="check-circle" style="width:32px; height:32px; color:#10B981;"></i></div>
+                            <div style="font-weight:600;">No active calls in progress</div>
+                            <div style="font-size:0.8125rem;">All voice bridge channels are currently idle.</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

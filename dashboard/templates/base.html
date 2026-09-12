@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }} — National Finance AI Operations</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Design System & Dependencies -->
+    <link rel="stylesheet" href="/static/css/shadcn.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="app-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <img class="sidebar-logo" src="{{ nf_logo_url }}" alt="National Finance">
+                <div class="sidebar-brand-text">
+                    <h3>AI OPERATIONS</h3>
+                    <p>Voice IT Support</p>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section-title">Telemetry & Calls</div>
+                <a href="/dashboard" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Overview</span>
+                </a>
+                <a href="/calls" class="nav-link {% if active_page == 'calls' %}active{% endif %}">
+                    <i data-lucide="phone-call"></i>
+                    <span>Call History</span>
+                </a>
+                <a href="/active-calls" class="nav-link {% if active_page == 'active_calls' %}active{% endif %}">
+                    <i data-lucide="radio"></i>
+                    <span>Live Calls</span>
+                    <span class="nav-badge live-pulse" id="sidebar-live-badge" style="display: none;">0</span>
+                </a>
+                <a href="/failed-calls" class="nav-link {% if active_page == 'failed_calls' %}active{% endif %}">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>Failed & Escalated</span>
+                </a>
+
+                <div class="nav-section-title">Quality & Infrastructure</div>
+                {% if user.role in ['admin', 'quality_reviewer'] %}
+                <a href="/recordings" class="nav-link {% if active_page == 'recordings' %}active{% endif %}">
+                    <i data-lucide="headphones"></i>
+                    <span>Recordings & QA</span>
+                </a>
+                {% endif %}
+                
+                {% if user.role == 'admin' %}
+                <a href="/health" class="nav-link {% if active_page == 'health' %}active{% endif %}">
+                    <i data-lucide="activity"></i>
+                    <span>System Health</span>
+                </a>
+                <a href="/security-events" class="nav-link {% if active_page == 'security' %}active{% endif %}">
+                    <i data-lucide="shield-alert"></i>
+                    <span>Security Events</span>
+                </a>
+
+                <div class="nav-section-title">Administration</div>
+                <a href="/settings" class="nav-link {% if active_page == 'settings' %}active{% endif %}">
+                    <i data-lucide="sliders"></i>
+                    <span>System Settings</span>
+                </a>
+                <a href="/prompts" class="nav-link {% if active_page == 'prompts' %}active{% endif %}">
+                    <i data-lucide="sparkles"></i>
+                    <span>AI Prompts</span>
+                </a>
+                <a href="/users" class="nav-link {% if active_page == 'users' %}active{% endif %}">
+                    <i data-lucide="users"></i>
+                    <span>User Management</span>
+                </a>
+                {% endif %}
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="footer-brand">
+                    <span>Presented by</span>
+                    <img src="{{ tct_logo_url }}" alt="TCT Enterprise">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <div class="main-wrapper">
+            <!-- Topbar Header -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <div class="breadcrumb-area">
+                        <span>Operations</span>
+                        <span>/</span>
+                        <span class="breadcrumb-active">{{ title }}</span>
+                    </div>
+                    <div class="live-indicator">
+                        <span class="pulse-dot"></span>
+                        <span>Voice Engine Online</span>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <!-- Executive PDF Report Button -->
+                    <button class="btn btn-outline btn-sm" id="export-pdf-btn" onclick="exportExecutivePdfReport()">
+                        <i data-lucide="file-down"></i>
+                        <span>Export PDF Report</span>
+                    </button>
+
+                    <!-- Theme Switcher (Light / Dark Mode) -->
+                    <button class="btn btn-ghost btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+                        <i data-lucide="sun-moon"></i>
+                    </button>
+
+                    <!-- User Profile & Actions -->
+                    <div class="user-badge">
+                        <div class="user-avatar">{{ user.username[:2].upper() }}</div>
+                        <span>{{ user.username }}</span>
+                        <span class="badge badge-secondary" style="font-size: 0.65rem;">{{ user.role }}</span>
+                    </div>
+
+                    <a href="/change-password" class="btn btn-ghost btn-icon" title="Change Password">
+                        <i data-lucide="key"></i>
+                    </a>
+                    <a href="/logout" class="btn btn-ghost btn-icon" title="Logout" style="color: var(--nf-crimson);">
+                        <i data-lucide="log-out"></i>
+                    </a>
+                </div>
+            </header>
+
+            <!-- Page Body Content -->
+            <main class="page-container">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Call Details Slide-out Drawer -->
+    <div class="drawer-backdrop" id="call-drawer-backdrop" onclick="if(event.target === this) closeCallDrawer()">
+        <div class="drawer-panel">
+            <div class="drawer-header">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <i data-lucide="phone" style="width:18px; color:var(--nf-navy);"></i>
+                    <h3 id="drawer-call-title" style="font-size:1.1rem; font-weight:700;">Call Telemetry</h3>
+                </div>
+                <button class="btn btn-ghost btn-icon" onclick="closeCallDrawer()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="drawer-body" id="drawer-call-content">
+                <!-- Injected via JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Engine Scripts -->
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/charts.js"></script>
+    <script src="/static/js/pdf-report.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide) lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>Call Recordings & Quality Assurance</h1>
+        <p>Listen to conversational interactions, evaluate AI agent clarity, and submit QA reviews</p>
+    </div>
+    <div class="page-actions">
+        <span class="badge badge-secondary">Retention: Read-Only Archive</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Recorded Voice Sessions</h3>
+            <p class="card-description">{{ files|length }} WAV audio files indexed from telephony spool</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border:none; border-radius:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Recording File</th>
+                        <th>Caller ID</th>
+                        <th>Size</th>
+                        <th style="min-width: 280px;">Audio Playback</th>
+                        <th style="min-width: 320px;">Quality Assurance Review</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in files %}
+                    <tr>
+                        <td>
+                            <div style="font-weight:600;">{{ f.name }}</div>
+                            <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">{{ f.created_at_human }}</div>
+                        </td>
+                        <td><strong>{{ f.caller }}</strong></td>
+                        <td><code>{{ f.size_mb }} MB</code></td>
+                        <td>
+                            <audio controls style="width: 100%; height: 38px;">
+                                <source src="/recordings/play?file={{ f.name_encoded }}" type="audio/wav">
+                                Audio unsupported
+                            </audio>
+                        </td>
+                        <td>
+                            <form method="post" action="/quality/review" style="display:flex; flex-direction:column; gap:0.5rem;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="recording_file" value="{{ f.name }}">
+                                
+                                <div style="display:flex; gap:0.5rem;">
+                                    <select name="rating" class="select" style="padding:0.35rem 0.5rem; font-size:0.75rem;">
+                                        <option value="Good">★ Good</option>
+                                        <option value="Needs Improvement">⚠ Needs Improvement</option>
+                                        <option value="Escalated">🚨 Escalated</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                </div>
+                                <input type="text" name="notes" class="input" placeholder="Evaluation notes (optional)" style="padding:0.35rem 0.5rem; font-size:0.75rem;">
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="text-align:center; padding: 3rem; color: hsl(var(--muted-foreground));">
+                            No recording audio files found in archive directory.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

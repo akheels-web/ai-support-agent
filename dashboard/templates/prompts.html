@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>AI Prompt Version Control</h1>
+        <p>Deploy, rollback, and version control AI voice greetings and system prompts with full audit traceability</p>
+    </div>
+</div>
+
+<div class="card" style="max-width: 900px;">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Create Prompt Version</h3>
+            <p class="card-description">Save a new candidate version to test or promote</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/prompts/add">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="form-group">
+                <label class="form-label">Version Name</label>
+                <input type="text" name="name" class="input" placeholder="e.g. Production Release v2.4" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Greeting</label>
+                <textarea name="greeting" class="textarea" rows="2" required>{{ current_greeting }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">System Prompt</label>
+                <textarea name="system_prompt" class="textarea" rows="5" required>{{ current_prompt }}</textarea>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end;">
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="plus-circle"></i> Save New Version
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Version History</h3>
+            <p class="card-description">All historical prompts archived in database</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border:none; border-radius:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Version Name</th>
+                        <th>Status</th>
+                        <th>Created By</th>
+                        <th>Created At</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td>{{ r.id }}</td>
+                        <td><strong>{{ r.name }}</strong></td>
+                        <td>
+                            {% if r.active == 1 %}
+                                <span class="badge badge-success"><span class="pulse-dot"></span> Active in Production</span>
+                            {% else %}
+                                <span class="badge badge-secondary">Archived</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ r.created_by or '--' }}</td>
+                        <td>{{ r.created_at_human }}</td>
+                        <td>
+                            {% if r.active != 1 %}
+                            <form method="post" action="/prompts/activate" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="prompt_id" value="{{ r.id }}">
+                                <button type="submit" class="btn btn-outline btn-sm">
+                                    <i data-lucide="play"></i> Promote to Active
+                                </button>
+                            </form>
+                            {% else %}
+                            <span style="color:#10B981; font-weight:600; font-size:0.75rem;">Currently Live</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align:center; padding: 2.5rem; color: hsl(var(--muted-foreground));">
+                            No prompt versions archived yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

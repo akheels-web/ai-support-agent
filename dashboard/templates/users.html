@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>User Management & Access Control</h1>
+        <p>Manage administrative operators, quality reviewers, and system credentials</p>
+    </div>
+</div>
+
+<div class="charts-grid-2" style="grid-template-columns: 1fr 2fr;">
+    <!-- Add User Card -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-title">
+                <h3 class="card-title">Add New User</h3>
+                <p class="card-description">Create credential with role</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/users/add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="input" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Initial Password</label>
+                    <input type="password" name="password" class="input" placeholder="Min 8 characters" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">System Role</label>
+                    <select name="role" class="select">
+                        <option value="user">User (View Dashboard & Calls)</option>
+                        <option value="quality_reviewer">Quality Reviewer (QA & Audio)</option>
+                        <option value="admin">Administrator (Full Access)</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:0.5rem;">
+                    <i data-lucide="user-plus"></i> Create User
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Users Table Card -->
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-title">
+                <h3 class="card-title">Existing Operators & Roles</h3>
+                <p class="card-description">{{ rows|length }} accounts registered</p>
+            </div>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <div class="table-wrapper" style="border:none; border-radius:0;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Username</th>
+                            <th>Role & Status</th>
+                            <th style="min-width: 220px;">Role Update</th>
+                            <th style="min-width: 200px;">Reset Password</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>{{ r.id }}</td>
+                            <td><strong>{{ r.username }}</strong></td>
+                            <td>
+                                <div><span class="badge badge-secondary">{{ r.role }}</span></div>
+                                <div style="font-size:0.75rem; margin-top:0.25rem;">
+                                    {% if r.active == 1 %}
+                                        <span style="color:#10B981;">● Active</span>
+                                    {% else %}
+                                        <span style="color:var(--nf-crimson);">● Inactive</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <form method="post" action="/users/update" style="display:flex; gap:0.4rem; align-items:center;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="user_id" value="{{ r.id }}">
+                                    <select name="role" class="select" style="padding:0.35rem 0.5rem; font-size:0.75rem;">
+                                        <option value="admin" {% if r.role == 'admin' %}selected{% endif %}>Admin</option>
+                                        <option value="user" {% if r.role == 'user' %}selected{% endif %}>User</option>
+                                        <option value="quality_reviewer" {% if r.role == 'quality_reviewer' %}selected{% endif %}>Reviewer</option>
+                                    </select>
+                                    <label style="font-size:0.75rem; display:flex; align-items:center; gap:0.25rem;">
+                                        <input type="checkbox" name="active" value="1" {% if r.active == 1 %}checked{% endif %}> On
+                                    </label>
+                                    <button type="submit" class="btn btn-outline btn-sm">Save</button>
+                                </form>
+                            </td>
+                            <td>
+                                <form method="post" action="/users/reset-password" style="display:flex; gap:0.4rem;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="user_id" value="{{ r.id }}">
+                                    <input type="password" name="new_password" class="input" placeholder="New pwd" style="padding:0.35rem 0.5rem; font-size:0.75rem;" required>
+                                    <button type="submit" class="btn btn-secondary btn-sm">Reset</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

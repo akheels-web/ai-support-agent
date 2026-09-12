@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>Call History & Telemetry</h1>
+        <p>Comprehensive audit log of voice interactions, deflection outcomes, and helpdesk tickets</p>
+    </div>
+    <div class="page-actions">
+        <a href="/calls?export=csv" class="btn btn-outline btn-sm">
+            <i data-lucide="download"></i>
+            <span>Export CSV</span>
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <!-- Search & Filtering Toolbar -->
+        <form method="get" action="/calls">
+            <div class="filter-toolbar">
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" name="q" id="table-search-input" class="input" placeholder="Search caller, ID, ticket, summary..." value="{{ q }}">
+                </div>
+
+                <div class="filter-pills-group">
+                    <div style="min-width: 140px;">
+                        <select name="status" class="select" onchange="this.form.submit()">
+                            <option value="">All Statuses</option>
+                            {% for s in status_rows %}
+                            <option value="{{ s.status }}" {% if status == s.status %}selected{% endif %}>{{ s.status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div style="min-width: 130px;">
+                        <select name="language" class="select" onchange="this.form.submit()">
+                            <option value="">All Languages</option>
+                            <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
+                            <option value="ar" {% if language == 'ar' %}selected{% endif %}>Arabic</option>
+                        </select>
+                    </div>
+
+                    <div style="min-width: 130px;">
+                        <select name="ticket_created" class="select" onchange="this.form.submit()">
+                            <option value="">All Tickets</option>
+                            <option value="1" {% if ticket_created == '1' %}selected{% endif %}>Ticket Created</option>
+                            <option value="0" {% if ticket_created == '0' %}selected{% endif %}>No Ticket</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+                    <a href="/calls" class="btn btn-ghost btn-sm">Reset</a>
+                </div>
+            </div>
+        </form>
+
+        <!-- Interactive Data Table -->
+        <div class="table-wrapper">
+            <table class="data-table" id="calls-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" onclick="sortTableByColumn(document.getElementById('calls-table'), 0)">ID ↕</th>
+                        <th class="sortable" onclick="sortTableByColumn(document.getElementById('calls-table'), 1)">Caller ID ↕</th>
+                        <th>Employee</th>
+                        <th>Caller Name</th>
+                        <th>Language</th>
+                        <th class="sortable" onclick="sortTableByColumn(document.getElementById('calls-table'), 5)">Duration ↕</th>
+                        <th>Status</th>
+                        <th>Ticket</th>
+                        <th>Summary</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr onclick="openCallDrawer('{{ r.call_id or r.id }}')">
+                        <td>{{ r.id }}</td>
+                        <td><strong>{{ r.caller_number or '--' }}</strong></td>
+                        <td><code>{{ r.employee_id or '--' }}</code></td>
+                        <td>
+                            <div>{{ r.verified_name or 'Unverified' }}</div>
+                            {% if r.tier == 'P0_EXECUTIVE' %}
+                                <span class="badge badge-vip" style="font-size:0.65rem;">C-SUITE</span>
+                            {% elif r.tier == 'P1_VIP' %}
+                                <span class="badge badge-warning" style="font-size:0.65rem;">VIP</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ 'Arabic' if r.language == 'ar' else 'English' }}</td>
+                        <td>{{ "%.1f"|format(r.duration_seconds / 60) if r.duration_seconds else '0.0' }}m</td>
+                        <td>
+                            {% if r.status in ['AI_Resolved', 'ai_deflected'] %}
+                                <span class="badge badge-success">✓ AI Deflected</span>
+                            {% elif r.tier == 'CRITICAL' or r.status == 'emergency_escalated' %}
+                                <span class="badge badge-critical">🚨 Sev-1</span>
+                            {% elif r.status == 'transferred' %}
+                                <span class="badge badge-warning">↗ Transferred</span>
+                            {% elif r.status and 'fail' in r.status %}
+                                <span class="badge badge-destructive">⚠ {{ r.status }}</span>
+                            {% else %}
+                                <span class="badge badge-secondary">{{ r.status or 'Completed' }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.ticket_number %}
+                                <span class="badge badge-destructive">#{{ r.ticket_number }}</span>
+                            {% else %}
+                                <span style="color:hsl(var(--muted-foreground));">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--muted-foreground));">
+                            {{ r.summary or '—' }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align:center; padding: 2.5rem; color: hsl(var(--muted-foreground));">
+                            No calls found matching current filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Table Summary & Record Count -->
+        <div class="pagination-container">
+            <div>Showing <strong>{{ rows|length }}</strong> call records</div>
+            <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">
+                Click any row to open the complete call drawer & audio playback
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

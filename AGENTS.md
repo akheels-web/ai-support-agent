@@ -46,3 +46,25 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - Telemetry cards for total calls, AI deflected calls, emergency escalations, and VIP calls.
   - Full PostgreSQL 16 connectivity via `app.db.get_db()`.
 - Dynamic `BASE_DIR` paths used across all modules. Legacy `app/call_db.py` purged.
+
+## 6. Executive Operations Dashboard (Shadcn/UI & Analytics)
+- `dashboard/app.py`: FastAPI application serving port 8090.
+- Modular Jinja2 templates in `dashboard/templates/` (`base.html`, `dashboard.html`, `calls.html`, `active_calls.html`, `failed_calls.html`, `recordings.html`, `health.html`, `security_events.html`, `settings.html`, `prompts.html`, `users.html`, `login.html`).
+- Design System (`dashboard/static/css/shadcn.css`):
+  - HSL tokens matching Shadcn/UI specifications with Corporate Light Mode default and seamless Dark Mode toggle.
+  - Inter & JetBrains Mono typography, card containers, badge pills, and Lucide SVG icons.
+- Visual Analytics (`dashboard/static/js/charts.js`):
+  - 24-hour Call Volume & Autonomous Deflection Trend (multi-line area with smooth spline bezier curves).
+  - First-Contact Deflection & Resolution Breakdown (interactive doughnut chart).
+  - Queue Distribution Bar Chart (L1 7001 vs VIP Concierge 7002 vs Sev-1 Emergency 7003).
+- Data Tables & Telemetry Engine (`dashboard/static/js/app.js`):
+  - Real-time client search, column sorting, and status pill badges.
+  - Slide-out Call Inspection Drawer for full transcript, employee profile, and audio playback.
+  - Dynamic 30-second auto-refresh for summary stats and 10-second polling for active calls.
+- Executive PDF Reporting (`dashboard/static/js/pdf-report.js`):
+  - One-click executive shift summary export with National Finance & TCT branding, KPI metric blocks, and chart snapshots.
+- REST API Endpoints:
+  - `GET /api/dashboard/stats`: Real-time aggregate counters.
+  - `GET /api/dashboard/chart-data`: Time-series 24h buckets and queue breakdowns.
+  - `GET /api/active-calls/data`: In-progress live channels.
+  - `GET /api/calls/{call_id}`: Single call inspection payload.

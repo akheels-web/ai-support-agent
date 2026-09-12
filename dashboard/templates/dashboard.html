@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>{{ dashboard_title }}</h1>
+        <p>{{ organization_name }} — {{ dashboard_subtitle }}</p>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-secondary btn-sm" onclick="refreshTelemetryStats()">
+            <i data-lucide="refresh-cw"></i>
+            <span>Refresh Telemetry</span>
+        </button>
+    </div>
+</div>
+
+<!-- 8 Core Telemetry KPI Cards -->
+<div class="metrics-grid">
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Total Calls</span>
+            <div class="metric-icon-box"><i data-lucide="phone-incoming"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-total-calls">{{ stats.total_calls }}</div>
+        <div class="metric-footer">
+            <span class="trend-badge trend-up"><i data-lucide="activity"></i> Voice Traffic</span>
+            <span>All recorded sessions</span>
+        </div>
+    </div>
+
+    <div class="metric-card emerald-accent">
+        <div class="metric-header">
+            <span class="metric-title">AI Deflection Rate</span>
+            <div class="metric-icon-box" style="color: #10B981;"><i data-lucide="check-circle-2"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-deflection-rate" style="color: #10B981;">{{ stats.deflection_rate }}%</div>
+        <div class="metric-footer">
+            <span class="trend-badge trend-up">✓ First-Contact</span>
+            <span>{{ stats.deflected }} resolved autonomously</span>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Live Active Calls</span>
+            <div class="metric-icon-box"><i data-lucide="radio"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-ongoing-calls">{{ stats.ongoing }}</div>
+        <div class="metric-footer">
+            <span class="trend-badge trend-up"><span class="pulse-dot"></span> In Progress</span>
+            <span>Real-time channels</span>
+        </div>
+    </div>
+
+    <div class="metric-card crimson-accent">
+        <div class="metric-header">
+            <span class="metric-title">Emergency Sev-1</span>
+            <div class="metric-icon-box" style="color: var(--nf-crimson);"><i data-lucide="alert-octagon"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-emergency-calls" style="color: var(--nf-crimson);">{{ stats.emergency_calls }}</div>
+        <div class="metric-footer">
+            <span class="trend-badge trend-down">🚨 Critical Queue</span>
+            <span>Routed to 7003</span>
+        </div>
+    </div>
+
+    <div class="metric-card amber-accent">
+        <div class="metric-header">
+            <span class="metric-title">VIP & Exec Calls</span>
+            <div class="metric-icon-box" style="color: #F59E0B;"><i data-lucide="crown"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-vip-calls" style="color: #D97706;">{{ stats.vip_calls }}</div>
+        <div class="metric-footer">
+            <span class="trend-badge trend-up">★ C-Suite Tier</span>
+            <span>Routed to 7002</span>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Tickets Created</span>
+            <div class="metric-icon-box"><i data-lucide="ticket"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-tickets">{{ stats.tickets }}</div>
+        <div class="metric-footer">
+            <span class="trend-badge">📋 Helpdesk Incidents</span>
+            <span>Logged to IT Support</span>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Verified Callers</span>
+            <div class="metric-icon-box"><i data-lucide="shield-check"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-verified">{{ stats.verified }}</div>
+        <div class="metric-footer">
+            <span class="trend-badge trend-up">✓ Identity Authenticated</span>
+            <span>Active Directory CLI</span>
+        </div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-header">
+            <span class="metric-title">Failed / Rejected</span>
+            <div class="metric-icon-box"><i data-lucide="x-circle"></i></div>
+        </div>
+        <div class="metric-number" id="kpi-failed">{{ stats.failed }}</div>
+        <div class="metric-footer">
+            <span>Interrupted or rate-limited</span>
+        </div>
+    </div>
+</div>
+
+<!-- Visual Analytics Charts Row -->
+<div class="charts-grid-2">
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-title">
+                <h3 class="card-title">24-Hour Call Volume & AI Deflection Trend</h3>
+                <p class="card-description">Hourly traffic distribution comparing total volume against autonomous deflection</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="volumeTrendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-title">
+                <h3 class="card-title">Resolution Breakdown</h3>
+                <p class="card-description">First-contact AI deflection vs. human routing</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="deflectionDoughnutChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Analytics & Architecture Status -->
+<div class="charts-grid-2" style="grid-template-columns: 1.5fr 1fr;">
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-title">
+                <h3 class="card-title">Telephony Queue Distribution</h3>
+                <p class="card-description">Multi-queue routing telemetry across support tiers</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="min-height: 240px;">
+                <canvas id="queueDistChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="card-header-title">
+                <h3 class="card-title">Operational Architecture</h3>
+                <p class="card-description">High-availability deployment telemetry</p>
+            </div>
+        </div>
+        <div class="card-body" style="font-size: 0.8125rem; display:flex; flex-direction:column; gap:0.85rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
+                <span style="color:hsl(var(--muted-foreground));">Voice Media Engine:</span>
+                <span class="badge badge-success">G.711 u-law / Full-Duplex</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
+                <span style="color:hsl(var(--muted-foreground));">Database Core:</span>
+                <span class="badge badge-default">Enterprise Connection Pool</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
+                <span style="color:hsl(var(--muted-foreground));">IT Helpdesk Integration:</span>
+                <span class="badge badge-default">REST API Synchronized</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
+                <span style="color:hsl(var(--muted-foreground));">Manager Approval Workflow:</span>
+                <span class="badge badge-warning">Hardware Requests Enforced</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:hsl(var(--muted-foreground));">AI Anti-Hallucination:</span>
+                <span class="badge badge-success">Deterministic Verification Gate</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Interactions Quick Stream -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Recent Voice Support Interactions</h3>
+            <p class="card-description">Latest caller sessions logged by the AI support agent</p>
+        </div>
+        <a href="/calls" class="btn btn-outline btn-sm">View All Calls</a>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border:none; border-radius:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Caller ID</th>
+                        <th>Employee</th>
+                        <th>Caller Name</th>
+                        <th>Language</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Ticket</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in recent_calls %}
+                    <tr onclick="openCallDrawer('{{ r.call_id or r.id }}')">
+                        <td>{{ r.id }}</td>
+                        <td><strong>{{ r.caller_number or '--' }}</strong></td>
+                        <td>{{ r.employee_id or '--' }}</td>
+                        <td>{{ r.verified_name or 'Unverified' }}</td>
+                        <td>{{ 'Arabic' if r.language == 'ar' else 'English' }}</td>
+                        <td>{{ "%.1f"|format(r.duration_seconds / 60) if r.duration_seconds else '0.0' }}m</td>
+                        <td>
+                            {% if r.status in ['AI_Resolved', 'ai_deflected'] %}
+                                <span class="badge badge-success">✓ AI Deflected</span>
+                            {% elif r.tier == 'CRITICAL' or r.status == 'emergency_escalated' %}
+                                <span class="badge badge-critical">🚨 Sev-1</span>
+                            {% elif r.status == 'transferred' %}
+                                <span class="badge badge-warning">↗ Transferred</span>
+                            {% else %}
+                                <span class="badge badge-secondary">{{ r.status or 'Completed' }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.ticket_number %}
+                                <span class="badge badge-destructive">#{{ r.ticket_number }}</span>
+                            {% else %}
+                                <span style="color:hsl(var(--muted-foreground));">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); openCallDrawer('{{ r.call_id or r.id }}')">
+                                <i data-lucide="eye"></i> Inspect
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align:center; padding:2rem; color:hsl(var(--muted-foreground));">No call sessions recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>System Settings & Configuration</h1>
+        <p>Operational parameters, organization branding, AI agent greetings, and concurrency limits</p>
+    </div>
+</div>
+
+<div class="card" style="max-width: 900px;">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Enterprise Configuration</h3>
+            <p class="card-description">Changes take effect immediately across dashboard and voice bridge</p>
+        </div>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/settings">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">Organization Name</label>
+                    <input type="text" name="organization_name" class="input" value="{{ settings.organization_name }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Dashboard Title</label>
+                    <input type="text" name="dashboard_title" class="input" value="{{ settings.dashboard_title }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Dashboard Subtitle</label>
+                <input type="text" name="dashboard_subtitle" class="input" value="{{ settings.dashboard_subtitle }}">
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">Max Concurrent Calls</label>
+                    <input type="number" name="max_concurrent_calls" class="input" value="{{ settings.max_concurrent_calls }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Recording Retention (Days)</label>
+                    <input type="number" name="recording_retention_days" class="input" value="{{ settings.recording_retention_days }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Helpdesk Integration</label>
+                    <select name="frappe_enabled" class="select">
+                        <option value="true" {% if settings.frappe_enabled == 'true' %}selected{% endif %}>Enabled</option>
+                        <option value="false" {% if settings.frappe_enabled == 'false' %}selected{% endif %}>Disabled</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">AI Bilingual Greeting</label>
+                <textarea name="ai_greeting" class="textarea" rows="3">{{ settings.ai_greeting }}</textarea>
+                <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">Initial voice greeting spoken by Arif when caller connects.</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">AI System Prompt</label>
+                <textarea name="system_prompt" class="textarea" rows="6">{{ settings.system_prompt }}</textarea>
+                <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">Core instructions governing IT support troubleshooting and escalation playbooks.</div>
+            </div>
+
+            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end;">
+                <button type="submit" class="btn btn-primary">
+                    <i data-lucide="save"></i> Save Configuration
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

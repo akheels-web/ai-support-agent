@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-title">
+        <h1>Failed & Escalated Incidents</h1>
+        <p>Operational triage for interrupted interactions, audio anomalies, and rate-limited verifications</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Incident Triage Table</h3>
+            <p class="card-description">Interactions requiring investigation or quality review</p>
+        </div>
+        <span class="badge badge-destructive">{{ rows|length }} Flagged Events</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border:none; border-radius:0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Call ID</th>
+                        <th>Caller ID</th>
+                        <th>Caller Name</th>
+                        <th>Employee</th>
+                        <th>Failure Classification</th>
+                        <th>Ticket</th>
+                        <th>Error Diagnostic / Summary</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr onclick="openCallDrawer('{{ r.call_id or r.id }}')">
+                        <td>{{ r.id }}</td>
+                        <td><code>{{ r.call_id or '--' }}</code></td>
+                        <td><strong>{{ r.caller_number or '--' }}</strong></td>
+                        <td>{{ r.verified_name or 'Unverified' }}</td>
+                        <td>{{ r.employee_id or '--' }}</td>
+                        <td>
+                            <span class="badge badge-destructive">
+                                <i data-lucide="alert-circle"></i>
+                                {{ r.status }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if r.ticket_number %}
+                                <span class="badge badge-default">#{{ r.ticket_number }}</span>
+                            {% else %}
+                                <span style="color:hsl(var(--muted-foreground));">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--muted-foreground));">
+                            {{ r.summary or 'Diagnostic details unavailable.' }}
+                        </td>
+                        <td>{{ r.started_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" style="text-align:center; padding: 3rem; color: hsl(var(--muted-foreground));">
+                            <div style="margin-bottom:0.5rem;"><i data-lucide="shield-check" style="width:32px; height:32px; color:#10B981;"></i></div>
+                            <div style="font-weight:600;">Zero Failed Calls Logged</div>
+                            <div style="font-size:0.8125rem;">All recent interactions completed or escalated successfully.</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
