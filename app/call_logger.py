@@ -1,12 +1,15 @@
+import os
 import time
 import sqlite3
 from pathlib import Path
 
-DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
-RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "data" / "dashboard.db"))
+RECORDING_DIR = os.getenv("RECORDING_DIR", "/var/spool/asterisk/monitor/ai-support")
 
 
 def _db():
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -23,7 +26,7 @@ def _ensure_column(conn, table, column, definition):
 
 
 def init_call_db():
-    Path("/opt/ai-support-agent/data").mkdir(parents=True, exist_ok=True)
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
 
     conn = _db()
 
@@ -50,6 +53,10 @@ def init_call_db():
     _ensure_column(conn, "calls", "is_vip", "INTEGER DEFAULT 0")
     _ensure_column(conn, "calls", "transferred", "INTEGER DEFAULT 0")
     _ensure_column(conn, "calls", "transfer_target", "TEXT")
+    _ensure_column(conn, "calls", "tier", "TEXT DEFAULT 'STANDARD'")
+    _ensure_column(conn, "calls", "escalation_reason", "TEXT")
+    _ensure_column(conn, "calls", "resolution_type", "TEXT")
+    _ensure_column(conn, "calls", "ai_deflected", "INTEGER DEFAULT 0")
 
     conn.execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_call_id
@@ -132,6 +139,10 @@ def update_call(call_id, **kwargs):
         "is_vip",
         "transferred",
         "transfer_target",
+        "tier",
+        "escalation_reason",
+        "resolution_type",
+        "ai_deflected",
     }
 
     fields = []

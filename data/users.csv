@@ -1,12 +1,12 @@
-employee_id,name,aliases,email,phone,department,vip
-1001,Ahmed Al Balushi,Ahmed Balushi|Ahmad Al Balushi|Ahmed al balooshi|أحمد البلوشي|احمد البلوشي,ahmed@example.com,+96890000001,IT,true
-1002,Mohammed Akheel,Mohammed Aqeel|Mohammad Akheel|Mohammad Aqeel|Mohammed Akeel|Mohamed Akheel|محمد عقيل|محمد أكيل,makheel@example.com,+919000000001,IT,false
-1003,Haitham Al Sabahi,Haytham Al Sabahi|Haitham all subahi|هيثم الصباحي|هيثم السباحي,haitham@example.com,+96890000003,Finance,false
-1004,Omar Al Kharusi,Omer Al Kharushi|Omair Al Kharooshi|عمر الخروصي|عمر الخروشي,omer@example.com,+9672849572,IT,true
-1005,Manaa Al Jahwari,Mana al johri|Manaa Al Jahri|منى الجهوري|مناع الجهوري,manaa@exmample.com,+9683223923,HR,false
-1006,Syed Massiudin,Sayed Masioddin|Syed Masiuddin|سيد مسعود الدين|سيد مسي الدين,syed@example.com,+96181291231,Designer,false
-1007,Arif Al Sayegh,Areef al Sayeg|Arif Al Sayeg|عارف الصايغ|عارف السايغ,arif@example.com,+96181923481,HR,true
-1008,Ruqaiya Al Balushi,Ruqaiya Balushi|Rukayya Al Balushi|Ruqaya Al Balushi|رقية البلوشي|رقيه البلوشي,ruqaiya@example.com,+96890000008,IT,true
-1009,Rakesh,Rakeish|Rakesh,rakesh@example.com,+96890001258,Sales
-
-
+employee_id,name,aliases,email,phone,department,vip,role,tier
+1000,Khalid Al Harthy,Khalid Harthy|خالد الحارثي|الرئيس التنفيذي,khalid.ceo@nationalfinance.com,+96899000001,Executive,true,CEO,P0_EXECUTIVE
+1010,Salim Al Maskari,Salim Maskari|سالم المسكري|المدير المالي,salim.cfo@nationalfinance.com,+96899000002,Finance,true,CFO,P0_EXECUTIVE
+1001,Ahmed Al Balushi,Ahmed Balushi|Ahmad Al Balushi|Ahmed al balooshi|أحمد البلوشي|احمد البلوشي,ahmed@example.com,+96890000001,IT,true,IT Director,P1_VIP
+1002,Mohammed Akheel,Mohammed Aqeel|Mohammad Akheel|Mohammad Aqeel|Mohammed Akeel|Mohamed Akheel|محمد عقيل|محمد أكيل,makheel@example.com,+919000000001,IT,false,Software Engineer,STANDARD
+1003,Haitham Al Sabahi,Haytham Al Sabahi|Haitham all subahi|هيثم الصباحي|هيثم السباحي,haitham@example.com,+96890000003,Finance,false,Accountant,STANDARD
+1004,Omar Al Kharusi,Omer Al Kharushi|Omair Al Kharooshi|عمر الخروصي|عمر الخروشي,omer@example.com,+9672849572,IT,true,Infrastructure Lead,P1_VIP
+1005,Manaa Al Jahwari,Mana al johri|Manaa Al Jahri|منى الجهوري|مناع الجهوري,manaa@example.com,+9683223923,HR,false,HR Officer,STANDARD
+1006,Syed Massiudin,Sayed Masioddin|Syed Masiuddin|سيد مسعود الدين|سيد مسي الدين,syed@example.com,+96181291231,Designer,false,UI Designer,STANDARD
+1007,Arif Al Sayegh,Areef al Sayeg|Arif Al Sayeg|عارف الصايغ|عارف السايغ,arif@example.com,+96181923481,HR,true,HR Director,P1_VIP
+1008,Ruqaiya Al Balushi,Ruqaiya Balushi|Rukayya Al Balushi|Ruqaya Al Balushi|رقية البلوشي|رقيه البلوشي,ruqaiya@example.com,+96890000008,IT,true,Service Desk Lead,P1_VIP
+1009,Rakesh Sharma,Rakeish|Rakesh|راكش,rakesh@example.com,+96890001258,Sales,false,Sales Manager,STANDARD

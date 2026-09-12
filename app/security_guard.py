@@ -1,12 +1,14 @@
+import os
 import time
 import sqlite3
 from pathlib import Path
 
-DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "data" / "dashboard.db"))
 
 
 def _db():
-    Path("/opt/ai-support-agent/data").mkdir(parents=True, exist_ok=True)
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

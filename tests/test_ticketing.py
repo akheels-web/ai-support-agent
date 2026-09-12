@@ -1,0 +1,82 @@
+import unittest
+from unittest.mock import patch, MagicMock
+from app.ticketing.frappe_provider import FrappeProvider
+from app.ticketing.zammad_provider import ZammadProvider
+from app.ticketing import get_ticketing_client, reset_ticketing_client
+
+
+class TestTicketingProviders(unittest.TestCase):
+
+    def setUp(self):
+        reset_ticketing_client()
+
+    def test_frappe_priority_normalization(self):
+        provider = FrappeProvider(url="http://mock-frappe:8000", api_key="key", api_secret="secret")
+        self.assertEqual(provider._normalize_priority("1 low"), "Low")
+        self.assertEqual(provider._normalize_priority("2 normal"), "Medium")
+        self.assertEqual(provider._normalize_priority("3 high"), "High")
+        self.assertEqual(provider._normalize_priority("urgent"), "Urgent")
+        self.assertEqual(provider._normalize_priority("emergency"), "Urgent")
+
+    @patch("requests.request")
+    def test_frappe_create_ticket(self, mock_request):
+        mock_resp_contact = MagicMock()
+        mock_resp_contact.status_code = 200
+        mock_resp_contact.json.return_value = {"data": [{"name": "CUST-001", "email_id": "test@example.com"}]}
+
+        mock_resp_ticket = MagicMock()
+        mock_resp_ticket.status_code = 200
+        mock_resp_ticket.json.return_value = {"data": {"name": "HD-2026-00042"}}
+
+        mock_request.side_effect = [mock_resp_contact, mock_resp_ticket]
+
+        provider = FrappeProvider(url="http://mock-frappe:8000", api_key="test_key", api_secret="test_secret")
+        result = provider.create_ticket(
+            customer_email="test@example.com",
+            title="Broken Laptop Screen",
+            body="User dropped laptop.",
+            priority="high",
+            caller_info={"name": "Ahmed Al Balushi", "phone": "+96890000001", "employee_id": "1001", "tier": "P1_VIP"},
+            custom_fields={"call_id": "call_12345"},
+            status="Open"
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["ticket_id"], "HD-2026-00042")
+        self.assertEqual(result["ticket_number"], "HD-2026-00042")
+        self.assertEqual(result["priority"], "High")
+
+        # Verify auth headers
+        self.assertEqual(provider.headers["Authorization"], "token test_key:test_secret")
+
+    @patch("requests.request")
+    def test_zammad_create_ticket_with_real_name(self, mock_request):
+        mock_resp_search = MagicMock()
+        mock_resp_search.status_code = 200
+        mock_resp_search.json.return_value = []
+
+        mock_resp_create_user = MagicMock()
+        mock_resp_create_user.status_code = 200
+        mock_resp_create_user.json.return_value = {"id": 88, "firstname": "Ahmed", "lastname": "Al Balushi"}
+
+        mock_resp_ticket = MagicMock()
+        mock_resp_ticket.status_code = 200
+        mock_resp_ticket.json.return_value = {"id": 501, "number": "90501"}
+
+        mock_request.side_effect = [mock_resp_search, mock_resp_create_user, mock_resp_ticket]
+
+        provider = ZammadProvider(url="http://mock-zammad:8080", token="mock_token")
+        result = provider.create_ticket(
+            customer_email="ahmed@example.com",
+            title="VPN Issue",
+            body="Cannot connect to VPN",
+            caller_info={"name": "Ahmed Al Balushi", "phone": "+96890000001", "tier": "P1_VIP"},
+            custom_fields={"call_id": "call_999"}
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["ticket_number"], "90501")
+
+
+if __name__ == "__main__":
+    unittest.main()

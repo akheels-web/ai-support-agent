@@ -20,10 +20,11 @@ from app.security_guard import check_rate_limit, log_security_event, reset_rate_
 
 validate_dashboard_config()
 
+BASE_DIR = Path(__file__).resolve().parent.parent
 APP_SECRET = DASHBOARD_SECRET
-DB_PATH = "/opt/ai-support-agent/data/dashboard.db"
-RECORDING_DIR = "/var/spool/asterisk/monitor/ai-support"
-BRAND_ASSETS_DIR = "/opt/ai-support-agent/zammad-branding/assets"
+DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "data" / "dashboard.db"))
+RECORDING_DIR = os.getenv("RECORDING_DIR", "/var/spool/asterisk/monitor/ai-support")
+BRAND_ASSETS_DIR = os.getenv("BRAND_ASSETS_DIR", str(BASE_DIR / "zammad-branding" / "assets"))
 
 NF_LOGO_LOCAL = "/brand-assets/nfc-logo.svg"
 TCT_LOGO_LOCAL = "/brand-assets/tct-logo.png"
@@ -42,7 +43,7 @@ app.mount("/brand-assets", StaticFiles(directory=BRAND_ASSETS_DIR), name="brand-
 # -----------------------------------------------------------------------------
 
 def db():
-    Path("/opt/ai-support-agent/data").mkdir(parents=True, exist_ok=True)
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
@@ -61,10 +62,26 @@ def _ensure_column(conn, table, column, definition):
 # Password and session helpers
 # -----------------------------------------------------------------------------
 
-def hash_password(password):
-    # Phase-compatible hashing. Keep this until all existing users are migrated.
-    salt = "ai-support-agent"
-    return hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
+def hash_password(password, salt=None):
+    if not salt:
+        salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
+    return f"{salt}${hashed}"
+
+
+def verify_password(password, stored_hash):
+    if not stored_hash:
+        return False
+    if "$" not in stored_hash:
+        # Legacy static salt fallback
+        legacy = hashlib.pbkdf2_hmac("sha256", password.encode(), b"ai-support-agent", 100000).hex()
+        return hmac.compare_digest(legacy, stored_hash)
+    try:
+        salt, expected = stored_hash.split("$", 1)
+        actual = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
+        return hmac.compare_digest(actual, expected)
+    except Exception:
+        return False
 
 
 def create_session(username, ttl_seconds=SESSION_TTL_SECONDS):
@@ -275,6 +292,10 @@ def init_db():
     _ensure_column(conn, "calls", "is_vip", "INTEGER DEFAULT 0")
     _ensure_column(conn, "calls", "transferred", "INTEGER DEFAULT 0")
     _ensure_column(conn, "calls", "transfer_target", "TEXT")
+    _ensure_column(conn, "calls", "tier", "TEXT DEFAULT 'STANDARD'")
+    _ensure_column(conn, "calls", "escalation_reason", "TEXT")
+    _ensure_column(conn, "calls", "resolution_type", "TEXT")
+    _ensure_column(conn, "calls", "ai_deflected", "INTEGER DEFAULT 0")
 
     conn.execute(
         """
@@ -736,9 +757,16 @@ def login(
     ).fetchone()
     conn.close()
 
-    if not user or user["password_hash"] != hash_password(password):
+    if not user or not verify_password(password, user["password_hash"]):
         log_security_event("dashboard_login_failed", client_ip, f"username={username}")
         return HTMLResponse('Invalid login. <a href="/login">Try again</a>', status_code=401)
+
+    # Upgrade legacy static salt to modern random salt upon successful login
+    if "$" not in user["password_hash"]:
+        c = db()
+        c.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(password), user["id"]))
+        c.commit()
+        c.close()
 
     cleanup_expired_sessions()
     reset_rate_limit(f"dashboard_login:{client_ip}")
@@ -801,16 +829,20 @@ def dashboard(request: Request):
     ).fetchone()["c"]
     rejected = conn.execute("SELECT COUNT(*) c FROM calls WHERE status IN ('rejected','max_concurrent_rejected')").fetchone()["c"]
     transferred = conn.execute("SELECT COUNT(*) c FROM calls WHERE transferred=1").fetchone()["c"]
-    vip_calls = conn.execute("SELECT COUNT(*) c FROM calls WHERE is_vip=1").fetchone()["c"]
+    vip_calls = conn.execute("SELECT COUNT(*) c FROM calls WHERE is_vip=1 OR tier IN ('P0_EXECUTIVE','P1_VIP')").fetchone()["c"]
+    deflected = conn.execute("SELECT COUNT(*) c FROM calls WHERE ai_deflected=1 OR resolution_type='AI_Resolved'").fetchone()["c"]
+    emergency_calls = conn.execute("SELECT COUNT(*) c FROM calls WHERE tier='CRITICAL' OR status='emergency_escalated'").fetchone()["c"]
     conn.close()
 
     metrics = f"""
     <div class="metric"><h2>{total_calls}</h2><p>Total Calls</p></div>
     <div class="metric"><h2>{ongoing}</h2><p>Ongoing Calls</p></div>
     <div class="metric"><h2>{tickets}</h2><p>Tickets Created</p></div>
+    <div class="metric"><h2 style="color:var(--nf-success);">{deflected}</h2><p>AI Deflected / Resolved</p></div>
     <div class="metric"><h2>{verified}</h2><p>Verified Callers</p></div>
-    <div class="metric"><h2>{vip_calls}</h2><p>VIP Calls</p></div>
+    <div class="metric"><h2>{vip_calls}</h2><p>VIP & Exec Calls</p></div>
     <div class="metric"><h2>{transferred}</h2><p>Transferred Calls</p></div>
+    <div class="metric"><h2 style="color:var(--nf-danger);">{emergency_calls}</h2><p>Emergency Escalated</p></div>
     <div class="metric"><h2>{rejected}</h2><p>Rejected Calls</p></div>
     <div class="metric"><h2>{failed}</h2><p>Failed Calls</p></div>
     """
@@ -1281,7 +1313,7 @@ def change_password(
         return HTMLResponse('Passwords do not match. <a href="/change-password">Try again</a>', status_code=400)
     if len(new_password) < 8:
         return HTMLResponse('New password must be at least 8 characters. <a href="/change-password">Try again</a>', status_code=400)
-    if user["password_hash"] != hash_password(current_password):
+    if not verify_password(current_password, user["password_hash"]):
         return HTMLResponse('Current password is incorrect. <a href="/change-password">Try again</a>', status_code=400)
 
     conn = db()
