@@ -1,359 +1,267 @@
-# AI IT Support Voice Agent
+# National Finance — Enterprise AI IT Support Platform ("Arif")
 
-An AI voice agent ("Arif") that answers IT support calls for National Finance,
-verifies the caller, troubleshoots, creates Frappe Helpdesk tickets, and can transfer to
-a human. English and Arabic. A FastAPI dashboard shows calls, recordings, and
-security events.
+[![Python Version](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
+[![Telephony](https://img.shields.io/badge/telephony-Asterisk%2020%20LTS-orange.svg)](https://www.asterisk.org/)
+[![AI Engine](https://img.shields.io/badge/model-OpenAI%20Realtime%20API-green.svg)](https://openai.com/)
+[![Database](https://img.shields.io/badge/database-PostgreSQL%2016-336791.svg)](https://www.postgresql.org/)
+[![UI Design System](https://img.shields.io/badge/ui-Shadcn--UI%20Tokens-000000.svg)](https://ui.shadcn.com/)
+[![Security Hardening](https://img.shields.io/badge/security-Zero--Trust%20Hardened-emerald.svg)](#security--governance)
 
-## Architecture
+An enterprise-grade, bilingual (English & Arabic) conversational Voice AI assistant ("Arif") designed for **National Finance**. The platform automates internal IT service desk operations by answering telephony calls, verifying employee credentials, conducting playbook-grounded troubleshooting, registering tickets in the IT Helpdesk, and escalating calls to human support queues and Cisco Webex Calling endpoints.
+
+---
+
+## 1. System Architecture
 
 ```mermaid
 flowchart TD
-    Caller([📞 Caller]) --> Asterisk[Asterisk PBX]
-    Asterisk <-->|audio WS :8765| Bridge[Voice Bridge<br/>openai_realtime_bridge.py]
-    Bridge <-->|Realtime API| OpenAI[OpenAI Realtime<br/>agent Arif]
+    subgraph Inbound Telephony
+        Caller([📞 Employee / VIP]) -->|E1 / SIP Trunk| PBX[Asterisk 20 PBX]
+    end
 
-    Bridge --> Verify[verify.py]
-    Verify --> CSV[(users.csv)]
-    Bridge --> Frappe[app/ticketing] --> FrappeHD[(Frappe Helpdesk<br/>tickets)]
-    Bridge -.->|multi-queue| Transfer[transfer.py] -.->|AMI :5038| Asterisk
-    Bridge --> Guard[security_guard.py<br/>atomic rate limits]
+    subgraph Core AI Voice Engine
+        PBX <-->|AudioSocket G.711u :8765| Bridge[Voice Bridge<br/>openai_realtime_bridge.py]
+        Bridge <-->|WebSocket wss://| OpenAI[OpenAI Realtime API<br/>gpt-realtime]
+        Bridge --> Verify[Identity Verifier<br/>verify.py]
+        Verify --> CSV[(data/users.csv)]
+        Bridge --> KB[Knowledge Base<br/>knowledge_base/*.md]
+    end
 
-    Bridge --> Log[call_logger.py]
-    Log --> DB[(PostgreSQL 16 /<br/>dashboard.db)]
-    Guard --> DB
-    DB --> Dashboard[FastAPI Dashboard<br/>:8090]
-    Admin([👤 Admin]) --> Dashboard
+    subgraph Enterprise Integrations
+        Bridge --> Ticketing[Ticketing Provider<br/>app/ticketing]
+        Ticketing --> Helpdesk[(IT Helpdesk API<br/>Frappe HD Ticket)]
+        
+        Bridge --> Transfer[Call Routing<br/>app/transfer.py]
+        Transfer -->|AMI Redirect :5038| PBX
+        PBX -->|SIP Trunk PJSIP| Webex[Cisco Webex Calling / CUBE<br/>Queues: 8001, 8002, 8003]
+    end
+
+    subgraph Security & Persistence
+        Bridge --> Guard[Security Guard<br/>security_guard.py]
+        Bridge --> Logger[Call Logger<br/>call_logger.py]
+        Guard --> DB[(PostgreSQL 16 Connection Pool<br/>app/db.py)]
+        Logger --> DB
+    end
+
+    subgraph Operations & Telemetry
+        DB --> Dashboard[FastAPI Operations Dashboard<br/>:8090 - Shadcn/UI]
+        Dashboard --> PDF[Executive PDF Reports<br/>pdfcn]
+        Dashboard --> Charts[Live Telemetry Charts<br/>Chart.js]
+        Admin([👤 IT Operations Lead]) --> Dashboard
+    end
 
     classDef ext fill:#FEE2E2,stroke:#C8102E,color:#1F2937;
     classDef core fill:#E8EDF8,stroke:#1B2F6B,color:#1F2937;
     classDef store fill:#D1FAE5,stroke:#065F46,color:#1F2937;
-    class Caller,Admin,OpenAI,Asterisk ext;
-    class Bridge,Verify,Frappe,Transfer,Guard,Log,Dashboard core;
-    class CSV,FrappeHD,DB store;
+    class Caller,Admin,OpenAI,Webex ext;
+    class PBX,Bridge,Verify,KB,Ticketing,Transfer,Guard,Logger,Dashboard,PDF,Charts core;
+    class CSV,Helpdesk,DB store;
 ```
 
-| Component | File | Purpose |
-|---|---|---|
-| Voice bridge | `app/openai_realtime_bridge.py` | Asterisk ↔ OpenAI audio, call flow, tools |
-| Verification | `app/verify.py` | Match caller name + employee ID against `users.csv` |
-| Ticketing | `app/ticketing/frappe_provider.py` | Create Frappe Helpdesk tickets & manager approval |
-| Database Layer | `app/db.py` | PostgreSQL 16 connection pooling with SQLite fallback |
-| Transfer | `app/transfer.py` | Redirect live calls to Standard, Executive, or Emergency queues |
-| Call log | `app/call_logger.py` | Persist call metadata via `app.db` |
-| Abuse protection | `app/security_guard.py` | Atomic rate limits + lockouts (calls, verification, login) |
-| Dashboard | `dashboard/app.py` | Ops UI: calls, recordings, users, security events |
+---
 
-## Quickstart
+## 2. Core Capabilities
 
-Runs from `/opt/ai-support-agent`. Requires Python 3.10+, an Asterisk PBX, a
-Frappe Helpdesk instance, and an OpenAI API key.
+### 2.1 Conversational Voice AI Engine
+- **Full-Duplex Audio with Barge-In**: Real-time G.711 $\mu$-law audio streaming at 8kHz via Asterisk `AudioSocket`. Server-side Voice Activity Detection (VAD) allows callers to naturally interrupt ("barge-in") the AI at any time.
+- **Strict Bilingual Fluency (Arabic & English)**: Natural greeting and language selection. Eliminates mixed-language phrasing and enforces clean dialect handling.
+- **Advanced Compound Digit Normalization**: Converts spoken English and Omani/Gulf Arabic compound numbers, teen numbers (`احداعش`, `اثنعش`), tens, hundreds, and thousands into normalized digits for IDs and ticket numbers.
+- **Digit-by-Digit Recital & Repetition**: Slowly recites ticket numbers spaced digit-by-digit (`H D 2 0 2 6 0 0 1 2`). Includes a dedicated `repeat_ticket_number` tool for callers who need to write it down.
+
+### 2.2 Caller Identity & Executive Fast-Track
+- **Caller-ID (CLI) Instant Pre-Identification**: Incoming phone numbers are matched against corporate directory records on call connection.
+- **Executive Concierge Bypass (`P0_EXECUTIVE`)**: CEO and CFO calls skip employee ID verification and diagnostic interrogation entirely. Arif delivers a respectful greeting and automatically redirects the call to the Senior Executive Desk (Webex Extension `8002`).
+- **Priority Tiering (`P1_VIP`)**: Directors and Department Heads receive priority greetings, expedited resolution paths, and `High` priority ticket SLAs.
+
+### 2.3 IT Helpdesk Automation & Workflow Governance
+- **Playbook-Grounded Diagnostics**: Retrieves corporate troubleshooting steps (`knowledge_base/`) for account lockouts, VPN connection issues, Outlook, Teams, and network adapters.
+- **Mandatory Outcome Verification**: After delivering each instruction, Arif explicitly asks: *"Did that resolve the issue for you?"* / *"هل تم حل المشكلة معك الآن؟"*.
+  - **Outcome A (Resolved)**: Immediately calls `record_resolution` to create a `Resolved` ticket in the helpdesk, logging First-Contact Resolution (FCR) deflection telemetry.
+  - **Outcome B (Unresolved)**: Compiles all attempted steps, symptoms, and error messages into an `Open` ticket, recites the ticket number, and offers transfer or callback.
+- **Live Ticket Status Tracking (`check_ticket_status`)**: Callers can track existing tickets by reciting the reference number. Arif reports live status, department manager approval state, and resolution notes.
+- **Hardware Request & Department Manager Approval**: Equipment requests (laptops, monitors, docks, accessories) are flagged with `group="Hardware Request"` and status `Pending Approval`. Callers are informed that Department Manager approval is required before IT dispatch.
+- **Scheduled Callbacks (`request_callback`)**: If call transfer lines are busy or callers prefer not to wait on hold, Arif schedules a callback ticket capturing preferred times and contact numbers.
+
+### 2.4 Enterprise Telephony & Cisco Webex Integration
+- **Multi-Queue AMI Redirection**: Bridges callers to specialized queues:
+  - `7001` $\rightarrow$ Standard L1 IT Support Queue (Webex `8001`)
+  - `7002` $\rightarrow$ Executive & VIP Concierge Desk (Webex `8002`)
+  - `7003` $\rightarrow$ Sev-1 Emergency & Outage Incident Desk (Webex `8003`)
+- **Caller Context Screen-Pop**: Passes caller metadata (`AI_CALLER_NAME`, `AI_EMPLOYEE_ID`, `AI_TIER`, `AI_TICKET_NUMBER`, `AI_REASON`) onto Asterisk channels via AMI `Setvar`, enabling screen-pop on human agents' Cisco Webex desktop apps and desk phones.
+- **Graceful Transfer Recovery**: Eliminates dead-air drops. If an agent transfer fails or queues time out, Arif sincerely apologizes, confirms the reference ticket number, and offers a scheduled callback.
+
+### 2.5 Executive Operations Dashboard (Shadcn/UI & Analytics)
+- **Shadcn/UI Design System**: HSL color tokens supporting Corporate Light Mode (Default) and seamless Corporate Dark Mode toggle with persistent client-side storage.
+- **Visual Telemetry & Analytics**:
+  - 24-hour Call Volume & Autonomous Deflection Trend (spline bezier curves).
+  - First-Contact Deflection & Resolution Breakdown (interactive doughnut).
+  - Queue Distribution Bar Charts (L1 vs VIP vs Sev-1 Emergency).
+- **Interactive Data Tables & Inspection Drawer**: Real-time client-side search, column sorting, status badges, and a slide-out Call Inspection Drawer displaying caller profiles, diagnostic transcripts, and recording audio scrubbers.
+- **Executive PDF Shift Reports ("pdfcn")**: One-click corporate-branded PDF export with KPI summary tiles, vector chart snapshots, and operational incident logs.
+
+---
+
+## 3. Repository Layout
+
+```text
+ai-support-agent/
+├── app/
+│   ├── ticketing/
+│   │   ├── __init__.py           # Singleton resolver get_ticketing_client()
+│   │   ├── base.py               # Abstract BaseTicketingProvider interface
+│   │   └── frappe_provider.py    # Dedicated Frappe Helpdesk & ERPNext client
+│   ├── config.py                 # Centralized configuration & environment loader
+│   ├── db.py                     # PostgreSQL 16 connection pooling & SQLite fallback
+│   ├── call_logger.py            # Telemetry ingestion client using app.db
+│   ├── security_guard.py         # Atomic sliding-window rate limiters & locks
+│   ├── transfer.py               # Asterisk AMI multi-queue redirection & context injection
+│   ├── verify.py                 # Compound digit normalization & CLI user matching
+│   └── openai_realtime_bridge.py # Full-duplex WebSocket bridge & 14 operational protocols
+├── dashboard/
+│   ├── static/
+│   │   ├── css/shadcn.css        # Shadcn/UI HSL token design system
+│   │   └── js/
+│   │       ├── app.js            # Client-side state, drawer engine, table search
+│   │       ├── charts.js         # Chart.js telemetry visualization engine
+│   │       └── pdf-report.js     # Executive PDF shift report generator
+│   ├── templates/                # Modular Jinja2 presentation templates
+│   │   ├── base.html             # Main layout shell with sidebar and theme toggle
+│   │   ├── dashboard.html        # KPI metric blocks and visual analytics
+│   │   ├── calls.html            # Searchable call history table & drawer
+│   │   ├── active_calls.html     # Live in-progress call channels (10s auto-refresh)
+│   │   ├── recordings.html       # Call recording player and scrubber
+│   │   ├── setup.html            # First-time administrator wizard (auto-locks)
+│   │   └── ...                   # Security events, prompts, health, settings
+│   └── app.py                    # FastAPI server on port 8090 with security middleware
+├── data/
+│   └── users.csv                 # Verified corporate directory (ID, name, phone, tier)
+├── knowledge_base/               # Standard IT troubleshooting playbooks (.md)
+├── tests/                        # Automated unit, integration, and guardrail test suites
+├── CISCO_WEBEX_DOCUMENTATION.md  # Complete Cisco Webex & CUCM integration guide
+├── TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md # 2-VM enterprise production deployment guide
+├── ROADMAP.md                    # Strategic enhancements (CMDB, P0+P1 VIP policies)
+├── requirements.txt              # Production Python dependencies
+└── .env.example                  # Environment template
+```
+
+---
+
+## 4. Telephony & Escalation Routing Matrix
+
+| Ext | Queue / Target | Routing Policy | Fallback Behavior |
+| :--- | :--- | :--- | :--- |
+| **`7000`** | **AI Support Agent Entry** | Answers inbound SIP call, applies adaptive jitter buffer & Speex denoise, streams to AudioSocket (:8765). | Drops to emergency prompt on daemon failure |
+| **`7001`** | **L1 Standard IT Support** | Bridges to Cisco Webex Calling Queue `8001` (Round-robin to L1 IT engineers). | Transfer failure $\rightarrow$ offers scheduled callback ticket |
+| **`7002`** | **Executive VIP Concierge** | Bridges to Cisco Webex Desk `8002` (Immediate ring to Senior Engineers for CEO/CFO). | Transfer failure $\rightarrow$ offers priority callback ticket |
+| **`7003`** | **Sev-1 Emergency Outage** | Bridges to Cisco Webex Queue `8003` (Broadcast ring to on-call infrastructure engineers). | Creates P1 urgent ticket + SMS notification |
+
+---
+
+## 5. Security & Governance
+
+The platform follows a zero-default security posture designed for banking and financial sector deployment:
+
+- **Zero Default Passwords**: All default credentials (`admin123`/`user123`) have been eliminated. First-time deployment redirects automatically to the `/setup` Administrator Wizard, which permanently locks upon creation.
+- **Cryptographic Audit Log Hash Chaining**: Rows in the `audit_logs` table are chained using SHA-256 hashes (`record_hash = SHA256(prev_hash + record_data)`), creating an immutable, tamper-evident audit ledger.
+- **Immediate Session Invalidation**: Password updates and administrative resets immediately purge all active sessions (`DELETE FROM sessions WHERE username=?`), terminating stale tokens.
+- **Atomic Concurrency-Safe Rate Limiting**: Sliding-window rate limiters executed directly in PostgreSQL/SQLite prevent race conditions during call bursts:
+  - Phone call spam: 5 calls / 10 minutes (15-minute lock).
+  - Caller verification: 5 failed attempts / hour (1-hour lockout).
+  - Dashboard authentication: 5 failed logins / 5 minutes (15-minute lockout).
+- **Automated Recording Retention Pruning**: Telephony audio files are automatically pruned according to the configured retention policy (`RECORDING_RETENTION_DAYS`, default 30 days) to prevent storage exhaustion.
+- **SQL Identifier Whitelisting**: Strict regex validation (`^[a-zA-Z0-9_]+$`) applied across all dynamic schema migrations to eliminate SQL injection vectors.
+- **Confidentiality & Anti-Leakage Guardrails**: Verified by automated test suites (`tests/test_guardrails.py`), ensuring that internal technology names (`Frappe`, `ERPNext`, `Zammad`, `Asterisk`, `PostgreSQL`, `Python`) are never spoken to callers.
+
+---
+
+## 6. Getting Started
+
+### 6.1 Prerequisites
+- Python 3.11+
+- Asterisk 20 LTS (with `app_queue`, `func_denoise`, `res_pjproject`, and `AudioSocket`)
+- PostgreSQL 16 (or local SQLite WAL fallback for development)
+- OpenAI API Key with Realtime API access (`gpt-realtime`)
+- Frappe Helpdesk instance (v15+)
+
+### 6.2 Local Development Setup
 
 ```bash
-python3 -m venv venv && source venv/bin/activate
+# 1. Clone repository and initialize virtual environment
+git clone https://github.com/nationalfinance/ai-support-agent.git
+cd ai-support-agent
+python3 -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+
+# 2. Install dependencies
 pip install -r requirements.txt
 
-cp .env.example .env      # then edit: OPENAI_API_KEY, FRAPPE_API_KEY, FRAPPE_API_SECRET, DASHBOARD_SECRET
-openssl rand -hex 32      # use for DASHBOARD_SECRET
+# 3. Configure environment variables
+cp .env.example .env
+# Edit .env: OPENAI_API_KEY, FRAPPE_URL, FRAPPE_API_KEY, FRAPPE_API_SECRET, DASHBOARD_SECRET
 
-# Caller verification data
-nano data/users.csv       # columns: employee_id,name,aliases,email,phone,department,vip
+# 4. Initialize Database
+python -c "from app.db import init_db; init_db()"
 
-# Run the voice bridge (listens on 127.0.0.1:8765)
-PYTHONPATH=. python app/openai_realtime_bridge.py
+# 5. Run the Voice AI Bridge (Port 8765)
+python app/openai_realtime_bridge.py
 
-# Run the dashboard (separate process)
-uvicorn dashboard.app:app --host 0.0.0.0 --port 8090
+# 6. Run the Operations Dashboard (Port 8090)
+uvicorn dashboard.app:app --host 127.0.0.1 --port 8090 --reload
 ```
 
-Default dashboard logins are created on first run (`admin`/`admin123`,
-`user`/`user123`, `reviewer`/`reviewer123`) — **change these before any
-non-demo use.**
-
-## Documentation
-
-- `DEPLOYMENT.md` — full install, systemd units, Asterisk config, troubleshooting.
-- `PRODUCTION_DEPLOYMENT_GUIDE.md` — production hardening, PostgreSQL, Webex Calling design.
-- Section 15 below — security and abuse protection.
+When visiting `http://127.0.0.1:8090` for the first time, complete the **First-Time Administrator Setup Wizard** to create your master administrator credentials.
 
 ---
 
-## 15. Security and Abuse Protection
+## 7. Production Deployment (2-VM Topology)
 
-This project includes additional security and anti-abuse controls to protect both the voice agent and the dashboard.
+In enterprise production, the platform deploys across a high-availability 2-VM architecture:
 
-### 15.1 Asterisk / AI Voice Call Rate Limiting
+- **VM 1 (Voice Edge & Telephony)**: `Ubuntu 24.04 LTS` hosting Asterisk 20 PBX, Python Voice AI Bridge daemon, and the FastAPI Operations Dashboard behind Nginx with TLS.
+- **VM 2 (Enterprise Core & Data Layer)**: `Ubuntu 24.04 LTS` hosting Frappe Helpdesk, ERPNext, PostgreSQL 16 database cluster, and Redis cache.
 
-The bridge can rate-limit repeated calls from the same caller number to reduce spam, bot calls, and denial-of-service attempts.
+For step-by-step installation instructions, systemd service units, and Nginx reverse proxy configurations, refer to:
+👉 [TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md](file:///e:/Github/callcenter/ai-support-agent/TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md)
 
-Recommended `.env` values:
-
-```ini
-CALLS_PER_NUMBER_LIMIT=5
-CALLS_PER_NUMBER_WINDOW=600
-CALLS_PER_NUMBER_LOCK=900
-```
-
-Meaning:
-
-```text
-Maximum 5 calls from the same caller number within 10 minutes.
-If exceeded, block the caller for 15 minutes.
-```
-
-Implementation file:
-
-```text
-app/security_guard.py
-```
-
-Bridge integration file:
-
-```text
-app/openai_realtime_bridge.py
-```
-
-Rejected or rate-limited calls should be logged with statuses such as:
-
-```text
-rejected
-verification_blocked
-```
+For Cisco Webex Calling & CUCM SIP trunk configuration:
+👉 [CISCO_WEBEX_DOCUMENTATION.md](file:///e:/Github/callcenter/ai-support-agent/CISCO_WEBEX_DOCUMENTATION.md)
 
 ---
 
-### 15.2 Verification Abuse Protection
+## 8. Verification & Test Suite
 
-The system can lock out repeated failed verification attempts to prevent attackers from guessing employee ID and name combinations.
-
-Recommended `.env` values:
-
-```ini
-VERIFY_FAIL_LIMIT=5
-VERIFY_FAIL_WINDOW=3600
-VERIFY_FAIL_LOCK=3600
-```
-
-Meaning:
-
-```text
-Maximum 5 failed verification attempts per caller or employee ID within 1 hour.
-If exceeded, block further verification attempts for 1 hour.
-```
-
-Events are logged in the `security_events` table.
-
-Common event types:
-
-```text
-verification_failed
-verification_blocked
-call_rate_limited
-```
-
----
-
-### 15.3 Dashboard Login Rate Limiting
-
-The dashboard login page should rate-limit failed login attempts by client IP address.
-
-Recommended policy:
-
-```text
-Maximum 5 failed login attempts within 5 minutes.
-Lock login attempts from that IP for 15 minutes.
-```
-
-Common event types:
-
-```text
-dashboard_login_failed
-dashboard_login_rate_limited
-dashboard_login_success
-```
-
-Implementation file:
-
-```text
-app/security_guard.py
-```
-
-Dashboard integration file:
-
-```text
-dashboard/app.py
-```
-
----
-
-### 15.4 Dashboard Session Security
-
-Dashboard sessions should use server-side session tokens instead of signing only the username.
-
-Required cookie settings:
-
-```python
-httponly=True
-samesite="strict"
-secure=True  # when HTTPS is enabled
-max_age=28800
-```
-
-Required `.env` values:
-
-```ini
-DASHBOARD_SECRET=<long-random-secret>
-DASHBOARD_COOKIE_SECURE=false
-```
-
-For HTTPS deployments, use:
-
-```ini
-DASHBOARD_COOKIE_SECURE=true
-```
-
-Generate a strong dashboard secret:
+Run the automated test suite to validate guardrails, digit normalization, and route security:
 
 ```bash
-openssl rand -hex 32
+# Run all unit and regression tests
+python -m unittest discover -s tests
+
+# Verify anti-vendor leakage and prompt guardrails
+python -m unittest tests/test_guardrails.py
+
+# Verify compound Arabic/English digit normalization
+python -m unittest tests/test_verify_escalation.py
+
+# Verify dashboard routes and security headers
+python -m unittest tests/test_dashboard_routes.py
 ```
 
 ---
 
-### 15.5 CSRF Protection for Dashboard Forms
+## 9. Comprehensive Documentation Index
 
-All dashboard POST actions should use CSRF tokens.
-
-High-risk routes that must validate CSRF tokens:
-
-```text
-POST /login
-POST /settings
-POST /users/add
-POST /users/update
-POST /users/reset-password
-POST /change-password
-POST /prompts/add
-POST /prompts/activate
-POST /quality/review
-```
-
-The dashboard should generate a CSRF token on GET pages with forms and validate it on all POST requests.
+| Documentation Guide | Primary Audience | Scope |
+| :--- | :--- | :--- |
+| [TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md](file:///e:/Github/callcenter/ai-support-agent/TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md) | DevOps / Infrastructure Engineers | Production 2-VM installation, systemd daemons, PostgreSQL 16 clustering, Nginx reverse proxy, and disaster recovery. |
+| [CISCO_WEBEX_DOCUMENTATION.md](file:///e:/Github/callcenter/ai-support-agent/CISCO_WEBEX_DOCUMENTATION.md) | Telecom / Voice Engineers | Cisco Webex Calling & CUCM SIP trunk configuration, CUBE dial-peers, caller context screen-pop, and queue mapping. |
+| [ROADMAP.md](file:///e:/Github/callcenter/ai-support-agent/ROADMAP.md) | IT Leadership / Project Managers | Future phases: CMDB hardware asset integration (Phase 9), Unified P0+P1 VIP routing policy (Phase 10), and voice biometrics. |
+| [AGENTS.md](file:///e:/Github/callcenter/ai-support-agent/AGENTS.md) | AI Engineers / Core Developers | Technical architectural memory, operational protocols, telemetry schemas, and deterministic AI invariants. |
 
 ---
 
-### 15.6 Security Events Page
+## 10. Enterprise Support & Ownership
 
-Admins should have access to a security events page:
-
-```text
-/security-events
-```
-
-This page should show:
-
-- Failed dashboard logins
-- Dashboard login lockouts
-- Voice-call rate limit events
-- Failed verification attempts
-- Verification lockouts
-- Other abuse-related events
-
-Primary table:
-
-```text
-security_events
-```
-
-Recommended columns:
-
-```text
-id
-event_type
-key
-details
-created_at
-```
-
----
-
-### 15.7 Sensitive Files That Must Not Be Committed
-
-These files must stay out of Git:
-
-```text
-.env
-data/users.csv
-data/dashboard.db
-data/*.db
-data/*.sqlite
-errors
-error*
-zerror
-fixes
-*.log
-__pycache__/
-*.pyc
-```
-
-Use example files instead:
-
-```text
-.env.example
-data/users.example.csv
-```
-
----
-
-### 15.8 Security Validation Commands
-
-Validate Python files:
-
-```bash
-cd /opt/ai-support-agent
-source venv/bin/activate
-
-PYTHONPATH=/opt/ai-support-agent python -m py_compile app/security_guard.py
-PYTHONPATH=/opt/ai-support-agent python -m py_compile app/openai_realtime_bridge.py
-PYTHONPATH=/opt/ai-support-agent python -m py_compile dashboard/app.py
-```
-
-Initialize security tables manually:
-
-```bash
-PYTHONPATH=/opt/ai-support-agent python -c "from app.security_guard import init_security_db; init_security_db(); print('Security DB initialized')"
-```
-
-Inspect security events:
-
-```bash
-sqlite3 /opt/ai-support-agent/data/dashboard.db "SELECT id, event_type, key, details, datetime(created_at, 'unixepoch') FROM security_events ORDER BY id DESC LIMIT 20;"
-```
-
-Inspect rate limits:
-
-```bash
-sqlite3 /opt/ai-support-agent/data/dashboard.db "SELECT key, counter, datetime(window_start, 'unixepoch'), datetime(locked_until, 'unixepoch') FROM rate_limits ORDER BY locked_until DESC LIMIT 20;"
-```
-
----
-
-### 15.9 Security Checklist Before Customer Demo
-
-Before any customer-facing demo or pilot, confirm:
-
-```text
-[ ] DASHBOARD_SECRET is set and is not default.
-[ ] Default dashboard passwords are changed.
-[ ] Dashboard is accessible only internally or through VPN.
-[ ] DASHBOARD_COOKIE_SECURE=true if HTTPS is enabled.
-[ ] .env is not committed to Git.
-[ ] users.csv is not committed to Git.
-[ ] dashboard.db is not committed to Git.
-[ ] Login rate limiting is enabled.
-[ ] Verification rate limiting is enabled.
-[ ] Call spam protection is enabled.
-[ ] Security Events page is available for admin.
-[ ] Asterisk AMI is not exposed publicly.
-[ ] Port 8765 is bound to 127.0.0.1 only.
-```
+- **Entity**: National Finance — Corporate IT Operations
+- **System Name**: Arif (عارف) — Voice AI IT Support Agent
+- **Integration Partner**: TCT Enterprise Telephony Solutions
+- **Operational Window**: 24/7/365 Autonomous Voice Support

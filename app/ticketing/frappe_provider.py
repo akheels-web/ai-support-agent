@@ -263,12 +263,73 @@ class FrappeProvider(BaseTicketingProvider):
             return []
 
     def get_ticket(self, ticket_id: str) -> Optional[Dict[str, Any]]:
-        try:
-            resp = self._request("GET", f"/api/resource/{self.ticket_doctype}/{ticket_id}")
-            return resp.json().get("data")
-        except Exception as exc:
-            logger.warning(f"[FRAPPE] Failed to get ticket {ticket_id}: {exc}")
+        """
+        Retrieve ticket details by ID or Number, normalizing common spoken formats.
+        """
+        if not ticket_id:
             return None
+
+        # Clean input (e.g. "HD 2026 0012" -> "HD-2026-0012", strip whitespace)
+        clean_id = ticket_id.strip().upper().replace(" ", "-")
+        while "--" in clean_id:
+            clean_id = clean_id.replace("--", "-")
+
+        data = None
+        # 1. Try direct resource endpoint with cleaned id and variations
+        candidates = [clean_id, ticket_id.strip(), ticket_id.strip().upper()]
+        for candidate in candidates:
+            try:
+                resp = self._request("GET", f"/api/resource/{self.ticket_doctype}/{candidate}")
+                data = resp.json().get("data")
+                if data:
+                    break
+            except Exception:
+                continue
+
+        # 2. If direct lookup failed, try searching by name pattern
+        if not data:
+            try:
+                filters = json.dumps([["name", "like", f"%{clean_id}%"]])
+                resp = self._request("GET", f"/api/resource/{self.ticket_doctype}?filters={filters}&limit_page_length=1")
+                results = resp.json().get("data", [])
+                if results and len(results) > 0:
+                    matched_name = results[0].get("name")
+                    if matched_name:
+                        full_resp = self._request("GET", f"/api/resource/{self.ticket_doctype}/{matched_name}")
+                        data = full_resp.json().get("data")
+            except Exception as exc:
+                logger.warning(f"[FRAPPE] Search fallback failed for ticket {ticket_id}: {exc}")
+
+        if not data:
+            logger.warning(f"[FRAPPE] Ticket not found: {ticket_id}")
+            return None
+
+        # Format a clear, standard response for voice agent recitation
+        status = data.get("status", "Open")
+        workflow_state = data.get("workflow_state", "")
+        custom_approval = data.get("custom_approval_status", "")
+        subject = data.get("subject") or data.get("title") or "IT Support Ticket"
+        priority = data.get("priority", "Medium")
+        resolution = data.get("resolution_details") or data.get("resolution") or ""
+
+        requires_approval = (
+            workflow_state == "Pending Approval"
+            or "approval" in custom_approval.lower()
+            or "approval" in status.lower()
+        )
+
+        return {
+            "ticket_number": data.get("name", clean_id),
+            "status": status,
+            "subject": subject,
+            "priority": priority,
+            "requires_approval": requires_approval,
+            "approval_status": custom_approval or ("Pending Manager Approval" if requires_approval else "Not Required"),
+            "workflow_state": workflow_state,
+            "resolution_details": resolution,
+            "raised_by": data.get("customer") or data.get("raised_by") or data.get("contact_email") or "",
+            "raw": data,
+        }
 
     def health_check(self) -> Dict[str, Any]:
         try:

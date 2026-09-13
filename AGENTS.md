@@ -96,3 +96,28 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - Strips Arabic conjunction prefix `و` (`وعشرين` -> `20`, `واثنين` -> `2`) and English `and`.
   - Performs composite summation (`ألف واثنين` -> `1002`, `one thousand and two` -> `1002`, `خمسة وعشرين` -> `25`, `twenty five` -> `25`) or direct concatenation for digit-by-digit dictation (`واحد صفر صفر اثنين` -> `1002`).
 
+## 9. Strict Issue Resolution & Lifecycle Tracking Protocols
+- **Mandatory Outcome Verification Protocol**:
+  - After delivering each single diagnostic instruction from `lookup_knowledge_base`, Arif explicitly mandates caller verification: *"Did that resolve the issue for you?"* / *"هل تم حل المشكلة معك الآن؟"*.
+  - **Outcome A (Resolved)**: Immediately calls `record_resolution` to generate a `Resolved` ticket in Frappe Helpdesk, logs First Contact Resolution (`ai_deflected=1`) telemetry, and recites ticket digit-by-digit.
+  - **Outcome B (Unresolved)**: Compiles all attempted steps, symptoms, and error messages into `create_ticket` with status `Open`, recites ticket number, and offers transfer or callback.
+- **Existing Ticket Tracking Tool (`check_ticket_status`)**:
+  - Allows verified callers to track the live status, manager approval progress, and resolution notes of any existing IT ticket.
+  - Normalizes spoken space formats (e.g. `HD 2026 0012` -> `HD-2026-0012`) and queries Frappe with fallback search.
+- **Hardware Request & Approval Governance**:
+  - Hardware inquiries (damaged equipment, replacement requests) automatically route to `create_ticket(group="Hardware Request")`, creating a ticket with `Pending Manager Approval`.
+  - Future CMDB hardware asset lookup captured in `roadmap.md` (Phase 9).
+
+## 10. Cisco Webex Integration & Call Transfer Architecture
+- Comprehensive enterprise guide created in `CISCO_WEBEX_DOCUMENTATION.md`.
+- Documents 4 deployment models:
+  - **Model 1**: Webex Calling with Local Gateway (Cisco CUBE IOS-XE via SIP trunk).
+  - **Model 2**: Cisco Unified Communications Manager (CUCM CallManager on-premise cluster).
+  - **Model 3**: Pure Cloud Webex Calling (Premises-to-Cloud via mTLS & SRTP).
+  - **Model 4**: Carrier PSTN / E.164 DID outdial (Immediate PoC / fallback).
+- Voice AI Bridge (`app/transfer.py`) passes caller context (`AI_CALLER_NAME`, `AI_EMPLOYEE_ID`, `AI_TIER`, `AI_REASON`, `AI_TICKET_NUMBER`) onto Asterisk channel via AMI `Setvar`, enabling screen-pop on human agents' Cisco Webex desktop apps and desk phones.
+- **VIP Routing Policy (P0 + P1)**: P0 (CEO/CFO) auto-bypasses AI diagnostics directly to Webex queue `8002`. P1 (Directors) receives priority-assisted AI service. Unified auto-bypass policy (`VIP_AUTO_TRANSFER_ALL`) documented in `roadmap.md` (Phase 10) for client review.
+
+
+
+

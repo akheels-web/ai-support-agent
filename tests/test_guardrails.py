@@ -157,7 +157,52 @@ class TestAIGuardrails(unittest.TestCase):
         self.assertIsNotNone(callback_tool)
         self.assertIn("preferred_time", callback_tool["parameters"]["required"])
 
+    def test_check_ticket_status_tool_schema(self):
+        from app.openai_realtime_bridge import TOOLS
+        tool = next((t for t in TOOLS if t.get("name") == "check_ticket_status"), None)
+        self.assertIsNotNone(tool, "check_ticket_status tool should be registered in TOOLS.")
+        self.assertIn("ticket_number", tool["parameters"]["required"])
+        self.assertNotIn("frappe", tool["description"].lower())
+        self.assertNotIn("zammad", tool["description"].lower())
+        self.assertNotIn("erpnext", tool["description"].lower())
+
+    @patch("requests.request")
+    def test_get_ticket_normalization_and_fields(self, mock_request):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "data": {
+                "name": "HD-2026-0012",
+                "subject": "VPN Disconnects after 5 mins",
+                "status": "Pending Approval",
+                "workflow_state": "Pending Approval",
+                "custom_approval_status": "Pending Manager Approval",
+                "priority": "High",
+                "resolution_details": "",
+            }
+        }
+        mock_request.return_value = mock_resp
+
+        provider = FrappeProvider(url="http://mock-frappe:8000", api_key="key", api_secret="secret")
+
+        # Spoken format with spaces e.g. "HD 2026 0012"
+        result = provider.get_ticket("HD 2026 0012")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["ticket_number"], "HD-2026-0012")
+        self.assertEqual(result["status"], "Pending Approval")
+        self.assertTrue(result["requires_approval"])
+        self.assertEqual(result["approval_status"], "Pending Manager Approval")
+
+    def test_system_prompt_mandatory_verification_and_tracking(self):
+        from app.openai_realtime_bridge import SYSTEM_PROMPT
+        self.assertIn("Did that resolve the issue for you?", SYSTEM_PROMPT)
+        self.assertIn("هل تم حل المشكلة معك الآن؟", SYSTEM_PROMPT)
+        self.assertIn("record_resolution", SYSTEM_PROMPT)
+        self.assertIn("check_ticket_status", SYSTEM_PROMPT)
+        self.assertIn("Pending Manager Approval", SYSTEM_PROMPT)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

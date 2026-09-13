@@ -39,6 +39,35 @@ This document outlines upcoming strategic enhancements and future feature phases
 - **8.4 Mutual TLS (mTLS) for Private Internal Microservices**:
   - X.509 client certificate pinning and mutual TLS between Asterisk voice bridge, private Frappe Helpdesk instances, and enterprise directory services.
 
+### Phase 9: Enterprise Hardware Asset Correlation & CMDB Integration (Planned)
+- **Objective**: Automatically correlate callers with their assigned IT hardware assets (laptops, monitors, docks, phones, accessories) during hardware replacement or damage inquiries.
+- **Trigger**: When the client deploys an active enterprise IT Asset database / CMDB (e.g. ERPNext Asset DocType or external CMDB).
+- **Proposed Capabilities**:
+  1. Verified employee reports hardware fault (e.g. *"My laptop screen is cracked"* or *"My dock stopped charging"*).
+  2. Arif invokes `lookup_employee_assets(employee_id)` to retrieve currently assigned hardware records (asset name, model, serial number, warranty status).
+  3. Arif confirms device context with caller: *"I see you are assigned a Dell Latitude 5440 (Serial: SN-98213). Is this the device experiencing the issue?"*.
+  4. Automatically attaches the exact asset ID and serial number to the generated Helpdesk hardware request ticket.
+  5. Enforces Department Manager approval workflow before IT dispatch.
+
+### Phase 10: Unified P0 + P1 VIP Automatic Human Transfer Policy (Pending Client Decision)
+- **Objective**: Provide a configurable automated routing policy for VIP callers, determining whether all VIP tiers (Directors, Dept Heads, and C-Suite) bypass AI troubleshooting entirely and transfer immediately to human agents on Cisco Webex Calling.
+- **Current Baseline**:
+  - `P0_EXECUTIVE` (CEO, CFO, C-Suite): **Instant Automatic Bypass & Transfer** via CLI phone match to Webex Executive Concierge (Extension `8002`).
+  - `P1_VIP` (Directors, Infrastructure Leads, HR Directors): **Priority-Assisted AI Flow** (priority greeting, P1 High SLA ticket creation, on-demand fast-track human transfer).
+- **Client Policy Options**:
+  - **Option A: Full VIP Auto-Bypass (P0 + P1)**:
+    - Both P0 Executives and P1 VIPs automatically skip all AI troubleshooting questions.
+    - Upon language selection, Arif immediately says: *"Welcome Mr. [Name], transferring you directly to our Priority IT Support Team right now."* and executes an AMI redirect to the Cisco Webex queue.
+  - **Option B: Dual-Tier Dedicated Webex Queues**:
+    - `P0_EXECUTIVE` $\rightarrow$ Routes to Webex Senior Executive Concierge (Extension `8002`, immediate priority ring to Senior IT Engineers).
+    - `P1_VIP` $\rightarrow$ Routes to Webex Priority Management Queue (Extension `8004`, priority queue jump ahead of standard L1 tickets).
+  - **Option C: Hybrid Default (Current)**:
+    - P0 auto-transfers immediately.
+    - P1 receives rapid AI assistance with instant one-phrase transfer (*"transfer me to an agent"*).
+- **Implementation Mechanism**:
+  - Controlled via single configuration flag in `.env`: `VIP_AUTO_TRANSFER_ALL=true|false`.
+  - Enables instant toggling without codebase refactoring once the client confirms their preferred protocol.
+
 ---
 
 ## 2. Completed Milestones

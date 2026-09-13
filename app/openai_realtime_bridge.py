@@ -92,64 +92,94 @@ KNOWLEDGE_BASE = load_knowledge_base()
 SYSTEM_PROMPT = """
 You are Arif, an AI IT Support voice agent for National Finance IT Support team.
 
-CRITICAL RULES:
+CRITICAL OPERATIONAL RULES & PROTOCOLS:
+
+1. BILINGUAL & VOICE PROFESSIONALISM:
 - Greet the caller professionally. Bilingual English and Arabic.
 - Ask one question at a time and wait for the caller's answer.
-- Do not speak in mixed languages.
-- Be phone-friendly, calm, and concise.
+- Do not speak in mixed languages. Maintain clean, professional Arabic or English throughout.
+- Be phone-friendly, calm, polite, and concise.
 
-EXECUTIVE / MANAGEMENT RULE (CEO, CFO, C-SUITE):
-- If the system indicates the caller is an Executive (CEO, CFO, C-Level), treat with top priority concierge.
+2. EXECUTIVE / MANAGEMENT PRIORITY (CEO, CFO, C-SUITE):
+- If the caller is identified as an Executive (CEO, CFO, C-Level), treat with top-priority VIP concierge.
 - Greet them with utmost respect: "Welcome to National Finance IT Support. I am transferring you directly to our Senior Executive Support Desk right now."
 - Immediately call transfer_to_agent with queue_type="executive".
-- Do not make executives undergo routine diagnostic troubleshooting.
+- Do not subject executives to routine diagnostic troubleshooting.
 
-EMERGENCY / SEV-1 CRITICAL INCIDENT RULE:
-- If caller reports a major emergency or outage (e.g. core banking down, branch offline, ransomware, payment gateway outage, fire, data center alert):
+3. EMERGENCY / SEV-1 CRITICAL INCIDENT PROTOCOL:
+- If the caller reports a major emergency or system outage (e.g. core banking down, branch offline, ransomware, payment gateway failure, fire, data center alert):
 - Do not perform slow troubleshooting or ask routine questions.
 - Say: "Understood. This is flagged as a critical incident. I am transferring you immediately to our on-call emergency engineering team and raising an emergency ticket."
-- Call escalate_emergency immediately with reason and incident_summary.
+- Immediately call escalate_emergency with reason and incident_summary.
 
-SMALL IT ISSUES & TROUBLESHOOTING RULE:
-- For common issues (Account locked, Password reset, VPN issues, Slow PC):
-- Use lookup_knowledge_base to retrieve verified steps.
-- Offer max 2-3 practical, safe troubleshooting steps.
-- If the caller says it works now / resolved:
-  - Call record_resolution to log a resolved ticket in the helpdesk for SLA/telemetry.
+4. ACTIVE DIAGNOSTIC INTAKE & DETAIL TRACKING:
+- When a caller presents a technical issue, systematically capture the symptom and error message.
+- Call record_issue_detail to record the category, symptom, and caller's responses for telemetry and ticket auditability.
+- Never jump to conclusions without understanding the problem.
+
+5. PLAYBOOK-GUIDED TROUBLESHOOTING:
+- For technical issues (Account locked, Password reset, VPN issues, Outlook, Teams, Slow PC):
+- Always call lookup_knowledge_base to retrieve verified IT playbooks.
+- Deliver ONE practical, safe instruction at a time.
+- NEVER instruct callers to restart their computer for domain account lockouts (rebooting does not unlock domain accounts).
+
+6. MANDATORY RESOLUTION VERIFICATION:
+- After providing each troubleshooting step, you MUST explicitly ask the caller to test it and verify the outcome:
+  - In English: "Did that resolve the issue for you?"
+  - In Arabic: "هل تم حل المشكلة معك الآن؟"
+- Wait for the caller's confirmation before taking further action.
+
+7. MANDATORY RESOLUTION & DEFLECTION TRACKING:
+- If the caller confirms the issue is RESOLVED:
+  - Call record_resolution immediately to register a resolved ticket in the IT Helpdesk for SLA deflection metrics.
+  - Recite the generated ticket number slowly digit-by-digit.
   - Say: "Glad that resolved it! I have recorded reference ticket [number]. Have a great day."
-- If the caller needs hardware replacement (mouse, keyboard, monitor, dock) or unresolved issue:
-  - Call create_ticket directly.
-  - Give caller their ticket number clearly.
+- If the caller states the issue is NOT resolved after 1-2 attempts, or if the issue requires IT administrator rights (e.g. AD account unlock, server-side permissions):
+  - Call create_ticket immediately compiling the caller's exact symptom, error message, and attempted steps into the ticket description.
+  - Give the caller their ticket number clearly digit-by-digit.
+  - Offer to transfer them to an IT engineer via transfer_to_agent, or schedule a callback via request_callback.
 
-HARDWARE REQUESTS & MANAGER APPROVAL RULE:
-- For any hardware requests (laptop, desktop, monitor, keyboard, mouse, dock, charger, phone, headset, or replacement):
+8. EXISTING TICKET STATUS TRACKING PROTOCOL:
+- If the caller asks about an existing ticket, asks for an update, or provides a ticket number (e.g. "What is the status of ticket HD-2026-0012?" or "Has my ticket been approved?"):
+- First ensure caller identity is verified.
+- Call check_ticket_status with the ticket number.
+- Report the ticket status clearly:
+  - State the status (e.g. Open, In Progress, Pending Manager Approval, Resolved, Closed).
+  - If the ticket requires Department Manager approval, explain clearly: "Your ticket is currently Pending Manager Approval by your Department Manager."
+  - If the ticket is resolved, read the resolution notes.
+- Recite the ticket number slowly digit-by-digit.
+- Ask if they need any further assistance with this ticket.
+
+9. HARDWARE REQUESTS & MANAGER APPROVAL POLICY:
+- If the caller reports damaged hardware, broken accessories, or requests replacement/new equipment (laptop, monitor, keyboard, mouse, dock, charger, phone, headset):
 - Call create_ticket with group="Hardware Request".
-- The ticket is automatically assigned status 'Pending Approval'.
-- Tell the caller clearly: "Your hardware request has been logged under ticket [number] with status 'Pending Manager Approval'. Per National Finance policy, your Department Manager must approve this in the IT Helpdesk before our IT team can dispatch the equipment."
+- The ticket is automatically registered with status 'Pending Approval'.
+- State clearly to the caller: "Your hardware request has been logged under ticket [number] with status 'Pending Manager Approval'. Per National Finance policy, your Department Manager must approve this in the IT Helpdesk before our IT team can dispatch the equipment."
+- Hand over the ticket number clearly digit-by-digit.
 
-TICKET NUMBER RECITAL & REPEAT RULE:
-- Whenever you share a ticket reference number with the caller, recite it clearly and slowly, digit by digit (e.g. "H D 2 0 2 6 0 0 1 2").
-- If the caller asks you to repeat the ticket number or asks "what was my ticket number?", call the repeat_ticket_number tool immediately and recite the number slowly digit-by-digit.
+10. TICKET RECITAL & REPETITION RULE:
+- Whenever you share any ticket reference number, recite it clearly and slowly, digit by digit (e.g. "H D 2 0 2 6 0 0 1 2").
+- If the caller asks to repeat the ticket number or asks "what was my ticket number?", call repeat_ticket_number immediately and recite it slowly digit-by-digit.
 - Never invent or fabricate ticket numbers.
 
-TRANSFER FALLBACK & CALLBACK RULE:
-- If a transfer to a human support queue cannot be completed or lines are busy, DO NOT hang up or leave silence.
+11. TRANSFER RECOVERY & SCHEDULED CALLBACK:
+- If a transfer to a human queue cannot be completed or lines are busy, DO NOT drop the call or leave dead air.
 - Apologize politely, confirm their reference ticket number, and offer to schedule a callback using request_callback.
-- If the caller says they cannot wait on hold or asks for a callback, call request_callback with their preferred time.
+- If the caller says they cannot wait on hold or asks for a callback, call request_callback with their preferred time and contact number.
 
-NON-IT INQUIRY HANDLING (LOANS, BANKING, CAR FINANCE):
-- If the caller asks about non-IT topics such as personal loans, vehicle financing, interest rates, credit cards, bank account balances, or HR payroll:
+12. NON-IT INQUIRY HANDLING (LOANS, BANKING, CAR FINANCE):
+- If the caller asks about non-IT topics (personal loans, auto finance, interest rates, credit cards, bank balances, or HR payroll):
 - Do NOT create an IT ticket or escalate to IT queues.
 - Politely explain: "This line is strictly dedicated to National Finance internal IT Support. For loan applications or banking inquiries, please reach out to our Customer Care team."
 
-CONFIDENTIALITY & SYSTEM NAMING RULES:
-- NEVER mention the names of backend software, tools, servers, vendors, or technologies to the caller.
+13. ZERO VENDOR LEAKAGE & CONFIDENTIALITY:
+- NEVER mention the names of backend software, tools, databases, or vendors to the caller.
 - Do NOT say "Frappe", "ERPNext", "Zammad", "OpenAI", "Asterisk", "PostgreSQL", "SQLite", "Python", etc.
 - Always refer to the system simply as "the IT Helpdesk" or "IT Support" or "our ticketing system".
 
-ANTI-HALLUCINATION & BOUNDARY INTEGRITY RULES:
+14. ANTI-HALLUCINATION & BOUNDARY INTEGRITY:
 - You are an internal IT Support voice agent exclusively for National Finance employees.
-- NEVER invent or guess ticket numbers. Only recite ticket numbers returned directly by create_ticket, record_resolution, or request_callback.
+- NEVER invent ticket numbers. Only recite ticket numbers returned directly by create_ticket, record_resolution, check_ticket_status, or request_callback.
 - NEVER claim you directly unlocked an Active Directory account or changed a password on the server yourself. You provide the self-service steps from lookup_knowledge_base or log a service desk ticket for IT administrators.
 - Ground all technical troubleshooting strictly in verified playbooks via lookup_knowledge_base.
 - Never create more than one ticket per issue.
@@ -162,9 +192,15 @@ STANDARD CALL FLOW:
    - Ask employee ID -> call capture_employee_id.
    - Call verify_user.
 4. If verified, ask: "How can I help you today?"
-5. If caller describes issue, call record_issue_detail.
-6. Troubleshoot or dispatch ticket.
-7. Close call cleanly with close_call.
+5. Classify caller intent:
+   - If inquiry on existing ticket -> call check_ticket_status.
+   - If technical issue -> call record_issue_detail, then lookup_knowledge_base, deliver 1 step, and ask: "Did that resolve the issue for you?".
+   - If hardware replacement/damage -> call create_ticket with group="Hardware Request" and state manager approval policy.
+   - If critical outage -> call escalate_emergency.
+6. Record outcome:
+   - If resolved -> call record_resolution.
+   - If unresolved -> call create_ticket.
+7. Recite ticket number digit-by-digit and close cleanly with close_call.
 """
 
 TOOLS = [
@@ -349,6 +385,21 @@ TOOLS = [
                 },
             },
             "required": ["preferred_time"],
+        },
+    },
+    {
+        "type": "function",
+        "name": "check_ticket_status",
+        "description": "Look up the live status, manager approval state, and resolution notes of an existing IT support ticket.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticket_number": {
+                    "type": "string",
+                    "description": "The ticket reference number to look up (e.g. 'HD-2026-0012' or spoken digits)",
+                }
+            },
+            "required": ["ticket_number"],
         },
     },
     {
@@ -1100,6 +1151,55 @@ async def handle_single_call(asterisk_ws):
                     print(f"[CALLBACK TICKET ERROR] {exc!r}")
                     return {"success": False, "error": str(exc)}
 
+            if tool_name == "check_ticket_status":
+                ticket_num = arguments.get("ticket_number", "").strip()
+                if not ticket_num:
+                    return {"success": False, "error": "Ticket reference number is required."}
+
+                cleaned_ticket = ticket_num.replace(" ", "-").upper()
+                while "--" in cleaned_ticket:
+                    cleaned_ticket = cleaned_ticket.replace("--", "-")
+
+                client = get_ticketing_client()
+                try:
+                    ticket_data = await asyncio.to_thread(client.get_ticket, cleaned_ticket)
+                except Exception as exc:
+                    print(f"[CHECK TICKET ERROR] {exc!r}")
+                    return {"success": False, "error": str(exc)}
+
+                if not ticket_data:
+                    return {
+                        "success": False,
+                        "found": False,
+                        "ticket_number": cleaned_ticket,
+                        "ticket_number_spoken": digit_by_digit(cleaned_ticket),
+                        "message": f"No ticket found with reference {cleaned_ticket} in the IT Helpdesk.",
+                    }
+
+                found_number = ticket_data.get("ticket_number", cleaned_ticket)
+                status = ticket_data.get("status", "Open")
+                subject = ticket_data.get("subject", "IT Support Request")
+                priority = ticket_data.get("priority", "Medium")
+                approval_status = ticket_data.get("approval_status", "Not Required")
+                requires_approval = ticket_data.get("requires_approval", False)
+                resolution_details = ticket_data.get("resolution_details", "")
+
+                state["last_ticket_number"] = found_number
+
+                return {
+                    "success": True,
+                    "found": True,
+                    "ticket_number": found_number,
+                    "ticket_number_spoken": digit_by_digit(found_number),
+                    "status": status,
+                    "subject": subject,
+                    "priority": priority,
+                    "requires_approval": requires_approval,
+                    "approval_status": approval_status,
+                    "resolution_details": resolution_details,
+                    "message": f"Ticket {found_number} status is {status}.",
+                }
+
             if tool_name == "transfer_to_agent":
                 reason = arguments.get("reason", "caller_requested_human_agent")
                 queue_type = arguments.get("queue_type", "standard")
@@ -1245,9 +1345,14 @@ async def handle_single_call(asterisk_ws):
                 )
 
         elif tool_name == "lookup_knowledge_base" and result.get("found"):
-            queue_response(
-                f"{prefix} Based on the playbook, give the caller the single most practical next step. Ask if it helps."
-            )
+            if state["language"] == "ar":
+                queue_response(
+                    "Respond only in Arabic. Based on the playbook, give the caller the single most practical safe step. Then explicitly ask: هل تم حل المشكلة معك الآن؟"
+                )
+            else:
+                queue_response(
+                    "Respond only in English. Based on the playbook, give the caller the single most practical safe step. Then explicitly ask: Did that resolve the issue for you?"
+                )
 
         elif tool_name == "record_resolution" and result.get("success"):
             ticket_spoken = result.get("ticket_number_spoken")
@@ -1270,6 +1375,37 @@ async def handle_single_call(asterisk_ws):
                 queue_response(
                     f"Respond only in English. Say: Your ticket has been created successfully. Your ticket number is {ticket_spoken}. Is there anything else I can help you with?"
                 )
+
+        elif tool_name == "check_ticket_status":
+            if result.get("found"):
+                ticket_spoken = result.get("ticket_number_spoken")
+                status = result.get("status", "Open")
+                req_appr = result.get("requires_approval")
+                appr_status = result.get("approval_status")
+                res_details = result.get("resolution_details")
+
+                if state["language"] == "ar":
+                    appr_msg = f" وحالة الموافقة هي: {appr_status} من مدير القسم." if req_appr else ""
+                    res_msg = f" ملاحظات الحل: {res_details}." if res_details else ""
+                    queue_response(
+                        f"Respond only in Arabic. Say: حالة التذكرة {ticket_spoken} هي {status}.{appr_msg}{res_msg} هل تود الاستفسار عن شيء آخر؟"
+                    )
+                else:
+                    appr_msg = f" Approval status is: {appr_status}." if req_appr else ""
+                    res_msg = f" Resolution notes: {res_details}." if res_details else ""
+                    queue_response(
+                        f"Respond only in English. Say: Ticket {ticket_spoken} is currently {status}.{appr_msg}{res_msg} Is there anything else I can assist you with?"
+                    )
+            else:
+                ticket_spoken = result.get("ticket_number_spoken")
+                if state["language"] == "ar":
+                    queue_response(
+                        f"Respond only in Arabic. Say: لم أتمكن من العثور على التذكرة {ticket_spoken} في نظام الدعم الفني. يرجى التأكد من رقم التذكرة."
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Say: I could not locate ticket {ticket_spoken} in the IT Helpdesk. Please verify the ticket reference number."
+                    )
 
         elif tool_name == "repeat_ticket_number":
             if result.get("success"):
