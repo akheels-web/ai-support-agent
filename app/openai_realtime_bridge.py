@@ -34,7 +34,7 @@ from app.call_logger import (
     reconcile_stale_calls,
 )
 from app.verify import verify_user, lookup_caller_by_phone
-from app.transfer import transfer_call
+from app.transfer import transfer_call, check_queue_availability
 from app.ticketing import get_ticketing_client
 
 CALLS_PER_NUMBER_LIMIT = int(os.getenv("CALLS_PER_NUMBER_LIMIT", "5"))
@@ -88,6 +88,237 @@ def load_knowledge_base():
 
 
 KNOWLEDGE_BASE = load_knowledge_base()
+
+KB_METADATA = {
+    "wifi_issue": {
+        "title": "Wi-Fi / Network Connectivity Issues",
+        "keywords_en": [
+            "wifi", "wi-fi", "internet", "network", "connection", "disconnect", "reconnect",
+            "offline", "hotspot", "signal", "ethernet", "lan", "wlan", "ssid", "no internet",
+            "limited connectivity", "cable", "unplugged", "router"
+        ],
+        "keywords_ar": [
+            "واي فاي", "وايفاي", "انترنت", "إنترنت", "شبكة", "اتصال", "انقطاع", "غير متصل",
+            "النت", "الوايرلس", "فصل النت", "ما يشبك", "كيبل الشبكة", "راوتر"
+        ],
+    },
+    "printer_issue": {
+        "title": "Printer / Printing Issues",
+        "keywords_en": [
+            "printer", "printing", "print", "paper jam", "spooler", "scanner", "copier",
+            "toner", "cartridge", "cannot print", "driver", "offline printer"
+        ],
+        "keywords_ar": [
+            "طابعة", "طباعة", "طابعه", "سكانر", "ماسح", "حبر", "ورق", "تعليق الورق",
+            "مشكلة في الطابعة", "ما تطبع", "طابعات", "تصوير", "طباعه"
+        ],
+    },
+    "password_reset": {
+        "title": "Password Reset & Credential Expiry",
+        "keywords_en": [
+            "password", "reset password", "forgot password", "change password", "expired password",
+            "credentials", "login failed", "new password", "passcode"
+        ],
+        "keywords_ar": [
+            "كلمة المرور", "باسوورد", "باسورد", "كلمة السر", "نسيت كلمة السر",
+            "تغيير كلمة المرور", "انتهاء كلمة السر", "تعديل الباسوورد", "تغيير الباسورد", "نسيت الباسورد"
+        ],
+    },
+    "account_locked": {
+        "title": "Domain Account Lockout / Active Directory Locked",
+        "keywords_en": [
+            "locked", "lockout", "account locked", "disabled", "access denied", "locked out",
+            "ad lock", "domain locked", "user locked"
+        ],
+        "keywords_ar": [
+            "مقفل", "مغلق", "الحساب مقفل", "تم قفل الحساب", "حسابي مقفل", "بلوك",
+            "قفل الحساب", "حسابي مغلق", "معطل"
+        ],
+    },
+    "ad_lockout": {
+        "title": "Active Directory Account Lockout Diagnostic",
+        "keywords_en": [
+            "ad lockout", "active directory lockout", "bad password attempts", "domain controller lock"
+        ],
+        "keywords_ar": [
+            "قفل الدومين", "اكتيف دايركتوري", "محاولات تسجيل دخول خاطئة"
+        ],
+    },
+    "outlook_issue": {
+        "title": "Microsoft Outlook & Email Issues",
+        "keywords_en": [
+            "outlook", "email", "mail", "inbox", "pst", "ost", "send receive", "exchange",
+            "mailbox full", "cannot send email", "not receiving emails"
+        ],
+        "keywords_ar": [
+            "اوتلوك", "آوتلوك", "بريد", "ايميل", "إيميل", "رسائل", "صندوق الوارد",
+            "مشكلة البريد", "ارسال ايميل", "استقبال ايميل", "الايميلات"
+        ],
+    },
+    "teams_issue": {
+        "title": "Microsoft Teams & Virtual Meetings",
+        "keywords_en": [
+            "teams", "microsoft teams", "meeting", "call", "screen share", "camera", "microphone",
+            "mic", "headset", "teams meeting", "teams audio"
+        ],
+        "keywords_ar": [
+            "تيمز", "مايكروسوفت تيمز", "اجتماع", "مكالمة", "مايك", "كاميرا", "صوت",
+            "مشاركة الشاشة", "ميتينج", "تطبيق تيمز"
+        ],
+    },
+    "vpn_issue": {
+        "title": "VPN & Remote Connectivity",
+        "keywords_en": [
+            "vpn", "forticlient", "cisco anyconnect", "remote access", "home connection", "tunnel",
+            "work from home", "wfh", "gateway"
+        ],
+        "keywords_ar": [
+            "في بي ان", "الفي بي ان", "اتصال عن بعد", "العمل من المنزل", "الربط الخارجي",
+            "ريموت اكسس", "بوابة الاتصال"
+        ],
+    },
+    "slow_computer": {
+        "title": "Slow Computer & System Performance",
+        "keywords_en": [
+            "slow", "freezing", "frozen", "lag", "performance", "hang", "stuck", "high cpu",
+            "memory", "sluggish", "crash", "rebooting", "blue screen", "pc slow", "laptop slow"
+        ],
+        "keywords_ar": [
+            "بطيء", "بطء", "معلق", "تعليق", "الجهاز بطيء", "لا يستجيب", "تهنيج", "ثقيل",
+            "اللاب توب بطيء", "الكمبيوتر معلق", "بطء الجهاز"
+        ],
+    },
+    "mfa_issue": {
+        "title": "Multi-Factor Authentication (MFA / 2FA) Issues",
+        "keywords_en": [
+            "mfa", "2fa", "authenticator", "otp", "verification code", "sms code",
+            "microsoft authenticator", "token"
+        ],
+        "keywords_ar": [
+            "التحقق الثنائي", "رمز التحقق", "او تي بي", "تطبيق المصادقة", "رمز الدخول",
+            "كود التحقق", "المصادقة الثنائية"
+        ],
+    },
+    "software_request": {
+        "title": "Software Installation & License Request",
+        "keywords_en": [
+            "software", "install", "application", "license", "download", "setup", "program",
+            "request software", "install app"
+        ],
+        "keywords_ar": [
+            "تثبيت برنامج", "برنامج", "تطبيق", "ترخيص", "تحميل", "تنزيل برنامج",
+            "طلب برنامج", "تنصيب"
+        ],
+    },
+    "fileshare_access": {
+        "title": "Network File Share & Shared Folder Access",
+        "keywords_en": [
+            "file share", "shared folder", "drive", "network drive", "nas", "permission",
+            "mapped drive", "z drive", "shared drive", "folder access"
+        ],
+        "keywords_ar": [
+            "مجلد مشترك", "شير فولدر", "صلاحيات", "درايف", "ملفات مشتركة",
+            "مجلدات الشبكة", "مشاركة الملفات"
+        ],
+    },
+    "mobile_device": {
+        "title": "Mobile Device Management (MDM / Intune)",
+        "keywords_en": [
+            "mobile", "phone", "iphone", "android", "intune", "company portal", "mdm",
+            "work profile", "mobile email"
+        ],
+        "keywords_ar": [
+            "جوال", "هاتف", "ايفون", "اندرويد", "انتيون", "هاتف العمل", "ايميل الجوال"
+        ],
+    },
+    "windows_update": {
+        "title": "Windows Update & OS Patching",
+        "keywords_en": [
+            "update", "windows update", "patch", "restart pending", "windows 11",
+            "upgrade", "cumulative update"
+        ],
+        "keywords_ar": [
+            "تحديث الويندوز", "ويندوز ابديت", "ترقية النظام", "تحديثات النظام", "تحديث ويندوز"
+        ],
+    },
+}
+
+
+def normalize_text_for_search(text: str) -> str:
+    if not text:
+        return ""
+    t = text.lower()
+    # Normalize Arabic alefs, hamzas, and taa marbuta
+    t = re.sub(r"[إأآا]", "ا", t)
+    t = re.sub(r"[ة]", "ه", t)
+    t = re.sub(r"[ى]", "ي", t)
+    # Strip punctuation except alphanumeric and space
+    t = re.sub(r"[^\w\s]", " ", t)
+    return " ".join(t.split())
+
+
+def search_knowledge_base(query: str) -> dict:
+    if not query:
+        return {"found": False, "message": "Query was empty."}
+
+    norm_query = normalize_text_for_search(query)
+    tokens = set(norm_query.split())
+
+    best_score = 0
+    best_id = None
+
+    for kb_id, content in KNOWLEDGE_BASE.items():
+        score = 0
+        norm_id = normalize_text_for_search(kb_id.replace("_", " "))
+
+        # 1. Exact or substring key match
+        if norm_id in norm_query or norm_query in norm_id:
+            score += 60
+
+        meta = KB_METADATA.get(kb_id, {})
+        title = meta.get("title", "")
+        norm_title = normalize_text_for_search(title)
+        if norm_query in norm_title:
+            score += 50
+
+        # 2. Match keywords and synonyms (both English and Arabic)
+        all_kw = meta.get("keywords_en", []) + meta.get("keywords_ar", [])
+        for kw in all_kw:
+            norm_kw = normalize_text_for_search(kw)
+            if norm_kw and (norm_kw in norm_query or norm_query in norm_kw):
+                score += 40
+            elif norm_kw:
+                kw_tokens = set(norm_kw.split())
+                common = tokens.intersection(kw_tokens)
+                if common:
+                    score += len(common) * 20
+
+        # 3. Content token overlap
+        norm_content = normalize_text_for_search(content[:600])
+        for token in tokens:
+            if len(token) > 2 and token in norm_content:
+                score += 5
+
+        if score > best_score:
+            best_score = score
+            best_id = kb_id
+
+    # Fallback substring scan
+    if best_score < 25:
+        for k, v in KNOWLEDGE_BASE.items():
+            if query.strip().lower() in k or k in query.strip().lower():
+                return {"found": True, "playbook_id": k, "playbook": v[:1200], "score": 25}
+        return {
+            "found": False,
+            "message": "No specific local playbook found. Use standard IT troubleshooting questions."
+        }
+
+    return {
+        "found": True,
+        "playbook_id": best_id,
+        "playbook": KNOWLEDGE_BASE[best_id][:1200],
+        "score": best_score
+    }
 
 SYSTEM_PROMPT = """
 You are Arif, an AI IT Support voice agent for National Finance IT Support team.
@@ -187,6 +418,12 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - NEVER claim you directly unlocked an Active Directory account or changed a password on the server yourself. You provide the self-service steps from lookup_knowledge_base or log a service desk ticket for IT administrators.
 - Ground all technical troubleshooting strictly in verified playbooks via lookup_knowledge_base.
 - Never create more than one ticket per issue.
+
+15. KEYPAD / DTMF FALLBACK PROTOCOL:
+- If the caller is calling from a noisy environment, has poor audio, or if verbal verification of employee ID fails, inform the caller:
+  - In Arabic: "يمكنك أيضاً إدخال رقمك الوظيفي المكون من 4 أرقام عبر لوحة المفاتيح متبوعاً بمربع (#)."
+  - In English: "You can also enter your 4-digit employee ID using your telephone keypad followed by the hash key (#)."
+- When the caller speaks or submits keypad digits, handle them via submit_dtmf_keypad or verify_user.
 
 STANDARD CALL FLOW:
 1. Greet caller: "مرحباً بك في الدعم الفني لناشيونال فاينانس، أنا عارف. للمتابعة باللغة العربية يرجى قول عربي. For English, please say English."
@@ -408,6 +645,21 @@ TOOLS = [
     },
     {
         "type": "function",
+        "name": "submit_dtmf_keypad",
+        "description": "Submit or process employee ID numbers entered on the telephone keypad by the caller.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "digits": {
+                    "type": "string",
+                    "description": "The keypad digit sequence entered by caller (e.g. '1002')",
+                }
+            },
+            "required": ["digits"],
+        },
+    },
+    {
+        "type": "function",
         "name": "close_call",
         "description": "Close call cleanly with goodbye.",
         "parameters": {
@@ -440,6 +692,9 @@ def build_session_config():
             "output_modalities": ["audio"],
             "tools": TOOLS,
             "tool_choice": "auto",
+            "input_audio_transcription": {
+                "model": "whisper-1",
+            },
             "audio": {
                 "input": {
                     "format": {"type": "audio/pcmu"},
@@ -569,10 +824,95 @@ async def handle_single_call(asterisk_ws):
         "transfer_attempted": False,
         "transfer_target": ASTERISK_QUEUE_STANDARD,
         "started_monotonic": time.monotonic(),
+        "dtmf_buffer": "",
+        "dtmf_last_time": 0.0,
+        "transcript_lines": [],
+        "call_logged_closed": False,
     }
 
     create_call(state["call_id"])
     print("[ASTERISK] New call connected")
+
+    def generate_call_summary(status="completed"):
+        caller = state.get("caller_name") or "Unverified Caller"
+        emp = state.get("employee_id") or "N/A"
+        cat = state.get("issue_category") or "General IT"
+        issue = state.get("issue_summary") or "Technical inquiry"
+        steps = "; ".join(state.get("troubleshooting_steps", []))
+        ticket = state.get("last_ticket_number")
+
+        summary_parts = [f"Caller: {caller} (Emp ID: {emp})", f"Category: {cat}", f"Issue: {issue}"]
+        if steps:
+            summary_parts.append(f"Steps: {steps}")
+        if ticket:
+            summary_parts.append(f"Ticket: {ticket}")
+        if state.get("transferred"):
+            summary_parts.append(f"Transferred: Queue {state.get('transfer_target', '7001')}")
+        return " | ".join(summary_parts)
+
+    def wrap_up_call(status="completed"):
+        if state.get("call_logged_closed"):
+            return
+        state["call_logged_closed"] = True
+        full_transcript = "\n".join(state["transcript_lines"]) if state["transcript_lines"] else None
+        auto_summary = generate_call_summary(status)
+        log_close_call(state["call_id"], status=status, summary=auto_summary, transcript=full_transcript)
+        print(f"[CALL CLOSED] ID: {state['call_id']}, Status: {status}, Transcript lines: {len(state['transcript_lines'])}")
+
+    async def handle_dtmf_submission(code: str):
+        print(f"[DTMF] Processing submitted employee ID: {code}")
+        state["employee_id"] = code
+        spoken = digit_by_digit(code)
+        res = await execute_tool("verify_user", {"employee_id": code})
+
+        if res.get("verified"):
+            v_name = res.get("caller_name") or ""
+            if state["language"] == "ar":
+                queue_response(
+                    f"Respond only in Arabic. Say: شكراً لك. تم تأكيد هويتك بنجاح عبر الرقم الوظيفي {spoken} للموظف {v_name}. كيف يمكنني مساعدتك اليوم؟"
+                )
+            else:
+                queue_response(
+                    f"Respond only in English. Say: Thank you. Your identity has been verified successfully with employee ID {spoken} for {v_name}. How can I assist you today?"
+                )
+        else:
+            attempts_left = res.get("attempts_left", 0)
+            if state["language"] == "ar":
+                queue_response(
+                    f"Respond only in Arabic. Say: عذراً، الرقم الوظيفي {spoken} غير مطابق في سجلاتنا. تبقى لديك {attempts_left} محاولات."
+                )
+            else:
+                queue_response(
+                    f"Respond only in English. Say: I'm sorry, employee ID {spoken} was not found in our records. You have {attempts_left} attempts remaining."
+                )
+        await send_queued_response_if_any()
+
+    async def process_dtmf_digit(digit: str):
+        digit = digit.strip()
+        if not digit:
+            return
+
+        print(f"[DTMF] Received keypress: '{digit}' (Current state: {state.get('current_state')})")
+
+        if digit == "*":
+            state["dtmf_buffer"] = ""
+            return
+
+        if digit == "#":
+            code = state["dtmf_buffer"]
+            state["dtmf_buffer"] = ""
+            if code:
+                await handle_dtmf_submission(code)
+            return
+
+        state["dtmf_buffer"] += digit
+        state["dtmf_last_time"] = time.monotonic()
+
+        # If exactly 4 digits entered during verification or inquiry, auto-submit
+        if len(state["dtmf_buffer"]) == 4 and state.get("current_state") in ("greeting", "ask_name", "ask_employee_id", "verification"):
+            code = state["dtmf_buffer"]
+            state["dtmf_buffer"] = ""
+            await handle_dtmf_submission(code)
 
     try:
         openai_ws = await connect_openai()
@@ -776,17 +1116,55 @@ async def handle_single_call(asterisk_ws):
                     "next_state": state["current_state"],
                 }
 
-            if tool_name == "lookup_knowledge_base":
-                topic = arguments.get("topic", "").strip().lower()
-                content = KNOWLEDGE_BASE.get(topic)
-                if not content:
-                    for k, v in KNOWLEDGE_BASE.items():
-                        if topic in k or k in topic:
-                            content = v
-                            break
+            if tool_name == "submit_dtmf_keypad":
+                digits = arguments.get("digits", "").strip()
+                if not digits:
+                    return {"success": False, "error": "No keypad digits provided."}
+                digits = re.sub(r"[^\d]", "", digits)
+                state["employee_id"] = digits
 
-                if content:
-                    return {"found": True, "playbook": content[:1200]}
+                verify_key = f"verify:{state.get('caller_number') or digits}"
+                v_res = await asyncio.to_thread(verify_user, digits, state.get("caller_name"))
+                if v_res.get("verified"):
+                    user = v_res["user"]
+                    state["verified_user"] = user
+                    state["caller_name"] = user["name"]
+                    state["is_vip"] = bool(user.get("vip"))
+                    state["is_executive"] = bool(user.get("is_executive"))
+                    state["tier"] = user.get("tier", "STANDARD")
+                    state["current_state"] = "verified"
+                    update_call(
+                        state["call_id"],
+                        employee_id=digits,
+                        verified_name=user["name"],
+                        is_vip=1 if state["is_vip"] else 0,
+                        tier=state["tier"],
+                        status="verified",
+                    )
+                    return {
+                        "verified": True,
+                        "method": "dtmf_keypad",
+                        "employee_id": digits,
+                        "caller_name": user["name"],
+                        "role": user.get("role"),
+                        "tier": state["tier"],
+                        "is_executive": state["is_executive"],
+                        "message": f"Successfully verified employee ID {digits} for {user['name']} via keypad.",
+                    }
+
+                return {
+                    "verified": False,
+                    "method": "dtmf_keypad",
+                    "employee_id": digits,
+                    "message": f"Employee ID {digits} not found or deactivated.",
+                }
+
+            if tool_name == "lookup_knowledge_base":
+                topic = arguments.get("topic", "").strip()
+                search_res = search_knowledge_base(topic)
+                if search_res.get("found"):
+                    print(f"[KB MATCH] Query='{topic}' -> Playbook='{search_res.get('playbook_id')}' (Score: {search_res.get('score')})")
+                    return search_res
                 return {
                     "found": False,
                     "message": "No specific local playbook found. Use standard IT troubleshooting questions."
@@ -1227,6 +1605,27 @@ async def handle_single_call(asterisk_ws):
                 ticket_ref = state.get("last_ticket_number")
                 ticket_spoken = digit_by_digit(ticket_ref) if ticket_ref else None
 
+                # Pre-flight Asterisk AMI queue availability check
+                queue_check = await asyncio.to_thread(check_queue_availability, queue_type)
+                if not queue_check.get("available", True):
+                    print(f"[TRANSFER BLOCKED] Queue '{queue_type}' has 0 available agents. Triggering callback fallback.")
+                    update_call(
+                        state["call_id"],
+                        status="queue_unavailable",
+                        escalation_reason=f"Queue {queue_type} unavailable (LoggedIn={queue_check.get('logged_in', 0)}, Available={queue_check.get('available_agents', 0)})",
+                    )
+                    return {
+                        "success": False,
+                        "error": "no_agents_available",
+                        "queue_name": queue_check.get("queue_name"),
+                        "logged_in": queue_check.get("logged_in", 0),
+                        "available_agents": queue_check.get("available_agents", 0),
+                        "callers_waiting": queue_check.get("callers_waiting", 0),
+                        "ticket_number": ticket_ref,
+                        "ticket_number_spoken": ticket_spoken,
+                        "fallback_action": "offer_callback",
+                    }
+
                 if not channel:
                     return {
                         "success": False,
@@ -1470,14 +1869,25 @@ async def handle_single_call(asterisk_ws):
             ticket_spoken = result.get("ticket_number_spoken")
             ticket_part_en = f" Your reference ticket number is {ticket_spoken}." if ticket_spoken else ""
             ticket_part_ar = f" رقم التذكرة المرجعي الخاص بك هو {ticket_spoken}." if ticket_spoken else ""
+            is_empty_queue = result.get("error") == "no_agents_available"
             if state["language"] == "ar":
-                queue_response(
-                    f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني مشغولون حالياً.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
-                )
+                if is_empty_queue:
+                    queue_response(
+                        f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني غير متاحين حالياً في قائمة الانتظار.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني مشغولون حالياً.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
+                    )
             else:
-                queue_response(
-                    f"Respond only in English. Say: I apologize, all our IT support specialists are currently assisting other callers.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
-                )
+                if is_empty_queue:
+                    queue_response(
+                        f"Respond only in English. Say: I apologize, all our IT support specialists are currently unavailable in the queue.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Say: I apologize, all our IT support specialists are currently assisting other callers.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
+                    )
 
         elif tool_name == "escalate_emergency":
             if state["language"] == "ar":
@@ -1516,7 +1926,15 @@ async def handle_single_call(asterisk_ws):
                         )
                     )
                 else:
-                    if isinstance(message, str) and "MEDIA_START" in message:
+                    if isinstance(message, str):
+                        # Detect in-band DTMF keypress frames from PBX or WebSocket client
+                        if "DTMF" in message or "dtmf" in message.lower():
+                            digit_match = re.search(r"[0-9*#]", message)
+                            if digit_match:
+                                await process_dtmf_digit(digit_match.group(0))
+                                continue
+
+                        if "MEDIA_START" in message:
                         parts = message.split()
                         for part in parts:
                             if part.startswith("channel:"):
@@ -1622,7 +2040,7 @@ async def handle_single_call(asterisk_ws):
                     if state["close_after_next_response_done"]:
                         await asyncio.sleep(2)
                         state["call_ending"] = True
-                        log_close_call(state["call_id"], status="completed")
+                        wrap_up_call(status="completed")
                         try:
                             await asterisk_ws.close()
                         except Exception:
@@ -1634,7 +2052,15 @@ async def handle_single_call(asterisk_ws):
                 elif event_type == "conversation.item.input_audio_transcription.completed":
                     transcript = (event.get("transcript") or "").strip()
                     if transcript:
+                        t_str = time.strftime("%H:%M:%S")
+                        state["transcript_lines"].append(f"[{t_str}] Caller: {transcript}")
                         print(f"[CALLER SAID] {transcript}")
+
+                elif event_type == "response.audio_transcript.done":
+                    a_text = (event.get("transcript") or "").strip()
+                    if a_text:
+                        t_str = time.strftime("%H:%M:%S")
+                        state["transcript_lines"].append(f"[{t_str}] Arif: {a_text}")
 
                 elif event_type == "error":
                     print(f"[OPENAI ERROR] {json.dumps(event, indent=2)}")
@@ -1663,7 +2089,9 @@ async def handle_single_call(asterisk_ws):
         pass
 
     if not state["call_ending"] and state.get("current_state") != "transferred":
-        log_close_call(state["call_id"], status="ended")
+        wrap_up_call(status="ended")
+    elif state.get("current_state") == "transferred":
+        wrap_up_call(status="transferred")
 
 
 async def main():

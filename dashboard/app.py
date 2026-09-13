@@ -947,6 +947,7 @@ def api_call_detail(request: Request, call_identifier: str):
         "status": row["status"] or "completed",
         "ticket_number": row["ticket_number"] or "",
         "summary": row["summary"] or "",
+        "transcript": row.get("transcript") or "",
         "recording_file": row["recording_file"] or "",
         "started_at": human_time(row["start_time"]),
         "ended_at": human_time(row["end_time"]),

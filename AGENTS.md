@@ -148,3 +148,30 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - UI banner on `/callers` displaying live domain controller connection state, last sync timestamp, and total scanned/deactivated metrics.
   - Diagnostic modal with real-time handshake latency and canary account verification.
   - Complete configuration form in `/settings` allowing live parameter tuning and connection testing.
+
+## 13. Pre-Flight Asterisk AMI Queue Availability & Capacity Guard
+- **Pre-Flight Inspection (`app/transfer.py`)**:
+  - `check_queue_availability(queue_type, extension)` connects to Asterisk AMI via `_ami_connect()` and issues `Action: QueueSummary`.
+  - Maps queues dynamically: `it-support` (7001), `it-vip-exec` (7002), and `it-emergency` (7003). Emergency queues fail open.
+  - Parses `LoggedIn`, `Available`, and `Callers`. If 0 agents are available or logged in, flags `available: False`.
+- **Bridge Integration (`app/openai_realtime_bridge.py`)**:
+  - Prior to issuing an AMI `Redirect`, `transfer_to_agent` inspects queue availability.
+  - If unavailable, the transfer is prevented; Arif sincerely apologizes, confirms the ticket reference number, and immediately offers a scheduled callback (`request_callback`) instead of abandoning the caller in an endless ringing or hold music loop.
+
+## 14. In-Band DTMF Telephone Keypad Fallback Engine
+- **Keypad Digit Capture (`app/openai_realtime_bridge.py`)**:
+  - In `asterisk_to_openai`, detects DTMF frames from WebSocket media stream and Asterisk dialpad signals.
+  - Buffers digits in `state["dtmf_buffer"]`. Entering `#` or 4 consecutive digits triggers automated verification against the enterprise `callers` roster.
+  - Dedicated tool `submit_dtmf_keypad` allows the voice model to process keypad inputs directly.
+  - Protocol 15 in `SYSTEM_PROMPT` steers Arif to offer keypad entry whenever a caller is in a noisy branch, mobile car environment, or when voice recognition fails.
+
+## 15. Bilingual Semantic Knowledge Base Retrieval & Full Conversation Transcripts
+- **Semantic KB Matcher (`search_knowledge_base`)**:
+  - Replaced naive substring matching with multi-factor scoring (exact match, alias match, and token-overlap scoring).
+  - `KB_METADATA` provides comprehensive Arabic and English synonyms for all 14 playbooks (e.g. Wi-Fi, Outlook, slow PC, password reset, account lock, VPN, Teams, printers).
+- **Full Dialogue Transcription & Auto-Summaries**:
+  - Enabled `"input_audio_transcription": {"model": "whisper-1"}` in OpenAI Realtime session configuration.
+  - Records chronological dialogue turns (`Caller: ...`, `Arif: ...`) into `state["transcript_lines"]`.
+  - Database schema migrated: added `transcript TEXT` to `calls` table in both PostgreSQL 16 and SQLite WAL with auto-migration via `_ensure_column`.
+  - On call completion, generates a structured IT summary and persists full transcript to the database.
+  - Slide-out Call Inspection Drawer in `/calls` renders styled conversation bubbles with speaker avatars, timestamps, and turn counters.

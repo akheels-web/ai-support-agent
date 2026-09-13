@@ -159,9 +159,54 @@ async function openCallDrawer(callIdentifier) {
             </div>
 
             <div class="card" style="padding:1rem; margin-bottom:1rem;">
-                <div style="font-weight:700; font-size:0.875rem; color:var(--nf-navy); margin-bottom:0.5rem;">Incident Summary & Resolution</div>
+                <div style="font-weight:700; font-size:0.875rem; color:var(--nf-navy); margin-bottom:0.5rem;">AI Incident Summary & Telemetry</div>
                 <p style="font-size:0.875rem; line-height:1.6; color:hsl(var(--foreground));">${call.summary || 'No summary recorded for this session.'}</p>
             </div>
+
+            ${(() => {
+                if (!call.transcript) {
+                    return `
+                        <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                            <div style="font-weight:700; font-size:0.875rem; color:var(--nf-navy); margin-bottom:0.5rem;">Conversation Dialogue Transcript</div>
+                            <div style="font-size:0.8125rem; color:hsl(var(--muted-foreground)); font-style:italic;">No spoken transcript recorded for this session.</div>
+                        </div>
+                    `;
+                }
+
+                const lines = call.transcript.split('\n').filter(l => l.trim().length > 0);
+                const bubbles = lines.map(line => {
+                    const isArif = line.includes('Arif:');
+                    const bubbleStyle = isArif 
+                        ? 'background: hsl(var(--primary)/0.08); border-left: 3px solid hsl(var(--primary));'
+                        : 'background: hsl(var(--muted)/0.4); border-left: 3px solid hsl(var(--muted-foreground));';
+                    const speakerName = isArif ? '🤖 Arif (AI Support Agent)' : `👤 ${call.verified_name || 'Caller'}`;
+                    const timeMatch = line.match(/^\[(.*?)\]/);
+                    const timeTag = timeMatch ? `<span style="font-size:0.7rem; opacity:0.65; margin-left:0.5rem; font-weight:normal;">${timeMatch[1]}</span>` : '';
+                    const messageText = line.replace(/^\[.*?\]\s*(Caller|Arif):\s*/i, '');
+
+                    return `
+                        <div style="margin-bottom:0.6rem; padding:0.6rem 0.8rem; border-radius:6px; font-size:0.8125rem; ${bubbleStyle}">
+                            <div style="font-weight:600; font-size:0.75rem; margin-bottom:0.25rem; display:flex; justify-content:space-between; align-items:center;">
+                                <span>${speakerName}</span>
+                                ${timeTag}
+                            </div>
+                            <div style="line-height:1.5; color:hsl(var(--foreground));">${messageText}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                            <div style="font-weight:700; font-size:0.875rem; color:var(--nf-navy);">Conversation Dialogue Transcript</div>
+                            <span class="badge badge-secondary" style="font-size:0.7rem;">${lines.length} Turns</span>
+                        </div>
+                        <div style="max-height:300px; overflow-y:auto; padding-right:0.4rem;">
+                            ${bubbles}
+                        </div>
+                    </div>
+                `;
+            })()}
 
             ${recordingPlayer}
         `;

@@ -17,10 +17,17 @@ ASTERISK_AMI_TLS_VERIFY = os.getenv("ASTERISK_AMI_TLS_VERIFY", "true").lower() i
 TRANSFER_CONTEXT = os.getenv("ASTERISK_TRANSFER_CONTEXT", "from-internal")
 TRANSFER_PRIORITY = os.getenv("ASTERISK_TRANSFER_PRIORITY", "1")
 
-# Multi-queue targets
+# Multi-queue targets (Extensions)
 QUEUE_STANDARD = os.getenv("ASTERISK_QUEUE_STANDARD", os.getenv("ASTERISK_AGENT_EXTENSION", "7001"))
 QUEUE_EXECUTIVE = os.getenv("ASTERISK_QUEUE_EXECUTIVE", "7002")
 QUEUE_EMERGENCY = os.getenv("ASTERISK_QUEUE_EMERGENCY", "7003")
+
+# Multi-queue names (Asterisk queues.conf)
+QUEUE_NAME_STANDARD = os.getenv("ASTERISK_QUEUE_NAME_STANDARD", "it-support")
+QUEUE_NAME_EXECUTIVE = os.getenv("ASTERISK_QUEUE_NAME_EXECUTIVE", "it-vip-exec")
+QUEUE_NAME_EMERGENCY = os.getenv("ASTERISK_QUEUE_NAME_EMERGENCY", "it-emergency")
+
+ENFORCE_QUEUE_CAPACITY = os.getenv("ENFORCE_QUEUE_CAPACITY", "true").lower() in ("1", "true", "yes")
 
 
 def _ami_send(sock, action):
@@ -29,6 +36,35 @@ def _ami_send(sock, action):
         data += f"{key}: {value}\r\n"
     data += "\r\n"
     sock.sendall(data.encode())
+
+
+def _ami_connect():
+    """Establishes an authenticated socket connection to Asterisk AMI."""
+    raw_sock = socket.create_connection((ASTERISK_AMI_HOST, ASTERISK_AMI_PORT), timeout=5)
+    if ASTERISK_AMI_TLS:
+        import ssl
+        ssl_ctx = ssl.create_default_context()
+        if not ASTERISK_AMI_TLS_VERIFY:
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+        sock = ssl_ctx.wrap_socket(raw_sock, server_hostname=ASTERISK_AMI_HOST)
+    else:
+        sock = raw_sock
+
+    sock.recv(1024)  # Asterisk Call Manager banner
+
+    _ami_send(sock, {
+        "Action": "Login",
+        "Username": ASTERISK_AMI_USER,
+        "Secret": ASTERISK_AMI_SECRET
+    })
+
+    login_resp = sock.recv(4096).decode(errors="ignore")
+    if "Success" not in login_resp:
+        sock.close()
+        raise RuntimeError(f"AMI login failed: {login_resp.strip()}")
+
+    return sock
 
 
 def resolve_queue_target(queue_type: str = "standard", extension: str = None) -> str:
@@ -41,6 +77,112 @@ def resolve_queue_target(queue_type: str = "standard", extension: str = None) ->
     elif queue_type in ("emergency", "critical", "p1", "outage"):
         return QUEUE_EMERGENCY
     return QUEUE_STANDARD
+
+
+def resolve_queue_name(queue_type: str = "standard") -> str:
+    queue_type = (queue_type or "standard").strip().lower()
+    if queue_type in ("executive", "ceo", "cfo", "p0_executive", QUEUE_EXECUTIVE):
+        return QUEUE_NAME_EXECUTIVE
+    elif queue_type in ("emergency", "critical", "p1", "outage", QUEUE_EMERGENCY):
+        return QUEUE_NAME_EMERGENCY
+    return QUEUE_NAME_STANDARD
+
+
+def check_queue_availability(queue_type: str = "standard", extension: str = None) -> dict:
+    """
+    Pre-flight check verifying whether human agents are logged in and available
+    before transferring a live caller to an Asterisk queue.
+    Prevents endless music-on-hold loops and abandoned calls.
+    """
+    if not ENFORCE_QUEUE_CAPACITY:
+        return {"available": True, "reason": "capacity_enforcement_disabled"}
+
+    if not ASTERISK_AMI_USER or not ASTERISK_AMI_SECRET:
+        return {"available": True, "reason": "ami_not_configured_fallback"}
+
+    # Emergency queues always allow transfer / fail open
+    q_lower = (queue_type or "").strip().lower()
+    if q_lower in ("emergency", "critical", "p1", "outage", QUEUE_EMERGENCY):
+        return {"available": True, "queue_name": QUEUE_NAME_EMERGENCY, "emergency": True}
+
+    queue_name = resolve_queue_name(queue_type)
+
+    try:
+        sock = _ami_connect()
+        try:
+            _ami_send(sock, {
+                "Action": "QueueSummary",
+                "Queue": queue_name,
+                "ActionID": f"qcheck_{int(os.getpid())}"
+            })
+
+            # Read AMI response buffer (may contain multiple event packets)
+            raw_data = ""
+            sock.settimeout(3.0)
+            while True:
+                try:
+                    chunk = sock.recv(4096).decode(errors="ignore")
+                    if not chunk:
+                        break
+                    raw_data += chunk
+                    if "QueueSummaryComplete" in raw_data or "NoSuchQueue" in raw_data or len(raw_data) > 8192:
+                        break
+                except socket.timeout:
+                    break
+
+            _ami_send(sock, {"Action": "Logoff"})
+
+            # Parse key-values from QueueSummary event
+            logged_in = 0
+            available_agents = 0
+            callers_waiting = 0
+            found_summary = False
+
+            for line in raw_data.splitlines():
+                line = line.strip()
+                if line.startswith("LoggedIn:"):
+                    logged_in = int(line.split(":", 1)[1].strip() or 0)
+                    found_summary = True
+                elif line.startswith("Available:"):
+                    available_agents = int(line.split(":", 1)[1].strip() or 0)
+                    found_summary = True
+                elif line.startswith("Callers:"):
+                    callers_waiting = int(line.split(":", 1)[1].strip() or 0)
+
+            if not found_summary:
+                # If queue is not found or app_queue not tracking summary, fail open gracefully
+                return {
+                    "available": True,
+                    "queue_name": queue_name,
+                    "reason": "queue_summary_not_tracked_fallback",
+                    "raw": raw_data[:200]
+                }
+
+            is_available = available_agents > 0 or (logged_in > 0 and callers_waiting < 5)
+
+            return {
+                "available": is_available,
+                "queue_name": queue_name,
+                "logged_in": logged_in,
+                "available_agents": available_agents,
+                "callers_waiting": callers_waiting,
+                "reason": "agents_available" if is_available else "no_agents_available"
+            }
+
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
+
+    except Exception as exc:
+        # On connection failure to AMI, fail open so calls can still transfer if PBX is functional
+        return {
+            "available": True,
+            "queue_name": queue_name,
+            "error": str(exc),
+            "reason": "ami_error_fail_open"
+        }
 
 
 def transfer_call(channel, queue_type="standard", extension=None, context=None, caller_context=None):
@@ -64,32 +206,8 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
     target_context = context or TRANSFER_CONTEXT
 
     try:
-        with socket.create_connection((ASTERISK_AMI_HOST, ASTERISK_AMI_PORT), timeout=5) as raw_sock:
-            if ASTERISK_AMI_TLS:
-                import ssl
-                ssl_ctx = ssl.create_default_context()
-                if not ASTERISK_AMI_TLS_VERIFY:
-                    ssl_ctx.check_hostname = False
-                    ssl_ctx.verify_mode = ssl.CERT_NONE
-                sock = ssl_ctx.wrap_socket(raw_sock, server_hostname=ASTERISK_AMI_HOST)
-            else:
-                sock = raw_sock
-
-            sock.recv(1024)
-
-            _ami_send(sock, {
-                "Action": "Login",
-                "Username": ASTERISK_AMI_USER,
-                "Secret": ASTERISK_AMI_SECRET
-            })
-
-            login_response = sock.recv(4096).decode(errors="ignore")
-            if "Success" not in login_response:
-                return {
-                    "success": False,
-                    "error": f"AMI login failed: {login_response}"
-                }
-
+        sock = _ami_connect()
+        try:
             # Inject caller context variables for screen-pop / softphone display
             if caller_context and isinstance(caller_context, dict):
                 for var_name, var_value in caller_context.items():
@@ -129,6 +247,11 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
                 "success": False,
                 "error": response
             }
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
 
     except Exception as exc:
         return {

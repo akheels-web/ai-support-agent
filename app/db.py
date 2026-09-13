@@ -401,7 +401,12 @@ def _ensure_column(conn, table: str, column: str, definition: str):
     if not re.match(r"^[a-zA-Z0-9_() ]+$", definition):
         raise ValueError(f"Invalid SQL column definition: {definition}")
 
-    if _db_manager.engine == "sqlite":
+    if _db_manager.engine == "postgres":
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
+        except Exception as e:
+            logger.debug(f"[DB] Column check on {table}.{column}: {e}")
+    elif _db_manager.engine == "sqlite":
         try:
             columns = conn.execute(f"PRAGMA table_info({table})").fetchall()
             existing = {r["name"] if isinstance(r, dict) else r[1] for r in columns}
@@ -449,6 +454,7 @@ def init_all_tables():
                 ticket_created SMALLINT DEFAULT 0,
                 recording_file VARCHAR(255),
                 summary TEXT,
+                transcript TEXT,
                 is_vip SMALLINT DEFAULT 0,
                 transferred SMALLINT DEFAULT 0,
                 transfer_target VARCHAR(50),
@@ -563,6 +569,7 @@ def init_all_tables():
             conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_active ON callers(active);")
             _ensure_column(conn, "audit_logs", "prev_hash", "VARCHAR(64)")
             _ensure_column(conn, "audit_logs", "record_hash", "VARCHAR(64)")
+            _ensure_column(conn, "calls", "transcript", "TEXT")
 
         else:
             # SQLite schema
@@ -593,7 +600,8 @@ def init_all_tables():
                 ticket_number TEXT,
                 ticket_created INTEGER DEFAULT 0,
                 recording_file TEXT,
-                summary TEXT
+                summary TEXT,
+                transcript TEXT
             );
             """)
 
@@ -604,6 +612,7 @@ def init_all_tables():
             _ensure_column(conn, "calls", "escalation_reason", "TEXT")
             _ensure_column(conn, "calls", "resolution_type", "TEXT")
             _ensure_column(conn, "calls", "ai_deflected", "INTEGER DEFAULT 0")
+            _ensure_column(conn, "calls", "transcript", "TEXT")
 
             conn.execute("""
             CREATE TABLE IF NOT EXISTS security_events (

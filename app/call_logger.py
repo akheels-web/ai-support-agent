@@ -79,6 +79,7 @@ def update_call(call_id, **kwargs):
         "ticket_created",
         "recording_file",
         "summary",
+        "transcript",
         "is_vip",
         "transferred",
         "transfer_target",
@@ -112,7 +113,7 @@ def update_call(call_id, **kwargs):
         conn.close()
 
 
-def close_call(call_id, status="completed"):
+def close_call(call_id, status="completed", summary=None, transcript=None):
     init_call_db()
 
     recording_file = find_recording_by_call_id(call_id)
@@ -138,7 +139,9 @@ def close_call(call_id, status="completed"):
                 duration_seconds=?,
                 status=?,
                 recording_file=COALESCE(?, recording_file),
-                caller_number=COALESCE(?, caller_number)
+                caller_number=COALESCE(?, caller_number),
+                summary=COALESCE(?, summary),
+                transcript=COALESCE(?, transcript)
             WHERE call_id=?
             """,
             (
@@ -147,6 +150,8 @@ def close_call(call_id, status="completed"):
                 status,
                 recording_file,
                 caller_number,
+                summary,
+                transcript,
                 call_id,
             )
         )

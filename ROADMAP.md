@@ -19,8 +19,17 @@ This document outlines upcoming strategic enhancements and future feature phases
 ### Phase 5: Voice Biometrics & Instant Speaker Verification
 - Passive voiceprint verification alongside Caller-ID (CLI) matching to enable zero-friction, passwordless verification for high-risk IT operations.
 
-### Phase 6: Active Directory / Azure AD (Entra ID) Direct Self-Service
-- Integration with Microsoft Graph API / LDAP to allow Arif to trigger secure, verified self-service password resets and account unlocks automatically after SMS/MFA challenge verification.
+### Phase 6: Enterprise Active Directory (AD) Self-Service Account Unlock & Password Reset (Opt-In Security Policy)
+- **Objective**: Provide automated, zero-touch unlocking of locked Windows Active Directory domain accounts (`lockoutTime = 0`) directly via Voice AI to deflect up to 60% of routine Service Desk calls.
+- **Enterprise Objections & Security Governance**:
+  - *Primary InfoSec Objection*: Risk of unauthorized account unlock through social engineering, spoofed Caller-ID, or unauthorized third-party callers.
+  - *Mandatory Safeguards & Mitigation Architecture*:
+    1. **Out-of-Band (OOB) Step-Up MFA Challenge**: Arif will *never* unlock an account solely on verbal name/employee ID verification. The system generates a cryptographic 6-digit Time-based OTP sent via SMS to the verified mobile phone or corporate email registered in the employee's Active Directory object (`mobile` or `mail`). The caller must recite or enter the OTP via keypad DTMF to proceed.
+    2. **Strict Frequency & Rate Limiting**: Maximum 1 automated account unlock per employee within a rolling 24-hour window. Subsequent lockouts within the same day mandate live human engineer triage to investigate potential brute-force or credential-stuffing attacks.
+    3. **SIEM & Tamper-Evident Audit Logging**: Every unlock operation writes an immutable cryptographic record to `audit_logs` (with SHA-256 hash chaining) capturing `employee_id`, caller CLI, timestamp, and Asterisk channel ID, broadcastable to corporate SIEM (Splunk / QRadar).
+    4. **Air-Gapped Opt-In Toggle (`ENABLE_AD_SELF_SERVICE_UNLOCK`)**:
+       - Default setting: `ENABLE_AD_SELF_SERVICE_UNLOCK=false`.
+       - The feature remains completely disabled at the code level until National Finance IT Security & Compliance formally review the workflow, verify SMS gateway integration, and approve the activation flag in `.env`.
 
 ### Phase 7: WhatsApp & Omnichannel Ticket Updates
 - Automatic WhatsApp / SMS notification sent to the caller upon ticket creation and SLA resolution with live tracking link in Frappe Helpdesk.
