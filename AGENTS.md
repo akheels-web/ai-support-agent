@@ -193,3 +193,12 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - One-click active status toggle button (`POST /knowledge/toggle-status`) and deletion with tamper-evident audit logging (`audit_logs` hash chain).
   - Navigation link added under Administration in `dashboard/templates/base.html`.
 
+## 17. 2-VM Production Deployment & Clean Installation Standard
+- **`TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md`**: Complete wiring and step-by-step installation runbook.
+  - VM 1 (Voice Edge): Asterisk 20+ (SpeexDSP, RFC 4733 DTMF), Python Voice Bridge, FastAPI Dashboard (:8090), Nginx Reverse Proxy (:443 HTTPS), AD Sync Worker.
+  - VM 2 (Data Core): PostgreSQL 16 Enterprise Database (:5432 with connection pooling), Frappe Helpdesk (:8000), Call recordings storage.
+- **Dependencies (`requirements.txt`)**: Updated with `python-multipart` (FastAPI forms/file uploads) and `ldap3` (Active Directory sync).
+- **Environment Template (`.env.example`)**: Fully populated with `DATABASE_URL`, Active Directory LDAPS credentials, Asterisk AMI TLS, and Queue Capacity parameters.
+- **Single-Command Database Bootstrapping**: `python3 -c "import app.db as db; db.init_db()"` creates tables, composite indexes, default playbooks, and caller rosters prior to starting services.
+
+

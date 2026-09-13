@@ -24,44 +24,42 @@ This document is written for IT, infrastructure, DevOps, telecom, and security t
 
 ---
 
-## 2. Current POC Components
+## 2. Modern Enterprise System Architecture
 
-The current POC contains these main components:
-
-```text
-Caller / SIP trunk
-    ↓
-Asterisk PBX
-    ↓
-Python OpenAI Realtime Bridge on port 8765
-    ↓
-OpenAI Realtime API
-    ↓
-Verification from users.csv
-    ↓
-Ticketing system
-    ↓
-SQLite dashboard database
-    ↓
-FastAPI dashboard on port 8090
-```
-
-Current POC services:
+The AI IT Support Agent platform consists of these core components and subsystems:
 
 ```text
-ai-support-bridge.service
-ai-dashboard.service
-asterisk.service
-zammad / future helpdesk system
+Caller / SIP Trunk / PSTN
+    ↓
+Asterisk PBX 20+ (SpeexDSP, Adaptive JitterBuffer, RFC 4733 DTMF)
+    ↓ (AudioSocket PCM u-law)
+Python OpenAI Realtime Voice Bridge (:8765)
+    ├── OpenAI Realtime API (gpt-realtime via TLS WSS)
+    ├── Active Directory (AD / LDAP) Sync Connector (LDAPS :636)
+    ├── Caller Directory & VIP Verification (Database `callers` table with CSV sync)
+    ├── Dynamic Knowledge Base Management (15s TTL zero-downtime voice reflection)
+    ├── Pre-Flight AMI Queue Capacity & Availability Guard (:5038)
+    ├── In-Band DTMF Keypad Fallback Engine
+    └── Frappe Helpdesk Client (:8000 / :443)
+    ↓
+Central Enterprise Database: PostgreSQL 16 with Connection Pooling (:5432)
+    ↓
+Executive Operations Dashboard: FastAPI (:8090 / Nginx HTTPS :443)
 ```
 
-Current POC storage:
+Core production services:
 
 ```text
-/opt/ai-support-agent/data/dashboard.db
-/opt/ai-support-agent/data/users.csv
-/var/spool/asterisk/monitor/ai-support
+ai-support-bridge.service     # WebSocket media bridge and Realtime voice AI
+ai-dashboard.service          # FastAPI operations dashboard and REST API
+asterisk.service              # PBX media and queue engine
+postgresql.service            # Central enterprise database
+frappe-helpdesk (Docker)      # Enterprise ticketing and agent portal
 ```
+
+For customers deploying on **2 dedicated Virtual Machines**, consult the comprehensive step-by-step installation runbook:
+👉 **[TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md](file:///e:/Github/callcenter/ai-support-agent/TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md)**
+
 
 ---
 
