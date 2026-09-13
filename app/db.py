@@ -556,6 +556,22 @@ def init_all_tables():
             );
             """)
 
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_articles (
+                id SERIAL PRIMARY KEY,
+                article_id VARCHAR(100) UNIQUE NOT NULL,
+                title VARCHAR(200) NOT NULL,
+                category VARCHAR(100) DEFAULT 'General IT',
+                keywords_en TEXT,
+                keywords_ar TEXT,
+                content TEXT NOT NULL,
+                active SMALLINT DEFAULT 1,
+                created_by VARCHAR(100) DEFAULT 'system',
+                created_at BIGINT NOT NULL,
+                updated_at BIGINT NOT NULL
+            );
+            """)
+
             # Composite indexes for high concurrency
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_call_id ON calls(call_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_start_status ON calls(start_time, status);")
@@ -567,6 +583,9 @@ def init_all_tables():
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_callers_emp_id ON callers(employee_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_phone ON callers(phone);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_active ON callers(active);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_article_id ON knowledge_articles(article_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_active ON knowledge_articles(active);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_category ON knowledge_articles(category);")
             _ensure_column(conn, "audit_logs", "prev_hash", "VARCHAR(64)")
             _ensure_column(conn, "audit_logs", "record_hash", "VARCHAR(64)")
             _ensure_column(conn, "calls", "transcript", "TEXT")
@@ -705,6 +724,22 @@ def init_all_tables():
             );
             """)
 
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS knowledge_articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT DEFAULT 'General IT',
+                keywords_en TEXT,
+                keywords_ar TEXT,
+                content TEXT NOT NULL,
+                active INTEGER DEFAULT 1,
+                created_by TEXT DEFAULT 'system',
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            """)
+
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_call_id ON calls(call_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_start_status ON calls(start_time, status);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_caller ON calls(caller_number);")
@@ -715,6 +750,9 @@ def init_all_tables():
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_callers_emp_id ON callers(employee_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_phone ON callers(phone);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_active ON callers(active);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_article_id ON knowledge_articles(article_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_active ON knowledge_articles(active);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_category ON knowledge_articles(category);")
             _ensure_column(conn, "audit_logs", "prev_hash", "TEXT")
             _ensure_column(conn, "audit_logs", "record_hash", "TEXT")
 
@@ -722,6 +760,8 @@ def init_all_tables():
 
     # Automatically seed callers from CSV on first run if table is empty
     seed_callers_from_csv_if_empty()
+    # Automatically seed knowledge base articles from files if table is empty
+    seed_knowledge_articles_if_empty()
 
     logger.info(f"[DB] Initialized database schema successfully on {engine}.")
 
@@ -826,4 +866,238 @@ def sync_callers_to_csv(csv_path=None):
     except Exception as exc:
         logger.error(f"[DB] Failed to sync callers to CSV: {exc}")
         return False
+
+
+DEFAULT_KB_CATEGORIES = {
+    "wifi_issue": "Network & Connectivity",
+    "vpn_issue": "Network & Connectivity",
+    "account_locked": "Access & Identity",
+    "ad_lockout": "Access & Identity",
+    "password_reset": "Access & Identity",
+    "mfa_issue": "Access & Identity",
+    "outlook_issue": "Communication & Collaboration",
+    "teams_issue": "Communication & Collaboration",
+    "printer_issue": "Hardware & Endpoints",
+    "slow_computer": "Hardware & Endpoints",
+    "mobile_device": "Hardware & Endpoints",
+    "software_request": "System & Software",
+    "windows_update": "System & Software",
+    "fileshare_access": "System & Software",
+}
+
+DEFAULT_KB_KEYWORDS = {
+    "wifi_issue": {
+        "title": "Wi-Fi / Network Connectivity Issues",
+        "keywords_en": "wifi, wi-fi, internet, network, connection, disconnect, reconnect, offline, hotspot, signal, ethernet, lan, wlan, ssid, no internet, limited connectivity, cable, unplugged, router",
+        "keywords_ar": "واي فاي, وايفاي, انترنت, إنترنت, شبكة, اتصال, انقطاع, غير متصل, النت, الوايرلس, فصل النت, ما يشبك, كيبل الشبكة, راوتر",
+    },
+    "printer_issue": {
+        "title": "Printer / Printing Issues",
+        "keywords_en": "printer, printing, print, paper jam, spooler, scanner, copier, toner, cartridge, cannot print, driver, offline printer",
+        "keywords_ar": "طابعة, طباعة, طابعه, سكانر, ماسح, حبر, ورق, تعليق الورق, مشكلة في الطابعة, ما تطبع, طابعات, تصوير, طباعه",
+    },
+    "password_reset": {
+        "title": "Password Reset & Credential Expiry",
+        "keywords_en": "password, reset password, forgot password, change password, expired password, credentials, login failed, new password, passcode",
+        "keywords_ar": "كلمة المرور, باسوورد, باسورد, كلمة السر, نسيت كلمة السر, تغيير كلمة المرور, انتهاء كلمة السر, تعديل الباسوورد, تغيير الباسورد, نسيت الباسورد",
+    },
+    "account_locked": {
+        "title": "Domain Account Lockout / Active Directory Locked",
+        "keywords_en": "locked, lockout, account locked, disabled, access denied, locked out, ad lock, domain locked, user locked",
+        "keywords_ar": "مقفل, مغلق, الحساب مقفل, تم قفل الحساب, حسابي مقفل, بلوك, قفل الحساب, حسابي مغلق, معطل",
+    },
+    "ad_lockout": {
+        "title": "Active Directory Account Lockout Diagnostic",
+        "keywords_en": "ad lockout, active directory lockout, bad password attempts, domain controller lock",
+        "keywords_ar": "قفل الدومين, اكتيف دايركتوري, محاولات تسجيل دخول خاطئة",
+    },
+    "outlook_issue": {
+        "title": "Microsoft Outlook & Email Issues",
+        "keywords_en": "outlook, email, mail, inbox, pst, ost, send receive, exchange, mailbox full, cannot send email, not receiving emails",
+        "keywords_ar": "اوتلوك, آوتلوك, بريد, ايميل, إيميل, رسائل, صندوق الوارد, مشكلة البريد, ارسال ايميل, استقبال ايميل, الايميلات",
+    },
+    "teams_issue": {
+        "title": "Microsoft Teams & Virtual Meetings",
+        "keywords_en": "teams, microsoft teams, meeting, call, screen share, camera, microphone, mic, headset, teams meeting, teams audio",
+        "keywords_ar": "تيمز, مايكروسوفت تيمز, اجتماع, مكالمة, مايك, كاميرا, صوت, مشاركة الشاشة, ميتينج, تطبيق تيمز",
+    },
+    "vpn_issue": {
+        "title": "VPN & Remote Connectivity",
+        "keywords_en": "vpn, forticlient, cisco anyconnect, remote access, home connection, tunnel, work from home, wfh, gateway",
+        "keywords_ar": "في بي ان, الفي بي ان, اتصال عن بعد, العمل من المنزل, الربط الخارجي, ريموت اكسس, بوابة الاتصال",
+    },
+    "slow_computer": {
+        "title": "Slow Computer & System Performance",
+        "keywords_en": "slow, freezing, frozen, lag, performance, hang, stuck, high cpu, memory, sluggish, crash, rebooting, blue screen, pc slow, laptop slow",
+        "keywords_ar": "بطيء, بطء, معلق, تعليق, الجهاز بطيء, لا يستجيب, تهنيج, ثقيل, اللاب توب بطيء, الكمبيوتر معلق, بطء الجهاز",
+    },
+    "mfa_issue": {
+        "title": "Multi-Factor Authentication (MFA / 2FA) Issues",
+        "keywords_en": "mfa, 2fa, authenticator, otp, verification code, sms code, microsoft authenticator, token",
+        "keywords_ar": "التحقق الثنائي, رمز التحقق, او تي بي, تطبيق المصادقة, رمز الدخول, كود التحقق, المصادقة الثنائية",
+    },
+    "software_request": {
+        "title": "Software Installation & License Request",
+        "keywords_en": "software, install, application, license, download, setup, program, request software, install app",
+        "keywords_ar": "تثبيت برنامج, برنامج, تطبيق, ترخيص, تحميل, تنزيل برنامج, طلب برنامج, تنصيب",
+    },
+    "fileshare_access": {
+        "title": "Network File Share & Shared Folder Access",
+        "keywords_en": "file share, shared folder, drive, network drive, nas, permission, mapped drive, z drive, shared drive, folder access",
+        "keywords_ar": "مجلد مشترك, شير فولدر, صلاحيات, درايف, ملفات مشتركة, مجلدات الشبكة, مشاركة الملفات",
+    },
+    "mobile_device": {
+        "title": "Mobile Device Management (MDM / Intune)",
+        "keywords_en": "mobile, phone, iphone, android, intune, company portal, mdm, work profile, mobile email",
+        "keywords_ar": "جوال, هاتف, ايفون, اندرويد, انتيون, هاتف العمل, ايميل الجوال",
+    },
+    "windows_update": {
+        "title": "Windows Update & OS Patching",
+        "keywords_en": "update, windows update, patch, restart pending, windows 11, upgrade, cumulative update",
+        "keywords_ar": "تحديث الويندوز, ويندوز ابديت, ترقية النظام, تحديثات النظام, تحديث ويندوز",
+    },
+}
+
+
+def seed_knowledge_articles_if_empty(conn=None):
+    """
+    Seeds knowledge_articles table from existing markdown files in knowledge_base/
+    on application startup if the table is empty.
+    """
+    should_close = False
+    if conn is None:
+        conn = get_db()
+        should_close = True
+
+    try:
+        row = conn.execute("SELECT COUNT(*) as cnt FROM knowledge_articles").fetchone()
+        count = row["cnt"] if row else 0
+        if count == 0:
+            kb_dir = BASE_DIR / "knowledge_base"
+            if not kb_dir.is_dir():
+                return
+
+            now = int(time.time())
+            for file in sorted(kb_dir.glob("*.md")):
+                article_id = file.stem.lower()
+                try:
+                    content = file.read_text(encoding="utf-8")
+                except Exception as e:
+                    logger.warning(f"[DB] Error reading {file}: {e}")
+                    continue
+
+                meta = DEFAULT_KB_KEYWORDS.get(article_id, {})
+                title = meta.get("title")
+                if not title:
+                    first_line = content.splitlines()[0] if content.splitlines() else ""
+                    title = first_line.replace("Title:", "").strip() or article_id.replace("_", " ").title()
+
+                category = DEFAULT_KB_CATEGORIES.get(article_id, "General IT")
+                keywords_en = meta.get("keywords_en", "")
+                keywords_ar = meta.get("keywords_ar", "")
+
+                conn.execute(
+                    """
+                    INSERT INTO knowledge_articles (
+                        article_id, title, category, keywords_en, keywords_ar, content, active, created_by, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 1, 'system', ?, ?)
+                    """,
+                    (article_id, title, category, keywords_en, keywords_ar, content, now, now)
+                )
+
+            conn.commit()
+            logger.info(f"[DB] Seeded knowledge_articles table from {kb_dir}")
+    except Exception as exc:
+        logger.warning(f"[DB] Knowledge articles seed check failed: {exc}")
+    finally:
+        if should_close:
+            conn.close()
+
+
+def list_knowledge_articles(active_only: bool = False) -> List[RowDict]:
+    sql = "SELECT * FROM knowledge_articles"
+    params = []
+    if active_only:
+        sql += " WHERE active = 1"
+    sql += " ORDER BY category ASC, title ASC"
+    with get_db() as conn:
+        return conn.execute(sql, params).fetchall()
+
+
+def get_knowledge_article(article_id: str) -> Optional[RowDict]:
+    with get_db() as conn:
+        return conn.execute("SELECT * FROM knowledge_articles WHERE article_id = ?", (article_id,)).fetchone()
+
+
+def save_knowledge_article(
+    article_id: str,
+    title: str,
+    category: str,
+    keywords_en: str,
+    keywords_ar: str,
+    content: str,
+    active: int = 1,
+    created_by: str = "admin",
+) -> bool:
+    article_id = article_id.strip().lower().replace(" ", "_")
+    now = int(time.time())
+    with get_db() as conn:
+        existing = conn.execute("SELECT id FROM knowledge_articles WHERE article_id = ?", (article_id,)).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE knowledge_articles
+                SET title = ?, category = ?, keywords_en = ?, keywords_ar = ?, content = ?, active = ?, updated_at = ?
+                WHERE article_id = ?
+                """,
+                (title.strip(), category.strip(), keywords_en.strip(), keywords_ar.strip(), content.strip(), active, now, article_id),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO knowledge_articles (
+                    article_id, title, category, keywords_en, keywords_ar, content, active, created_by, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (article_id, title.strip(), category.strip(), keywords_en.strip(), keywords_ar.strip(), content.strip(), active, created_by, now, now),
+            )
+        conn.commit()
+
+    sync_article_to_disk(article_id, content)
+    return True
+
+
+def toggle_knowledge_article(article_id: str) -> Optional[int]:
+    now = int(time.time())
+    with get_db() as conn:
+        row = conn.execute("SELECT active FROM knowledge_articles WHERE article_id = ?", (article_id,)).fetchone()
+        if not row:
+            return None
+        new_active = 0 if row["active"] == 1 else 1
+        conn.execute(
+            "UPDATE knowledge_articles SET active = ?, updated_at = ? WHERE article_id = ?",
+            (new_active, now, article_id),
+        )
+        conn.commit()
+        return new_active
+
+
+def delete_knowledge_article(article_id: str) -> bool:
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM knowledge_articles WHERE article_id = ?", (article_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def sync_article_to_disk(article_id: str, content: str) -> bool:
+    try:
+        kb_dir = BASE_DIR / "knowledge_base"
+        kb_dir.mkdir(parents=True, exist_ok=True)
+        file_path = kb_dir / f"{article_id}.md"
+        file_path.write_text(content, encoding="utf-8")
+        return True
+    except Exception as exc:
+        logger.error(f"[DB] Error syncing article {article_id} to disk: {exc}")
+        return False
+
 

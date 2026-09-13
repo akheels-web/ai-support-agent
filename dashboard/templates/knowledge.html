@@ -1,0 +1,561 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+    <div class="page-title">
+        <h1>Knowledge Base & Voice Playbooks</h1>
+        <p>Manage autonomous IT diagnostic procedures, bilingual Arabic & English voice trigger keywords, and instant telephony reflection</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" class="btn btn-primary btn-sm" onclick="openModal('addArticleModal')">
+            <i data-lucide="plus-circle"></i> Create New Playbook
+        </button>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Total Playbooks</span>
+            <div class="stat-icon" style="color: var(--nf-navy); background: var(--nf-light-blue);">
+                <i data-lucide="book-open"></i>
+            </div>
+        </div>
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-description">Configured diagnostic playbooks</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Active in Voice AI</span>
+            <div class="stat-icon" style="color: #10B981; background: rgba(16, 185, 129, 0.12);">
+                <i data-lucide="check-circle-2"></i>
+            </div>
+        </div>
+        <div class="stat-value" style="color: #10B981;">{{ stats.active }}</div>
+        <div class="stat-description">Available for autonomous caller deflection</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Categories</span>
+            <div class="stat-icon" style="color: #8B5CF6; background: rgba(139, 92, 246, 0.12);">
+                <i data-lucide="folder-tree"></i>
+            </div>
+        </div>
+        <div class="stat-value" style="color: #8B5CF6;">{{ stats.categories_count }}</div>
+        <div class="stat-description">Operational IT domains</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Inactive / Disabled</span>
+            <div class="stat-icon" style="color: var(--muted-foreground); background: var(--secondary);">
+                <i data-lucide="pause-circle"></i>
+            </div>
+        </div>
+        <div class="stat-value" style="color: {% if stats.inactive > 0 %}#F59E0B{% else %}var(--muted-foreground){% endif %};">
+            {{ stats.inactive }}
+        </div>
+        <div class="stat-description">Excluded from AI voice matching</div>
+    </div>
+</div>
+
+<!-- Dynamic Telephony Reflection Banner -->
+<div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(to right, rgba(27, 47, 107, 0.04), rgba(43, 74, 159, 0.06)); border: 1px solid rgba(27, 47, 107, 0.15);">
+    <div class="card-body" style="padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="width: 42px; height: 42px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--nf-light-blue); color: var(--nf-navy);">
+                <i data-lucide="sparkles" style="width: 22px; height: 22px;"></i>
+            </div>
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-weight: 600; font-size: 0.95rem;">Zero-Downtime Telephony Voice AI Reflection</span>
+                    <span class="badge" style="font-size: 0.7rem; background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3);">
+                        ● Live Dynamic Sync (15s TTL)
+                    </span>
+                    <span class="badge badge-secondary" style="font-size: 0.7rem;">
+                        Bi-Directional Disk Backup (knowledge_base/*.md)
+                    </span>
+                </div>
+                <div style="font-size: 0.78rem; color: var(--muted-foreground); margin-top: 0.15rem;">
+                    Voice Assistant "Arif" dynamically queries active database playbooks and bilingual synonyms. Edits reflect automatically on incoming calls with zero daemon restarts.
+                </div>
+            </div>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--muted-foreground);">
+            Last Synced: <strong>{{ stats.last_updated }}</strong>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Toolbar -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-body" style="padding: 1rem 1.25rem;">
+        <form method="get" action="/knowledge" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 240px; position: relative;">
+                <input 
+                    type="text" 
+                    name="q" 
+                    value="{{ filters.q }}" 
+                    class="input" 
+                    placeholder="Search playbooks by title, category, keywords, or content..."
+                    style="padding-left: 2.2rem; width: 100%;"
+                >
+                <i data-lucide="search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted-foreground);"></i>
+            </div>
+
+            <div style="min-width: 180px;">
+                <select name="category" class="select" onchange="this.form.submit()">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="min-width: 130px;">
+                <select name="status" class="select" onchange="this.form.submit()">
+                    <option value="all" {% if filters.status == 'all' %}selected{% endif %}>All Statuses</option>
+                    <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Active Only</option>
+                    <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>Inactive Only</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-secondary btn-sm">
+                <i data-lucide="filter"></i> Filter
+            </button>
+
+            {% if filters.q or filters.category or filters.status != 'all' %}
+                <a href="/knowledge" class="btn btn-ghost btn-sm" title="Clear Filters">
+                    <i data-lucide="x"></i> Reset
+                </a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<!-- Playbooks Data Table -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h3 class="card-title">Configured Troubleshooting Playbooks</h3>
+            <p class="card-description">Showing {{ rows|length }} knowledge base procedures</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-container" style="overflow-x: auto;">
+            <table class="table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border); background: var(--secondary); text-align: left;">
+                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Playbook ID & Title</th>
+                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Category</th>
+                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Voice Triggers (EN / AR)</th>
+                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; text-align: center;">Status</th>
+                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Updated</th>
+                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if rows %}
+                        {% for row in rows %}
+                        <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+                            <!-- ID & Title -->
+                            <td style="padding: 0.85rem 1rem;">
+                                <div style="font-weight: 600; color: var(--foreground); display: flex; align-items: center; gap: 0.4rem;">
+                                    <span>{{ row.title }}</span>
+                                </div>
+                                <div style="font-family: monospace; font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.15rem;">
+                                    <code>{{ row.article_id }}</code>
+                                </div>
+                            </td>
+
+                            <!-- Category -->
+                            <td style="padding: 0.85rem 1rem;">
+                                <span class="badge badge-secondary" style="font-size: 0.72rem;">
+                                    {{ row.category }}
+                                </span>
+                            </td>
+
+                            <!-- Keywords -->
+                            <td style="padding: 0.85rem 1rem; max-width: 320px;">
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.25rem;">
+                                    {% for kw in row.keywords_en_list[:3] %}
+                                        <span class="badge" style="font-size: 0.68rem; background: rgba(59, 130, 246, 0.1); color: #2563EB; border: 1px solid rgba(59, 130, 246, 0.25);">
+                                            {{ kw }}
+                                        </span>
+                                    {% endfor %}
+                                    {% if row.keywords_en_list|length > 3 %}
+                                        <span class="badge badge-secondary" style="font-size: 0.65rem;" title="{{ row.keywords_en }}">
+                                            +{{ row.keywords_en_list|length - 3 }} EN
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                                    {% for kw in row.keywords_ar_list[:3] %}
+                                        <span class="badge" style="font-size: 0.68rem; background: rgba(16, 185, 129, 0.1); color: #059669; border: 1px solid rgba(16, 185, 129, 0.25);" dir="rtl">
+                                            {{ kw }}
+                                        </span>
+                                    {% endfor %}
+                                    {% if row.keywords_ar_list|length > 3 %}
+                                        <span class="badge badge-secondary" style="font-size: 0.65rem;" title="{{ row.keywords_ar }}">
+                                            +{{ row.keywords_ar_list|length - 3 }} AR
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+
+                            <!-- Status -->
+                            <td style="padding: 0.85rem 1rem; text-align: center;">
+                                {% if row.active == 1 %}
+                                    <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem;">
+                                        Active
+                                    </span>
+                                {% else %}
+                                    <span class="badge" style="background: rgba(107, 114, 128, 0.15); color: #6B7280; border: 1px solid rgba(107, 114, 128, 0.3); font-size: 0.72rem;">
+                                        Inactive
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <!-- Updated -->
+                            <td style="padding: 0.85rem 1rem; color: var(--muted-foreground); font-size: 0.78rem;">
+                                <div>{{ row.updated_at_human }}</div>
+                                <div style="font-size: 0.7rem; opacity: 0.8;">By: {{ row.created_by }}</div>
+                            </td>
+
+                            <!-- Actions -->
+                            <td style="padding: 0.85rem 1rem; text-align: right;">
+                                <div style="display: inline-flex; gap: 0.35rem; align-items: center;">
+                                    <!-- View Button -->
+                                    <button 
+                                        type="button" 
+                                        class="btn btn-ghost btn-sm" 
+                                        onclick='viewArticle({{ row|tojson }})'
+                                        title="View Full Markdown Playbook"
+                                        style="padding: 0.3rem 0.5rem;"
+                                    >
+                                        <i data-lucide="eye"></i>
+                                    </button>
+
+                                    {% if user.role == 'admin' %}
+                                    <!-- Edit Button -->
+                                    <button 
+                                        type="button" 
+                                        class="btn btn-ghost btn-sm" 
+                                        onclick='editArticle({{ row|tojson }})'
+                                        title="Edit Playbook"
+                                        style="padding: 0.3rem 0.5rem;"
+                                    >
+                                        <i data-lucide="edit-3"></i>
+                                    </button>
+
+                                    <!-- Toggle Active Button -->
+                                    <form method="post" action="/knowledge/toggle-status" style="display: inline;" onsubmit="return confirm('Toggle active state for {{ row.title }}?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="article_id" value="{{ row.article_id }}">
+                                        <button 
+                                            type="submit" 
+                                            class="btn btn-ghost btn-sm" 
+                                            title="{% if row.active == 1 %}Deactivate from AI Voice Engine{% else %}Activate in AI Voice Engine{% endif %}"
+                                            style="padding: 0.3rem 0.5rem; color: {% if row.active == 1 %}#F59E0B{% else %}#10B981{% endif %};"
+                                        >
+                                            <i data-lucide="{% if row.active == 1 %}power-off{% else %}power{% endif %}"></i>
+                                        </button>
+                                    </form>
+
+                                    <!-- Delete Button -->
+                                    <form method="post" action="/knowledge/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete playbook \'{{ row.article_id }}\'? This cannot be undone.');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="article_id" value="{{ row.article_id }}">
+                                        <button 
+                                            type="submit" 
+                                            class="btn btn-ghost btn-sm" 
+                                            title="Delete Playbook"
+                                            style="padding: 0.3rem 0.5rem; color: var(--nf-crimson);"
+                                        >
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 2.5rem; color: var(--muted-foreground);">
+                                <i data-lucide="inbox" style="width: 36px; height: 36px; margin: 0 auto 0.5rem; display: block; opacity: 0.4;"></i>
+                                No knowledge base playbooks match the specified filters.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL 1: Create New Playbook               -->
+<!-- ========================================== -->
+<div id="addArticleModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header-title">
+                <h3 class="card-title">Create IT Troubleshooting Playbook</h3>
+                <p class="card-description">Add a verified procedural guide for Arif's autonomous caller deflection</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('addArticleModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/knowledge/add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Playbook ID (Unique Slug) *</label>
+                        <input type="text" name="article_id" class="input" placeholder="e.g. pulse_vpn or oracle_erp" required pattern="^[a-zA-Z0-9_-]+$">
+                        <small style="font-size: 0.7rem; color: var(--muted-foreground);">Letters, numbers, underscores e.g. <code>oracle_erp</code></small>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Category *</label>
+                        <input type="text" name="category" class="input" list="categoriesList" placeholder="e.g. Access & Identity" required>
+                        <datalist id="categoriesList">
+                            {% for c in categories %}
+                                <option value="{{ c }}">
+                            {% endfor %}
+                            <option value="Access & Identity">
+                            <option value="Network & Connectivity">
+                            <option value="Hardware & Endpoints">
+                            <option value="Communication & Collaboration">
+                            <option value="System & Software">
+                        </datalist>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Playbook Display Title *</label>
+                    <input type="text" name="title" class="input" placeholder="e.g. Oracle ERP Account Lock & Password Reset" required>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">English Voice Triggers & Synonyms</label>
+                    <input type="text" name="keywords_en" class="input" placeholder="e.g. oracle, erp, erp password, oracle lockout, database login">
+                    <small style="font-size: 0.7rem; color: var(--muted-foreground);">Comma-separated keywords matched against caller spoken inquiries</small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Arabic Voice Triggers & Synonyms (الكلمات الدلالية الصوتية)</label>
+                    <input type="text" name="keywords_ar" class="input" dir="rtl" placeholder="مثال: اوراكل, نظام اوراكل, قفل الحساب, باسوورد اوراكل, تعليق النظام">
+                    <small style="font-size: 0.7rem; color: var(--muted-foreground);">Gulf & White Arabic terms spoken by callers across branches</small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Playbook Content (Markdown) *</label>
+                    <textarea name="content" class="input" rows="8" style="font-family: monospace; font-size: 0.82rem; resize: vertical;" required placeholder="# Troubleshooting Steps&#10;1. Ask user if error says 'ORA-28000: the account is locked'.&#10;2. Direct user to Self-Service Portal at https://identity.nationalfinance.om.&#10;3. If urgent Sev-1, escalate to Oracle DBA Team."></textarea>
+                    <small style="font-size: 0.7rem; color: var(--muted-foreground);">Provide concise, step-by-step diagnostic instructions Arif recites one by one to callers.</small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                        <input type="checkbox" name="active" value="1" checked>
+                        <span>Activate immediately in AI Voice Assistant</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('addArticleModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="plus-circle"></i> Save & Sync Playbook
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL 2: Edit Playbook                     -->
+<!-- ========================================== -->
+<div id="editArticleModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header-title">
+                <h3 class="card-title">Edit Troubleshooting Playbook</h3>
+                <p class="card-description">Update diagnostic steps, keywords, or operational category</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('editArticleModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/knowledge/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="article_id" id="edit_article_id_hidden">
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Playbook ID</label>
+                        <input type="text" id="edit_article_id_display" class="input" disabled style="opacity: 0.7; background: var(--secondary);">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Category *</label>
+                        <input type="text" name="category" id="edit_category" class="input" list="categoriesList" required>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Playbook Display Title *</label>
+                    <input type="text" name="title" id="edit_title" class="input" required>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">English Voice Triggers & Synonyms</label>
+                    <input type="text" name="keywords_en" id="edit_keywords_en" class="input">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Arabic Voice Triggers & Synonyms (الكلمات الدلالية الصوتية)</label>
+                    <input type="text" name="keywords_ar" id="edit_keywords_ar" class="input" dir="rtl">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Playbook Content (Markdown) *</label>
+                    <textarea name="content" id="edit_content" class="input" rows="9" style="font-family: monospace; font-size: 0.82rem; resize: vertical;" required></textarea>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+                        <input type="checkbox" name="active" id="edit_active" value="1">
+                        <span>Active in Voice AI Engine</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('editArticleModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="check"></i> Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL 3: View Full Markdown Playbook       -->
+<!-- ========================================== -->
+<div id="viewArticleModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 680px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 class="card-title" id="view_title">Playbook Preview</h3>
+                <p class="card-description" id="view_subtitle">Knowledge Base Article</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('viewArticleModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
+                <span class="badge badge-secondary" id="view_category">Category</span>
+                <span class="badge" id="view_status_badge">Status</span>
+            </div>
+
+            <div style="margin-bottom: 0.75rem;">
+                <strong style="font-size: 0.75rem; color: var(--muted-foreground); text-transform: uppercase;">Keywords:</strong>
+                <div id="view_keywords" style="font-size: 0.8rem; margin-top: 0.25rem;"></div>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <strong style="font-size: 0.75rem; color: var(--muted-foreground); text-transform: uppercase;">Markdown Content:</strong>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="copyViewContent()" style="font-size: 0.72rem; padding: 0.2rem 0.4rem;">
+                        <i data-lucide="copy"></i> Copy
+                    </button>
+                </div>
+                <pre id="view_content" style="background: var(--secondary); padding: 1rem; border-radius: 6px; font-family: monospace; font-size: 0.8rem; white-space: pre-wrap; overflow-x: auto; max-height: 350px; border: 1px solid var(--border);"></pre>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end;">
+                <button type="button" class="btn btn-primary" onclick="closeModal('viewArticleModal')">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+
+// Close modals on backdrop click
+window.addEventListener('click', function(e) {
+    document.querySelectorAll('.modal-backdrop').forEach(modal => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+});
+
+function editArticle(article) {
+    document.getElementById('edit_article_id_hidden').value = article.article_id || '';
+    document.getElementById('edit_article_id_display').value = article.article_id || '';
+    document.getElementById('edit_title').value = article.title || '';
+    document.getElementById('edit_category').value = article.category || 'General IT';
+    document.getElementById('edit_keywords_en').value = article.keywords_en || '';
+    document.getElementById('edit_keywords_ar').value = article.keywords_ar || '';
+    document.getElementById('edit_content').value = article.content || '';
+    document.getElementById('edit_active').checked = (article.active === 1 || article.active === true);
+    openModal('editArticleModal');
+}
+
+function viewArticle(article) {
+    document.getElementById('view_title').innerText = article.title || article.article_id;
+    document.getElementById('view_subtitle').innerText = 'Playbook ID: ' + article.article_id;
+    document.getElementById('view_category').innerText = article.category || 'General IT';
+    
+    const badge = document.getElementById('view_status_badge');
+    if (article.active === 1 || article.active === true) {
+        badge.innerText = 'Active in AI Engine';
+        badge.style.background = 'rgba(16, 185, 129, 0.15)';
+        badge.style.color = '#059669';
+        badge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+    } else {
+        badge.innerText = 'Inactive';
+        badge.style.background = 'rgba(107, 114, 128, 0.15)';
+        badge.style.color = '#6B7280';
+        badge.style.border = '1px solid rgba(107, 114, 128, 0.3)';
+    }
+
+    const kwBox = document.getElementById('view_keywords');
+    kwBox.innerHTML = `
+        <div style="margin-bottom: 0.2rem;"><strong style="color: #2563EB;">EN:</strong> ${article.keywords_en || 'None'}</div>
+        <div dir="rtl" style="text-align: right;"><strong style="color: #059669;">AR:</strong> ${article.keywords_ar || 'لا يوجد'}</div>
+    `;
+
+    document.getElementById('view_content').innerText = article.content || '';
+    openModal('viewArticleModal');
+}
+
+function copyViewContent() {
+    const text = document.getElementById('view_content').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Playbook content copied to clipboard.');
+    });
+}
+</script>
+{% endblock %}

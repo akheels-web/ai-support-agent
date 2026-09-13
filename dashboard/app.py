@@ -1995,10 +1995,277 @@ def activate_prompt(request: Request, prompt_id: int = Form(...), csrf_token: st
     save_setting(conn, "system_prompt", row["system_prompt"])
     conn.commit()
     conn.close()
-    audit(user["username"], "activate_prompt", "prompt", str(prompt_id))
-    return RedirectResponse("/prompts", status_code=302)
+# -----------------------------------------------------------------------------
+# Knowledge Base Management & Playbook Repository
+# -----------------------------------------------------------------------------
+
+@app.get("/knowledge", response_class=HTMLResponse)
+def knowledge_page(
+    request: Request,
+    category: str = "",
+    status: str = "all",
+    q: str = "",
+):
+    user = require_roles(request, ["admin", "user", "quality_reviewer"])
+
+    all_articles = app_db.list_knowledge_articles(active_only=False)
+
+    # Compute Statistics
+    total_articles = len(all_articles)
+    active_articles = sum(1 for a in all_articles if a.get("active") == 1)
+    inactive_articles = total_articles - active_articles
+    unique_categories = sorted(list({a.get("category", "General IT") for a in all_articles if a.get("category")}))
+    categories_count = len(unique_categories)
+
+    latest_update = max([a.get("updated_at") or 0 for a in all_articles], default=0)
+    last_updated_human = human_time(latest_update) if latest_update else "Never"
+
+    # Filter articles
+    filtered = []
+    q_clean = q.strip().lower()
+    for a in all_articles:
+        if category and a.get("category") != category:
+            continue
+        if status == "active" and a.get("active") != 1:
+            continue
+        if status == "inactive" and a.get("active") != 0:
+            continue
+        if q_clean:
+            haystack = f"{a.get('article_id', '')} {a.get('title', '')} {a.get('category', '')} {a.get('keywords_en', '')} {a.get('keywords_ar', '')} {a.get('content', '')}".lower()
+            if q_clean not in haystack:
+                continue
+
+        raw_en = a.get("keywords_en") or ""
+        raw_ar = a.get("keywords_ar") or ""
+        kw_en_list = [k.strip() for k in raw_en.split(",") if k.strip()] if isinstance(raw_en, str) else list(raw_en)
+        kw_ar_list = [k.strip() for k in raw_ar.split(",") if k.strip()] if isinstance(raw_ar, str) else list(raw_ar)
+
+        filtered.append({
+            "id": a.get("id"),
+            "article_id": a.get("article_id"),
+            "title": a.get("title"),
+            "category": a.get("category", "General IT"),
+            "keywords_en": raw_en,
+            "keywords_ar": raw_ar,
+            "keywords_en_list": kw_en_list,
+            "keywords_ar_list": kw_ar_list,
+            "content": a.get("content", ""),
+            "active": a.get("active", 1),
+            "created_by": a.get("created_by", "system"),
+            "updated_at": a.get("updated_at"),
+            "updated_at_human": human_time(a.get("updated_at")),
+        })
+
+    stats = {
+        "total": total_articles,
+        "active": active_articles,
+        "inactive": inactive_articles,
+        "categories_count": categories_count,
+        "last_updated": last_updated_human,
+    }
+
+    filters = {
+        "category": category,
+        "status": status,
+        "q": q,
+    }
+
+    return render_template(
+        request, "knowledge.html",
+        {
+            "title": "Knowledge Base Management",
+            "active_page": "knowledge",
+            "user": user,
+            "rows": filtered,
+            "stats": stats,
+            "categories": unique_categories,
+            "filters": filters,
+        }
+    )
+
+
+@app.get("/api/knowledge")
+def api_list_knowledge(request: Request, active_only: bool = False):
+    require_roles(request, ["admin", "user", "quality_reviewer"])
+    articles = app_db.list_knowledge_articles(active_only=active_only)
+    result = []
+    for a in articles:
+        result.append({
+            "article_id": a.get("article_id"),
+            "title": a.get("title"),
+            "category": a.get("category"),
+            "keywords_en": a.get("keywords_en"),
+            "keywords_ar": a.get("keywords_ar"),
+            "active": a.get("active"),
+            "updated_at": a.get("updated_at"),
+            "updated_at_human": human_time(a.get("updated_at")),
+        })
+    return JSONResponse(result)
+
+
+@app.get("/api/knowledge/{article_id}")
+def api_get_knowledge_article(request: Request, article_id: str):
+    require_roles(request, ["admin", "user", "quality_reviewer"])
+    article = app_db.get_knowledge_article(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail=f"Knowledge article '{article_id}' not found")
+    return JSONResponse({
+        "id": article.get("id"),
+        "article_id": article.get("article_id"),
+        "title": article.get("title"),
+        "category": article.get("category"),
+        "keywords_en": article.get("keywords_en"),
+        "keywords_ar": article.get("keywords_ar"),
+        "content": article.get("content"),
+        "active": article.get("active"),
+        "created_by": article.get("created_by"),
+        "updated_at": article.get("updated_at"),
+        "updated_at_human": human_time(article.get("updated_at")),
+    })
+
+
+@app.post("/knowledge/add")
+def add_knowledge_article_route(
+    request: Request,
+    article_id: str = Form(...),
+    title: str = Form(...),
+    category: str = Form("General IT"),
+    keywords_en: str = Form(""),
+    keywords_ar: str = Form(""),
+    content: str = Form(...),
+    active: str = Form("1"),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    clean_id = article_id.strip().lower().replace(" ", "_")
+    if not clean_id or not re.match(r"^[a-z0-9_-]+$", clean_id):
+        raise HTTPException(status_code=400, detail="Invalid article ID. Use letters, numbers, hyphens and underscores.")
+    if not title.strip():
+        raise HTTPException(status_code=400, detail="Title is required")
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="Content is required")
+
+    active_val = 1 if active in ("1", "true", "on") else 0
+
+    app_db.save_knowledge_article(
+        article_id=clean_id,
+        title=title.strip(),
+        category=category.strip() or "General IT",
+        keywords_en=keywords_en.strip(),
+        keywords_ar=keywords_ar.strip(),
+        content=content.strip(),
+        active=active_val,
+        created_by=admin["username"],
+    )
+
+    try:
+        from app.openai_realtime_bridge import invalidate_knowledge_cache
+        invalidate_knowledge_cache()
+    except Exception:
+        pass
+
+    audit(admin["username"], "add_knowledge_article", "knowledge_article", clean_id)
+    return RedirectResponse("/knowledge", status_code=302)
+
+
+@app.post("/knowledge/update")
+def update_knowledge_article_route(
+    request: Request,
+    article_id: str = Form(...),
+    title: str = Form(...),
+    category: str = Form("General IT"),
+    keywords_en: str = Form(""),
+    keywords_ar: str = Form(""),
+    content: str = Form(...),
+    active: str = Form(None),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    clean_id = article_id.strip().lower().replace(" ", "_")
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="Article ID is required")
+    if not title.strip():
+        raise HTTPException(status_code=400, detail="Title is required")
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="Content is required")
+
+    active_val = 1 if active in ("1", "true", "on") else 0
+
+    app_db.save_knowledge_article(
+        article_id=clean_id,
+        title=title.strip(),
+        category=category.strip() or "General IT",
+        keywords_en=keywords_en.strip(),
+        keywords_ar=keywords_ar.strip(),
+        content=content.strip(),
+        active=active_val,
+        created_by=admin["username"],
+    )
+
+    try:
+        from app.openai_realtime_bridge import invalidate_knowledge_cache
+        invalidate_knowledge_cache()
+    except Exception:
+        pass
+
+    audit(admin["username"], "update_knowledge_article", "knowledge_article", clean_id)
+    return RedirectResponse("/knowledge", status_code=302)
+
+
+@app.post("/knowledge/toggle-status")
+def toggle_knowledge_status_route(
+    request: Request,
+    article_id: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    clean_id = article_id.strip().lower()
+    new_active = app_db.toggle_knowledge_article(clean_id)
+    if new_active is None:
+        raise HTTPException(status_code=404, detail=f"Article '{clean_id}' not found")
+
+    try:
+        from app.openai_realtime_bridge import invalidate_knowledge_cache
+        invalidate_knowledge_cache()
+    except Exception:
+        pass
+
+    action = "activate_knowledge_article" if new_active == 1 else "deactivate_knowledge_article"
+    audit(admin["username"], action, "knowledge_article", clean_id)
+    return RedirectResponse("/knowledge", status_code=302)
+
+
+@app.post("/knowledge/delete")
+def delete_knowledge_article_route(
+    request: Request,
+    article_id: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    clean_id = article_id.strip().lower()
+    deleted = app_db.delete_knowledge_article(clean_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Article '{clean_id}' not found")
+
+    try:
+        from app.openai_realtime_bridge import invalidate_knowledge_cache
+        invalidate_knowledge_cache()
+    except Exception:
+        pass
+
+    audit(admin["username"], "delete_knowledge_article", "knowledge_article", clean_id)
+    return RedirectResponse("/knowledge", status_code=302)
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("dashboard.app:app", host=DASHBOARD_HOST, port=DASHBOARD_PORT, reload=False)
+

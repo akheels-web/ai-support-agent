@@ -175,3 +175,21 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - Database schema migrated: added `transcript TEXT` to `calls` table in both PostgreSQL 16 and SQLite WAL with auto-migration via `_ensure_column`.
   - On call completion, generates a structured IT summary and persists full transcript to the database.
   - Slide-out Call Inspection Drawer in `/calls` renders styled conversation bubbles with speaker avatars, timestamps, and turn counters.
+
+## 16. Dynamic Knowledge Base Management & Zero-Downtime Telephony Reflection
+- **Enterprise Database Playbook Repository (`app/db.py`)**:
+  - Migrated from static markdown-only storage to `knowledge_articles` table supporting both PostgreSQL 16 and SQLite WAL with composite indexing on `article_id` (unique), `active`, and `category`.
+  - Automatically seeds from `knowledge_base/*.md` on first boot with categories and rich bilingual (Arabic & English) voice trigger synonyms.
+  - Bi-directional synchronization: updating or creating an article in the UI automatically dumps content to `knowledge_base/<article_id>.md` for Git version control and file-based backups.
+  - CRUD & status helpers: `list_knowledge_articles()`, `get_knowledge_article()`, `save_knowledge_article()`, `toggle_knowledge_article()`, and `delete_knowledge_article()`.
+- **Zero-Downtime Voice Reflection (`app/openai_realtime_bridge.py`)**:
+  - `get_active_knowledge_articles()` dynamically streams active playbooks from the database with an in-memory 15-second TTL cache (`_KB_CACHE`).
+  - Allows administrators to add, edit, or toggle troubleshooting playbooks in the dashboard with instant live reflection on incoming telephony calls without restarting the WebSocket bridge daemon or interrupting active calls.
+  - Multi-factor semantic scoring evaluates query against article slug, title, English voice trigger tokens, Gulf/Omani Arabic voice triggers, and markdown content overlap.
+- **Executive Operations UI & REST Endpoints (`dashboard/app.py`, `/knowledge`)**:
+  - KPI metric cards: Total Playbooks, Active in Voice AI, Operational Categories, Inactive/Disabled.
+  - Search toolbar with real-time text query, category filtering, and active/inactive status switches.
+  - Full CRUD modal dialogs: Create New Playbook, Edit Playbook, and View Markdown Preview with copy button.
+  - One-click active status toggle button (`POST /knowledge/toggle-status`) and deletion with tamper-evident audit logging (`audit_logs` hash chain).
+  - Navigation link added under Administration in `dashboard/templates/base.html`.
+

@@ -257,9 +257,87 @@ def normalize_text_for_search(text: str) -> str:
     return " ".join(t.split())
 
 
+_KB_CACHE = {}
+_KB_CACHE_TIMESTAMP = 0
+_KB_CACHE_TTL = 15  # Refresh every 15 seconds from DB for instant reflection without daemon restart
+
+
+def invalidate_knowledge_cache():
+    """Forces cache refresh on next request."""
+    global _KB_CACHE_TIMESTAMP
+    _KB_CACHE_TIMESTAMP = 0
+
+
+def get_active_knowledge_articles() -> dict:
+    """
+    Returns active knowledge base articles from enterprise database (knowledge_articles).
+    Cached for 15 seconds to ensure near-instant reflection of admin edits without daemon restart,
+    while avoiding database connection pressure during real-time voice streaming.
+    Falls back to file-based KNOWLEDGE_BASE and KB_METADATA if DB query fails or table is empty.
+    """
+    global _KB_CACHE, _KB_CACHE_TIMESTAMP
+    now = time.time()
+    if _KB_CACHE and (now - _KB_CACHE_TIMESTAMP < _KB_CACHE_TTL):
+        return _KB_CACHE
+
+    try:
+        from app.db import list_knowledge_articles
+        db_articles = list_knowledge_articles(active_only=True)
+        if db_articles:
+            new_cache = {}
+            for a in db_articles:
+                aid = str(a.get("article_id") or "").strip().lower()
+                if not aid:
+                    continue
+                raw_en = a.get("keywords_en") or ""
+                raw_ar = a.get("keywords_ar") or ""
+                kw_en = [k.strip() for k in raw_en.split(",") if k.strip()] if isinstance(raw_en, str) else list(raw_en)
+                kw_ar = [k.strip() for k in raw_ar.split(",") if k.strip()] if isinstance(raw_ar, str) else list(raw_ar)
+
+                new_cache[aid] = {
+                    "article_id": aid,
+                    "title": a.get("title") or aid.replace("_", " ").title(),
+                    "category": a.get("category") or "General IT",
+                    "keywords_en": kw_en,
+                    "keywords_ar": kw_ar,
+                    "content": a.get("content") or "",
+                }
+            if new_cache:
+                _KB_CACHE = new_cache
+                _KB_CACHE_TIMESTAMP = now
+                return _KB_CACHE
+    except Exception as exc:
+        print(f"[KB] Error loading active articles from DB: {exc}")
+
+    # Fallback to local files & KB_METADATA
+    if not _KB_CACHE:
+        fallback_cache = {}
+        for aid, content in KNOWLEDGE_BASE.items():
+            meta = KB_METADATA.get(aid, {})
+            fallback_cache[aid] = {
+                "article_id": aid,
+                "title": meta.get("title", aid.replace("_", " ").title()),
+                "category": "General IT",
+                "keywords_en": meta.get("keywords_en", []),
+                "keywords_ar": meta.get("keywords_ar", []),
+                "content": content,
+            }
+        _KB_CACHE = fallback_cache
+        _KB_CACHE_TIMESTAMP = now
+
+    return _KB_CACHE
+
+
 def search_knowledge_base(query: str) -> dict:
     if not query:
         return {"found": False, "message": "Query was empty."}
+
+    articles = get_active_knowledge_articles()
+    if not articles:
+        return {
+            "found": False,
+            "message": "No active knowledge base playbooks available."
+        }
 
     norm_query = normalize_text_for_search(query)
     tokens = set(norm_query.split())
@@ -267,7 +345,7 @@ def search_knowledge_base(query: str) -> dict:
     best_score = 0
     best_id = None
 
-    for kb_id, content in KNOWLEDGE_BASE.items():
+    for kb_id, data in articles.items():
         score = 0
         norm_id = normalize_text_for_search(kb_id.replace("_", " "))
 
@@ -275,14 +353,13 @@ def search_knowledge_base(query: str) -> dict:
         if norm_id in norm_query or norm_query in norm_id:
             score += 60
 
-        meta = KB_METADATA.get(kb_id, {})
-        title = meta.get("title", "")
+        title = data.get("title", "")
         norm_title = normalize_text_for_search(title)
         if norm_query in norm_title:
             score += 50
 
         # 2. Match keywords and synonyms (both English and Arabic)
-        all_kw = meta.get("keywords_en", []) + meta.get("keywords_ar", [])
+        all_kw = data.get("keywords_en", []) + data.get("keywords_ar", [])
         for kw in all_kw:
             norm_kw = normalize_text_for_search(kw)
             if norm_kw and (norm_kw in norm_query or norm_query in norm_kw):
@@ -294,6 +371,7 @@ def search_knowledge_base(query: str) -> dict:
                     score += len(common) * 20
 
         # 3. Content token overlap
+        content = data.get("content", "")
         norm_content = normalize_text_for_search(content[:600])
         for token in tokens:
             if len(token) > 2 and token in norm_content:
@@ -305,9 +383,15 @@ def search_knowledge_base(query: str) -> dict:
 
     # Fallback substring scan
     if best_score < 25:
-        for k, v in KNOWLEDGE_BASE.items():
+        for k, data in articles.items():
             if query.strip().lower() in k or k in query.strip().lower():
-                return {"found": True, "playbook_id": k, "playbook": v[:1200], "score": 25}
+                return {
+                    "found": True,
+                    "playbook_id": k,
+                    "title": data.get("title", k),
+                    "playbook": data.get("content", "")[:1200],
+                    "score": 25,
+                }
         return {
             "found": False,
             "message": "No specific local playbook found. Use standard IT troubleshooting questions."
@@ -316,8 +400,9 @@ def search_knowledge_base(query: str) -> dict:
     return {
         "found": True,
         "playbook_id": best_id,
-        "playbook": KNOWLEDGE_BASE[best_id][:1200],
-        "score": best_score
+        "title": articles[best_id].get("title", best_id),
+        "playbook": articles[best_id].get("content", "")[:1200],
+        "score": best_score,
     }
 
 SYSTEM_PROMPT = """
