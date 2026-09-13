@@ -221,5 +221,24 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - Replaced static `@lru_cache(maxsize=1)` with 15-second TTL in-memory cache (`_USERS_CACHE_TTL = 15.0`).
   - Caller roster additions, offboarding deactivations, Arabic phonetic aliases, and VIP tier changes made in the dashboard (:8090) or AD sync worker automatically reflect in the voice bridge (:8765) within 15 seconds without requiring daemon restarts.
 
+## 19. Customer Call Testing Scenarios & Quality Assurance Standard
+- **`CALL_TESTING_SCENARIOS_GUIDE.md`**: Complete, customer-facing operational runbook detailing 14 distinct test scenarios:
+  1. *FCR Self-Service Deflection (Safe Mode Outlook, digit-by-digit recitation)*
+  2. *Unresolved Diagnostic Escalation & Agent Queue Transfer (Arabic, Queue 7001)*
+  3. *Human Agent Busy / Empty Queue Graceful Recovery -> Scheduled Callback*
+  4. *C-Suite Executive Automatic CLI Fast-Track (P0_EXECUTIVE - CEO/CFO, Queue 7002)*
+  5. *Director Priority VIP-Assisted Service (P1_VIP - IT Director)*
+  6. *In-Band Telephone Dialpad (DTMF) Fallback for Noisy Environments*
+  7. *Spoken Gulf & Omani Arabic Compound Numerals Normalization*
+  8. *Physical Hardware Request & Department Manager Approval Governance*
+  9. *Sev-1 Critical Emergency Outage Escalation (Queue 7003)*
+  10. *Existing Ticket Status Inquiry (`check_ticket_status`)*
+  11. *Digit-by-Digit Reference Repetition (`repeat_ticket_number`)*
+  12. *Deterministic AI Scope & Quality Gate Rejection (Customer Loans / Vague Input)*
+  13. *Deactivated / Terminated Employee Offboarding Security Gate*
+  14. *Dynamic Knowledge Base Zero-Downtime Telephony Reflection*
+- Outlines exact spoken test phrases, expected audio outputs, Asterisk AMI channel variables, Frappe Helpdesk ticket statuses, and dashboard inspection drawer telemetry.
+
+
 
 
