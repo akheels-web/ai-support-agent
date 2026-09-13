@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, Request, Form, HTTPException, Response
+from fastapi import FastAPI, Request, Form, HTTPException, Response, File, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1476,6 +1476,399 @@ def reset_user_password(
     audit(admin["username"], "reset_password", "user", str(user_id))
     log_security_event("admin_reset_user_password", client_ip, f"admin={admin['username']}, target_id={user_id}")
     return RedirectResponse("/users", status_code=302)
+
+
+# -----------------------------------------------------------------------------
+# Caller Directory & Telephony VIP Roster
+# -----------------------------------------------------------------------------
+
+@app.get("/callers", response_class=HTMLResponse)
+def callers_page(request: Request):
+    user = require_roles(request, ["admin"])
+
+    q = request.query_params.get("q", "").strip()
+    tier_filter = request.query_params.get("tier", "ALL").strip()
+    status_filter = request.query_params.get("status", "ALL").strip()
+    dept_filter = request.query_params.get("department", "ALL").strip()
+
+    conn = db()
+
+    # Base query for filtered rows
+    sql = "SELECT * FROM callers WHERE 1=1"
+    params = []
+
+    if q:
+        sql += """
+        AND (
+            employee_id LIKE ? OR name LIKE ? OR aliases LIKE ?
+            OR phone LIKE ? OR email LIKE ? OR role LIKE ?
+        )
+        """
+        like = f"%{q}%"
+        params.extend([like, like, like, like, like, like])
+
+    if tier_filter != "ALL":
+        sql += " AND tier = ?"
+        params.append(tier_filter)
+
+    if status_filter == "active":
+        sql += " AND active = 1"
+    elif status_filter == "inactive":
+        sql += " AND active = 0"
+
+    if dept_filter != "ALL":
+        sql += " AND department = ?"
+        params.append(dept_filter)
+
+    sql += " ORDER BY id ASC"
+    rows = conn.execute(sql, params).fetchall()
+
+    # Aggregate telemetry counters from full dataset
+    all_callers = conn.execute("SELECT tier, active, department FROM callers").fetchall()
+    conn.close()
+
+    total_count = len(all_callers)
+    active_count = sum(1 for c in all_callers if c["active"] == 1)
+    inactive_count = total_count - active_count
+    vip_count = sum(1 for c in all_callers if (c["tier"] in ("P0_EXECUTIVE", "P1_VIP") and c["active"] == 1))
+
+    departments = sorted(list(set(c["department"] for c in all_callers if c["department"])))
+
+    # Process aliases for display as pill tags
+    formatted_rows = []
+    for r in rows:
+        aliases_list = [a.strip() for a in (r["aliases"] or "").split("|") if a.strip()]
+        formatted_rows.append({
+            "id": r["id"],
+            "employee_id": r["employee_id"],
+            "name": r["name"],
+            "aliases": aliases_list,
+            "raw_aliases": r["aliases"] or "",
+            "email": r["email"] or "",
+            "phone": r["phone"] or "",
+            "department": r["department"] or "",
+            "role": r["role"] or "Employee",
+            "tier": r["tier"] or "STANDARD",
+            "vip": bool(r["vip"]),
+            "active": r["active"],
+            "source": r["source"] or "manual",
+        })
+
+    stats = {
+        "total": total_count,
+        "active": active_count,
+        "vip": vip_count,
+        "inactive": inactive_count,
+    }
+
+    filters = {
+        "q": q,
+        "tier": tier_filter,
+        "status": status_filter,
+        "department": dept_filter,
+    }
+
+    return render_template(
+        request, "callers.html",
+        {
+            "title": "Caller Directory",
+            "active_page": "callers",
+            "user": user,
+            "rows": formatted_rows,
+            "stats": stats,
+            "departments": departments,
+            "filters": filters,
+        }
+    )
+
+
+@app.post("/callers/add")
+def add_caller(
+    request: Request,
+    employee_id: str = Form(...),
+    name: str = Form(...),
+    aliases: str = Form(""),
+    email: str = Form(""),
+    phone: str = Form(""),
+    department: str = Form(""),
+    role: str = Form("Employee"),
+    tier: str = Form("STANDARD"),
+    active: str = Form("1"),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    employee_id = employee_id.strip()
+    name = name.strip()
+    if not employee_id or not name:
+        raise HTTPException(status_code=400, detail="Employee ID and Name are required")
+
+    if tier not in ["STANDARD", "P1_VIP", "P0_EXECUTIVE"]:
+        raise HTTPException(status_code=400, detail="Invalid tier")
+
+    vip = 1 if tier in ("P0_EXECUTIVE", "P1_VIP") else 0
+    active_val = 1 if active in ("1", "true", "on") else 0
+    now = int(time.time())
+
+    conn = db()
+    try:
+        conn.execute(
+            """
+            INSERT INTO callers (
+                employee_id, name, aliases, email, phone,
+                department, role, vip, tier, active, source, updated_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                employee_id, name, aliases.strip(), email.strip(), phone.strip(),
+                department.strip(), role.strip() or "Employee", vip, tier, active_val,
+                "manual", now, now
+            ),
+        )
+        conn.commit()
+    except (sqlite3.IntegrityError, Exception):
+        conn.close()
+        raise HTTPException(status_code=400, detail="Employee ID already exists in directory")
+    conn.close()
+
+    app_db.sync_callers_to_csv()
+    try:
+        from app.verify import clear_cache
+        clear_cache()
+    except Exception:
+        pass
+
+    audit(admin["username"], "add_caller", "caller", employee_id)
+    return RedirectResponse("/callers", status_code=302)
+
+
+@app.post("/callers/update")
+def update_caller(
+    request: Request,
+    caller_id: int = Form(...),
+    name: str = Form(...),
+    aliases: str = Form(""),
+    email: str = Form(""),
+    phone: str = Form(""),
+    department: str = Form(""),
+    role: str = Form("Employee"),
+    tier: str = Form("STANDARD"),
+    active: str = Form(None),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    name = name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    if tier not in ["STANDARD", "P1_VIP", "P0_EXECUTIVE"]:
+        raise HTTPException(status_code=400, detail="Invalid tier")
+
+    vip = 1 if tier in ("P0_EXECUTIVE", "P1_VIP") else 0
+    active_val = 1 if active == "1" else 0
+    now = int(time.time())
+
+    conn = db()
+    conn.execute(
+        """
+        UPDATE callers
+        SET name=?, aliases=?, email=?, phone=?, department=?, role=?, vip=?, tier=?, active=?, updated_at=?
+        WHERE id=?
+        """,
+        (
+            name, aliases.strip(), email.strip(), phone.strip(),
+            department.strip(), role.strip() or "Employee", vip, tier, active_val, now, caller_id
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    app_db.sync_callers_to_csv()
+    try:
+        from app.verify import clear_cache
+        clear_cache()
+    except Exception:
+        pass
+
+    audit(admin["username"], "update_caller", "caller", str(caller_id))
+    return RedirectResponse("/callers", status_code=302)
+
+
+@app.post("/callers/toggle-status")
+def toggle_caller_status(
+    request: Request,
+    caller_id: int = Form(...),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    conn = db()
+    target = conn.execute("SELECT id, employee_id, active FROM callers WHERE id=?", (caller_id,)).fetchone()
+    if not target:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Caller record not found")
+
+    new_status = 0 if target["active"] == 1 else 1
+    now = int(time.time())
+    conn.execute("UPDATE callers SET active=?, updated_at=? WHERE id=?", (new_status, now, caller_id))
+    conn.commit()
+    conn.close()
+
+    app_db.sync_callers_to_csv()
+    try:
+        from app.verify import clear_cache
+        clear_cache()
+    except Exception:
+        pass
+
+    action = "offboard_caller" if new_status == 0 else "activate_caller"
+    audit(admin["username"], action, "caller", target["employee_id"])
+    return RedirectResponse("/callers", status_code=302)
+
+
+@app.post("/callers/delete")
+def delete_caller(
+    request: Request,
+    caller_id: int = Form(...),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    conn = db()
+    target = conn.execute("SELECT id, employee_id FROM callers WHERE id=?", (caller_id,)).fetchone()
+    if target:
+        conn.execute("DELETE FROM callers WHERE id=?", (caller_id,))
+        conn.commit()
+    conn.close()
+
+    app_db.sync_callers_to_csv()
+    try:
+        from app.verify import clear_cache
+        clear_cache()
+    except Exception:
+        pass
+
+    if target:
+        audit(admin["username"], "delete_caller", "caller", target["employee_id"])
+
+    return RedirectResponse("/callers", status_code=302)
+
+
+@app.get("/callers/export")
+def export_callers(request: Request):
+    require_roles(request, ["admin"])
+
+    conn = db()
+    rows = conn.execute(
+        "SELECT employee_id, name, aliases, email, phone, department, vip, role, tier, active FROM callers ORDER BY id ASC"
+    ).fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["employee_id", "name", "aliases", "email", "phone", "department", "vip", "role", "tier", "active"])
+    for r in rows:
+        writer.writerow([
+            r["employee_id"],
+            r["name"],
+            r["aliases"] or "",
+            r["email"] or "",
+            r["phone"] or "",
+            r["department"] or "",
+            "true" if r["vip"] else "false",
+            r["role"] or "Employee",
+            r["tier"] or "STANDARD",
+            "true" if r["active"] else "false",
+        ])
+
+    csv_data = output.getvalue()
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=calling_users_roster.csv"},
+    )
+
+
+@app.post("/callers/import")
+async def import_callers(
+    request: Request,
+    file: UploadFile = File(...),
+    csrf_token: str = Form(...),
+):
+    validate_csrf(request, csrf_token)
+    admin = require_roles(request, ["admin"])
+
+    contents = await file.read()
+    try:
+        text = contents.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = contents.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+    now = int(time.time())
+    imported_count = 0
+
+    conn = db()
+    for r in reader:
+        emp_id = str(r.get("employee_id") or "").strip()
+        name = str(r.get("name") or "").strip()
+        if not emp_id or not name:
+            continue
+
+        aliases = str(r.get("aliases") or "").strip()
+        email = str(r.get("email") or "").strip()
+        phone = str(r.get("phone") or "").strip()
+        dept = str(r.get("department") or "").strip()
+        role = str(r.get("role") or "Employee").strip()
+        tier = str(r.get("tier") or "STANDARD").strip().upper()
+        if tier not in ["STANDARD", "P1_VIP", "P0_EXECUTIVE"]:
+            tier = "STANDARD"
+
+        vip_raw = str(r.get("vip") or "false").strip().lower()
+        vip = 1 if (vip_raw in ("true", "1", "yes", "y") or tier in ("P0_EXECUTIVE", "P1_VIP")) else 0
+
+        active_raw = str(r.get("active") or "1").strip().lower()
+        active = 0 if active_raw in ("false", "0", "no") else 1
+
+        existing = conn.execute("SELECT id FROM callers WHERE employee_id = ?", (emp_id,)).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE callers
+                SET name=?, aliases=?, email=?, phone=?, department=?, role=?, vip=?, tier=?, active=?, updated_at=?
+                WHERE id=?
+                """,
+                (name, aliases, email, phone, dept, role, vip, tier, active, now, existing["id"]),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO callers (
+                    employee_id, name, aliases, email, phone,
+                    department, role, vip, tier, active, source, updated_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (emp_id, name, aliases, email, phone, dept, role, vip, tier, active, "csv_import", now, now),
+            )
+        imported_count += 1
+
+    conn.commit()
+    conn.close()
+
+    app_db.sync_callers_to_csv()
+    try:
+        from app.verify import clear_cache
+        clear_cache()
+    except Exception:
+        pass
+
+    audit(admin["username"], "import_callers", "callers", f"count_{imported_count}")
+    return RedirectResponse("/callers", status_code=302)
 
 
 # -----------------------------------------------------------------------------

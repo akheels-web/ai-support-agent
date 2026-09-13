@@ -736,6 +736,19 @@ async def handle_single_call(asterisk_ws):
                         "next_state": state["current_state"],
                     }
 
+                if result.get("reason") == "account_deactivated":
+                    log_security_event("verification_deactivated_account", verify_key, f"employee_id={employee_id}")
+                    state["current_state"] = "closing"
+                    update_call(state["call_id"], status="verification_failed")
+                    queue_goodbye("verification_failed")
+                    return {
+                        "verified": False,
+                        "reason": "account_deactivated",
+                        "attempts_left": 0,
+                        "action": "call_will_end",
+                        "message": "This employee account is deactivated or offboarded. Please contact HR or IT administrator.",
+                    }
+
                 state["verification_attempts"] += 1
                 attempts_left = 3 - state["verification_attempts"]
 
@@ -1342,7 +1355,16 @@ async def handle_single_call(asterisk_ws):
                 queue_response(f"{prefix} Say the caller is verified. Then ask: How can I help you today?")
 
         elif tool_name == "verify_user" and not result.get("verified"):
-            if result.get("attempts_left", 0) > 0:
+            if result.get("reason") == "account_deactivated":
+                if state.get("language") == "ar":
+                    queue_response(
+                        f"{prefix} أخبر المتصل بلباقة أن هذا الحساب غير مفعل في دليل الموظفين، ويجب التواصل مع إدارة الموارد البشرية أو مسؤول تقنية المعلومات."
+                    )
+                else:
+                    queue_response(
+                        f"{prefix} Politely inform the caller that this employee account is deactivated in the directory, and advise them to contact HR or IT administration."
+                    )
+            elif result.get("attempts_left", 0) > 0:
                 queue_response(
                     f"{prefix} Say the details did not match. Ask for full name and employee ID again."
                 )

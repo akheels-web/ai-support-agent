@@ -118,6 +118,18 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
 - Voice AI Bridge (`app/transfer.py`) passes caller context (`AI_CALLER_NAME`, `AI_EMPLOYEE_ID`, `AI_TIER`, `AI_REASON`, `AI_TICKET_NUMBER`) onto Asterisk channel via AMI `Setvar`, enabling screen-pop on human agents' Cisco Webex desktop apps and desk phones.
 - **VIP Routing Policy (P0 + P1)**: P0 (CEO/CFO) auto-bypasses AI diagnostics directly to Webex queue `8002`. P1 (Directors) receives priority-assisted AI service. Unified auto-bypass policy (`VIP_AUTO_TRANSFER_ALL`) documented in `roadmap.md` (Phase 10) for client review.
 
-
-
-
+## 11. Caller Directory & Telephony VIP Roster Management
+- **Enterprise Database Architecture (`callers` Table)**:
+  - Supports PostgreSQL 16 and SQLite with composite indexing on `employee_id` (unique), `phone`, and `active`.
+  - Automatically seeds from `data/users.csv` on initial initialization if empty.
+  - Maintains strict bi-directional synchronization via `app.db.sync_callers_to_csv()`, keeping `data/users.csv` updated for file-based backups and CLI scripts.
+- **Verification Engine & Offboarding Security (`app/verify.py` & `app/openai_realtime_bridge.py`)**:
+  - `_load_users()` queries the database `callers` table with in-memory caching (`lru_cache`) and fallback to `users.csv`.
+  - Immediate offboarding enforcement: `lookup_caller_by_phone` skips deactivated callers (`active=0`), and `verify_user` returns `{"verified": False, "reason": "account_deactivated"}`.
+  - Bridge steers Arif in both Arabic & English to politely notify callers that their employee account is deactivated and directs them to contact HR/IT administration.
+- **Executive Dashboard UI (`/callers`)**:
+  - Live KPI metric cards: Total Registered Callers, Active & Verified, C-Suite & VIP Concierge, Offboarded/Inactive.
+  - Search & filter bar (query, escalation tier, status, department).
+  - One-click immediate status toggling (`Offboard` / `Activate`).
+  - Full modal dialogs for onboarding new employees, editing phonetic Arabic/English aliases (`منصور الحبسي | Mansoor`), updating VIP tiers, and bulk CSV roster importing/exporting.
+  - Complete integration readiness for the upcoming on-premises Active Directory (AD/LDAP) background sync worker.

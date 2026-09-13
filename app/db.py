@@ -531,6 +531,25 @@ def init_all_tables():
             );
             """)
 
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS callers (
+                id SERIAL PRIMARY KEY,
+                employee_id VARCHAR(50) UNIQUE NOT NULL,
+                name VARCHAR(150) NOT NULL,
+                aliases TEXT,
+                email VARCHAR(150),
+                phone VARCHAR(50),
+                department VARCHAR(100),
+                role VARCHAR(100) DEFAULT 'Employee',
+                vip SMALLINT DEFAULT 0,
+                tier VARCHAR(50) DEFAULT 'STANDARD',
+                active SMALLINT DEFAULT 1,
+                source VARCHAR(50) DEFAULT 'manual',
+                updated_at BIGINT NOT NULL,
+                created_at BIGINT NOT NULL
+            );
+            """)
+
             # Composite indexes for high concurrency
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_call_id ON calls(call_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_start_status ON calls(start_time, status);")
@@ -539,6 +558,9 @@ def init_all_tables():
             conn.execute("CREATE INDEX IF NOT EXISTS idx_security_created ON security_events(created_at);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_callers_emp_id ON callers(employee_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_phone ON callers(phone);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_active ON callers(active);")
             _ensure_column(conn, "audit_logs", "prev_hash", "VARCHAR(64)")
             _ensure_column(conn, "audit_logs", "record_hash", "VARCHAR(64)")
 
@@ -655,6 +677,25 @@ def init_all_tables():
             );
             """)
 
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS callers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                aliases TEXT,
+                email TEXT,
+                phone TEXT,
+                department TEXT,
+                role TEXT DEFAULT 'Employee',
+                vip INTEGER DEFAULT 0,
+                tier TEXT DEFAULT 'STANDARD',
+                active INTEGER DEFAULT 1,
+                source TEXT DEFAULT 'manual',
+                updated_at INTEGER NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            """)
+
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_calls_call_id ON calls(call_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_start_status ON calls(start_time, status);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_caller ON calls(caller_number);")
@@ -662,9 +703,118 @@ def init_all_tables():
             conn.execute("CREATE INDEX IF NOT EXISTS idx_security_created ON security_events(created_at);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_callers_emp_id ON callers(employee_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_phone ON callers(phone);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_active ON callers(active);")
             _ensure_column(conn, "audit_logs", "prev_hash", "TEXT")
             _ensure_column(conn, "audit_logs", "record_hash", "TEXT")
 
         conn.commit()
 
+    # Automatically seed callers from CSV on first run if table is empty
+    seed_callers_from_csv_if_empty()
+
     logger.info(f"[DB] Initialized database schema successfully on {engine}.")
+
+
+def seed_callers_from_csv_if_empty(conn=None):
+    """
+    If callers table is empty, seed it from USERS_CSV so existing
+    telephony configurations are immediately active in the DB.
+    """
+    csv_file = os.getenv("CSV_USERS_FILE", str(BASE_DIR / "data" / "users.csv"))
+    if not os.path.exists(csv_file):
+        return
+
+    should_close = False
+    if conn is None:
+        conn = get_db()
+        should_close = True
+
+    try:
+        row = conn.execute("SELECT COUNT(*) as cnt FROM callers").fetchone()
+        count = row["cnt"] if row else 0
+        if count == 0:
+            import csv
+            now = int(time.time())
+            with open(csv_file, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for r in reader:
+                    emp_id = str(r.get("employee_id", "")).strip()
+                    if not emp_id:
+                        continue
+                    vip_raw = str(r.get("vip", "false")).strip().lower()
+                    vip = 1 if vip_raw in ("true", "1", "yes", "y") else 0
+                    tier = str(r.get("tier", "")).strip().upper() or ("P1_VIP" if vip else "STANDARD")
+                    active_raw = str(r.get("active", "1")).strip().lower()
+                    active = 0 if active_raw in ("false", "0", "no") else 1
+
+                    conn.execute(
+                        """
+                        INSERT INTO callers (
+                            employee_id, name, aliases, email, phone,
+                            department, role, vip, tier, active, source, updated_at, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            emp_id,
+                            str(r.get("name", "")).strip(),
+                            str(r.get("aliases", "")).strip(),
+                            str(r.get("email", "")).strip(),
+                            str(r.get("phone", "")).strip(),
+                            str(r.get("department", "")).strip(),
+                            str(r.get("role", "Employee")).strip(),
+                            vip,
+                            tier,
+                            active,
+                            "csv_seed",
+                            now,
+                            now,
+                        ),
+                    )
+            conn.commit()
+            logger.info(f"[DB] Seeded callers table from {csv_file}")
+    except Exception as exc:
+        logger.warning(f"[DB] Caller seed check failed: {exc}")
+    finally:
+        if should_close:
+            conn.close()
+
+
+def sync_callers_to_csv(csv_path=None):
+    """
+    Dumps all rows from callers table to USERS_CSV to keep file-based
+    integrations and git repo backups strictly in sync.
+    """
+    csv_file = csv_path or os.getenv("CSV_USERS_FILE", str(BASE_DIR / "data" / "users.csv"))
+    try:
+        import csv
+        Path(csv_file).parent.mkdir(parents=True, exist_ok=True)
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT employee_id, name, aliases, email, phone, department, vip, role, tier, active FROM callers ORDER BY id ASC"
+            ).fetchall()
+
+        with open(csv_file, "w", newline="", encoding="utf-8") as f:
+            fieldnames = ["employee_id", "name", "aliases", "email", "phone", "department", "vip", "role", "tier", "active"]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                writer.writerow({
+                    "employee_id": r["employee_id"],
+                    "name": r["name"],
+                    "aliases": r["aliases"] or "",
+                    "email": r["email"] or "",
+                    "phone": r["phone"] or "",
+                    "department": r["department"] or "",
+                    "vip": "true" if r["vip"] else "false",
+                    "role": r["role"] or "Employee",
+                    "tier": r["tier"] or "STANDARD",
+                    "active": "true" if r["active"] else "false",
+                })
+        logger.info(f"[DB] Synchronized {len(rows)} callers to {csv_file}")
+        return True
+    except Exception as exc:
+        logger.error(f"[DB] Failed to sync callers to CSV: {exc}")
+        return False
+

@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+    <div class="page-title">
+        <h1>Caller Directory & VIP Roster</h1>
+        <p>Manage telephony caller verification, bilingual spoken aliases, VIP concierge tiers, and instant offboarding</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <a href="/callers/export" class="btn btn-outline btn-sm">
+            <i data-lucide="download"></i> Export CSV
+        </a>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openModal('importModal')">
+            <i data-lucide="upload"></i> Import CSV
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openModal('addCallerModal')">
+            <i data-lucide="user-plus"></i> Onboard New Caller
+        </button>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Total Registered</span>
+            <div class="stat-icon" style="color: var(--nf-navy); background: var(--nf-light-blue);">
+                <i data-lucide="users"></i>
+            </div>
+        </div>
+        <div class="stat-value">{{ stats.total }}</div>
+        <div class="stat-description">Telephony caller records in system</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Active & Verified</span>
+            <div class="stat-icon" style="color: #10B981; background: rgba(16, 185, 129, 0.12);">
+                <i data-lucide="user-check"></i>
+            </div>
+        </div>
+        <div class="stat-value" style="color: #10B981;">{{ stats.active }}</div>
+        <div class="stat-description">Allowed inbound voice verification</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Executive & VIP</span>
+            <div class="stat-icon" style="color: #8B5CF6; background: rgba(139, 92, 246, 0.12);">
+                <i data-lucide="crown"></i>
+            </div>
+        </div>
+        <div class="stat-value" style="color: #8B5CF6;">{{ stats.vip }}</div>
+        <div class="stat-description">P0 Executives & P1 VIP Concierge</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Offboarded / Inactive</span>
+            <div class="stat-icon" style="color: var(--nf-crimson); background: rgba(200, 16, 46, 0.1);">
+                <i data-lucide="user-x"></i>
+            </div>
+        </div>
+        <div class="stat-value" style="color: {% if stats.inactive > 0 %}var(--nf-crimson){% else %}var(--muted-foreground){% endif %};">
+            {{ stats.inactive }}
+        </div>
+        <div class="stat-description">Blocked from voice verification</div>
+    </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-body" style="padding: 1rem 1.25rem;">
+        <form method="get" action="/callers" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+            <div style="flex: 2; min-width: 220px;">
+                <input type="text" name="q" value="{{ filters.q }}" class="input" placeholder="Search by name, ID, phone, aliases, dept..." style="width: 100%;">
+            </div>
+
+            <div style="flex: 1; min-width: 140px;">
+                <select name="tier" class="select" style="width: 100%;">
+                    <option value="ALL" {% if filters.tier == 'ALL' %}selected{% endif %}>All Tiers</option>
+                    <option value="P0_EXECUTIVE" {% if filters.tier == 'P0_EXECUTIVE' %}selected{% endif %}>P0 Executive (C-Suite)</option>
+                    <option value="P1_VIP" {% if filters.tier == 'P1_VIP' %}selected{% endif %}>P1 VIP (Priority)</option>
+                    <option value="STANDARD" {% if filters.tier == 'STANDARD' %}selected{% endif %}>Standard Support</option>
+                </select>
+            </div>
+
+            <div style="flex: 1; min-width: 130px;">
+                <select name="status" class="select" style="width: 100%;">
+                    <option value="ALL" {% if filters.status == 'ALL' %}selected{% endif %}>All Statuses</option>
+                    <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Active Only</option>
+                    <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>Offboarded Only</option>
+                </select>
+            </div>
+
+            <div style="flex: 1; min-width: 130px;">
+                <select name="department" class="select" style="width: 100%;">
+                    <option value="ALL" {% if filters.department == 'ALL' %}selected{% endif %}>All Departments</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept }}" {% if filters.department == dept %}selected{% endif %}>{{ dept }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <i data-lucide="filter"></i> Filter
+                </button>
+                {% if filters.q or filters.tier != 'ALL' or filters.status != 'ALL' or filters.department != 'ALL' %}
+                <a href="/callers" class="btn btn-outline btn-sm">Reset</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Main Callers Table Card -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Authorized Callers & Telephony Roster</h3>
+            <p class="card-description">{{ rows|length }} caller profile(s) listed</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border: none; border-radius: 0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Emp ID</th>
+                        <th style="min-width: 240px;">Caller & Phonetic Aliases</th>
+                        <th style="min-width: 140px;">Phone (CLI)</th>
+                        <th style="min-width: 140px;">Department & Role</th>
+                        <th style="min-width: 130px;">Escalation Tier</th>
+                        <th style="min-width: 100px;">Status</th>
+                        <th style="min-width: 180px; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr style="{% if r.active == 0 %}opacity: 0.65; background: rgba(200, 16, 46, 0.02);{% endif %}">
+                        <td>
+                            <span style="font-family: monospace; font-weight: 700; color: var(--foreground); background: var(--secondary); padding: 0.2rem 0.45rem; border-radius: 4px; font-size: 0.8rem;">
+                                {{ r.employee_id }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="font-weight: 600; color: var(--foreground); font-size: 0.9rem;">
+                                {{ r.name }}
+                            </div>
+                            {% if r.aliases %}
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem;">
+                                {% for a in r.aliases %}
+                                <span style="font-size: 0.7rem; background: var(--secondary); color: var(--muted-foreground); padding: 0.1rem 0.35rem; border-radius: 3px; border: 1px solid var(--border);">
+                                    {{ a }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            {% if r.email %}
+                            <div style="font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.15rem;">
+                                {{ r.email }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.35rem; font-family: monospace; font-size: 0.85rem; font-weight: 500;">
+                                <i data-lucide="phone" style="width: 14px; height: 14px; color: var(--muted-foreground);"></i>
+                                {{ r.phone or 'None' }}
+                            </div>
+                        </td>
+                        <td>
+                            <div style="font-weight: 500; font-size: 0.85rem;">{{ r.department or '-' }}</div>
+                            <div style="font-size: 0.75rem; color: var(--muted-foreground);">{{ r.role or 'Employee' }}</div>
+                        </td>
+                        <td>
+                            {% if r.tier == 'P0_EXECUTIVE' %}
+                                <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600;">
+                                    <i data-lucide="shield-alert" style="width: 12px; height: 12px; margin-right: 3px;"></i> P0 Executive
+                                </span>
+                            {% elif r.tier == 'P1_VIP' %}
+                                <span class="badge" style="background: rgba(139, 92, 246, 0.15); color: #6D28D9; border: 1px solid rgba(139, 92, 246, 0.3); font-weight: 600;">
+                                    <i data-lucide="star" style="width: 12px; height: 12px; margin-right: 3px;"></i> P1 VIP
+                                </span>
+                            {% else %}
+                                <span class="badge badge-secondary" style="font-weight: 500;">Standard</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.active == 1 %}
+                                <span style="display: inline-flex; align-items: center; gap: 0.3rem; color: #10B981; font-size: 0.78rem; font-weight: 600;">
+                                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></span> Active
+                                </span>
+                            {% else %}
+                                <span style="display: inline-flex; align-items: center; gap: 0.3rem; color: var(--nf-crimson); font-size: 0.78rem; font-weight: 600;">
+                                    <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--nf-crimson);"></span> Offboarded
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display: inline-flex; gap: 0.35rem; align-items: center;">
+                                <!-- Toggle Active / Offboard Status Form -->
+                                <form method="post" action="/callers/toggle-status" style="margin: 0;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="caller_id" value="{{ r.id }}">
+                                    {% if r.active == 1 %}
+                                    <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--nf-crimson); border-color: rgba(200, 16, 46, 0.3);" title="Deactivate caller immediately">
+                                        <i data-lucide="user-minus" style="width: 13px; height: 13px;"></i> Offboard
+                                    </button>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: #10B981; color: white;" title="Re-activate caller">
+                                        <i data-lucide="user-check" style="width: 13px; height: 13px;"></i> Activate
+                                    </button>
+                                    {% endif %}
+                                </form>
+
+                                <!-- Edit Caller Trigger -->
+                                <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick='openEditCallerModal({{ r|tojson }})' title="Edit Caller Profile">
+                                    <i data-lucide="edit-2" style="width: 13px; height: 13px;"></i> Edit
+                                </button>
+
+                                <!-- Delete Form -->
+                                <form method="post" action="/callers/delete" style="margin: 0;" onsubmit="return confirm('Permanently delete caller {{ r.name }} ({{ r.employee_id }})? This action cannot be undone.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="caller_id" value="{{ r.id }}">
+                                    <button type="submit" class="btn btn-ghost btn-sm" style="padding: 0.25rem 0.4rem; color: var(--muted-foreground);" title="Delete Record">
+                                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 3rem 1rem; color: var(--muted-foreground);">
+                            <i data-lucide="user-x" style="width: 36px; height: 36px; stroke-width: 1.5; margin-bottom: 0.5rem;"></i>
+                            <div style="font-weight: 500;">No callers matched the filter criteria</div>
+                            <div style="font-size: 0.8rem; margin-top: 0.25rem;">Try adjusting your search query or reset the filters.</div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL 1: Add / Onboard New Caller          -->
+<!-- ========================================== -->
+<div id="addCallerModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header-title">
+                <h3 class="card-title">Onboard New Caller</h3>
+                <p class="card-description">Add an authorized employee to the AI voice verification directory</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('addCallerModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/callers/add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Employee ID *</label>
+                        <input type="text" name="employee_id" class="input" placeholder="e.g. 1012" required>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Full Name *</label>
+                        <input type="text" name="name" class="input" placeholder="e.g. Mansoor Al Habsi" required>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Spoken Phonetic Aliases (English & Arabic)</label>
+                    <input type="text" name="aliases" class="input" placeholder="e.g. منصور الحبسي | Mansoor Habsi | Mansour">
+                    <small style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 0.2rem;">
+                        Separate variants with pipe ( | ). Arif uses these for phonetic speech recognition in Arabic & English.
+                    </small>
+                </div>
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Phone Number (Caller ID)</label>
+                        <input type="text" name="phone" class="input" placeholder="e.g. +96891234567">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Official Email</label>
+                        <input type="email" name="email" class="input" placeholder="e.g. mansoor@nationalfinance.com">
+                    </div>
+                </div>
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Department</label>
+                        <input type="text" name="department" class="input" placeholder="e.g. IT, Finance, HR">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Role / Job Title</label>
+                        <input type="text" name="role" class="input" placeholder="e.g. Network Specialist" value="Employee">
+                    </div>
+                </div>
+
+                <div class="charts-grid-2" style="grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Priority Tier</label>
+                        <select name="tier" class="select">
+                            <option value="STANDARD">STANDARD (Standard L1 Queue 7001)</option>
+                            <option value="P1_VIP">P1_VIP (Priority Assisted Support)</option>
+                            <option value="P0_EXECUTIVE">P0_EXECUTIVE (CEO / CFO Concierge 7002)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0; display: flex; flex-direction: column; justify-content: flex-end;">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="active" value="1" checked>
+                            <span>Active / Verified</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('addCallerModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="user-plus"></i> Save Caller
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL 2: Edit Caller Profile               -->
+<!-- ========================================== -->
+<div id="editCallerModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header-title">
+                <h3 class="card-title">Edit Caller Profile</h3>
+                <p class="card-description">Update telephony attributes, aliases, and tier</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('editCallerModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/callers/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="caller_id" id="edit_caller_id">
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Employee ID</label>
+                        <input type="text" id="edit_employee_id" class="input" disabled style="opacity: 0.7; background: var(--secondary);">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Full Name *</label>
+                        <input type="text" name="name" id="edit_name" class="input" required>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label class="form-label">Spoken Phonetic Aliases</label>
+                    <input type="text" name="aliases" id="edit_aliases" class="input">
+                    <small style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 0.2rem;">
+                        Separate variants with pipe ( | ) e.g. سالم المسكري | Salim Maskari
+                    </small>
+                </div>
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Phone Number (CLI)</label>
+                        <input type="text" name="phone" id="edit_phone" class="input">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Official Email</label>
+                        <input type="email" name="email" id="edit_email" class="input">
+                    </div>
+                </div>
+
+                <div class="charts-grid-2" style="grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Department</label>
+                        <input type="text" name="department" id="edit_department" class="input">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Role / Job Title</label>
+                        <input type="text" name="role" id="edit_role" class="input">
+                    </div>
+                </div>
+
+                <div class="charts-grid-2" style="grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Priority Tier</label>
+                        <select name="tier" id="edit_tier" class="select">
+                            <option value="STANDARD">STANDARD (Standard L1 Queue 7001)</option>
+                            <option value="P1_VIP">P1_VIP (Priority Assisted Support)</option>
+                            <option value="P0_EXECUTIVE">P0_EXECUTIVE (CEO / CFO Concierge 7002)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0; display: flex; flex-direction: column; justify-content: flex-end;">
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; margin-bottom: 0.4rem;">
+                            <input type="checkbox" name="active" id="edit_active" value="1">
+                            <span>Active / Verified</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('editCallerModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="check"></i> Update Caller
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL 3: Bulk Import CSV                   -->
+<!-- ========================================== -->
+<div id="importModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 500px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header-title">
+                <h3 class="card-title">Bulk Import Calling Roster</h3>
+                <p class="card-description">Upload CSV file to merge or onboard multiple callers</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('importModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/callers/import" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Select CSV File</label>
+                    <input type="file" name="file" accept=".csv" class="input" required style="padding: 0.4rem 0.5rem;">
+                    <small style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 0.35rem;">
+                        Columns: <code>employee_id, name, aliases, email, phone, department, vip, role, tier, active</code>
+                    </small>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('importModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="upload"></i> Upload & Sync
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+
+function openEditCallerModal(caller) {
+    document.getElementById('edit_caller_id').value = caller.id;
+    document.getElementById('edit_employee_id').value = caller.employee_id;
+    document.getElementById('edit_name').value = caller.name || '';
+    document.getElementById('edit_aliases').value = caller.raw_aliases || '';
+    document.getElementById('edit_phone').value = caller.phone || '';
+    document.getElementById('edit_email').value = caller.email || '';
+    document.getElementById('edit_department').value = caller.department || '';
+    document.getElementById('edit_role').value = caller.role || 'Employee';
+    document.getElementById('edit_tier').value = caller.tier || 'STANDARD';
+    document.getElementById('edit_active').checked = (caller.active == 1);
+    openModal('editCallerModal');
+}
+
+// Close modals when clicking backdrop
+window.addEventListener('click', function(e) {
+    if (e.target.classList.contains('modal-backdrop')) {
+        e.target.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

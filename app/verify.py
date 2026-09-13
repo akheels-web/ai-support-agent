@@ -158,6 +158,46 @@ def _normalize_phone(phone: str) -> str:
 def _load_users():
     users = {}
 
+    # 1. Attempt loading from app.db callers table
+    try:
+        from app.db import get_db
+        with get_db() as conn:
+            rows = conn.execute("SELECT * FROM callers ORDER BY id ASC").fetchall()
+        if rows:
+            for row in rows:
+                employee_id = str(row.get("employee_id", "")).strip()
+                if not employee_id:
+                    continue
+
+                aliases_raw = str(row.get("aliases") or "").strip()
+                aliases = [a.strip() for a in aliases_raw.split("|") if a.strip()] if aliases_raw else []
+
+                vip = bool(row.get("vip", 0))
+                role = str(row.get("role") or "Employee").strip()
+                tier = str(row.get("tier") or "").strip().upper()
+                if not tier:
+                    tier = "P1_VIP" if vip else "STANDARD"
+
+                active = bool(row.get("active", 1))
+
+                users[employee_id] = {
+                    "employee_id": employee_id,
+                    "name": str(row.get("name") or "").strip(),
+                    "aliases": aliases,
+                    "email": str(row.get("email") or "").strip(),
+                    "phone": str(row.get("phone") or "").strip(),
+                    "department": str(row.get("department") or "").strip(),
+                    "vip": vip,
+                    "role": role,
+                    "tier": tier,
+                    "active": active,
+                    "is_executive": (tier == "P0_EXECUTIVE"),
+                }
+            return users
+    except Exception:
+        pass
+
+    # 2. Fallback to USERS_CSV
     try:
         with open(USERS_CSV, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -179,6 +219,9 @@ def _load_users():
                 if not tier:
                     tier = "P1_VIP" if vip else "STANDARD"
 
+                active_raw = str(row.get("active", "true")).strip().lower()
+                active = active_raw not in ("false", "0", "no")
+
                 users[employee_id] = {
                     "employee_id": employee_id,
                     "name": row.get("name", "").strip(),
@@ -189,6 +232,7 @@ def _load_users():
                     "vip": vip,
                     "role": role,
                     "tier": tier,
+                    "active": active,
                     "is_executive": (tier == "P0_EXECUTIVE"),
                 }
 
@@ -205,6 +249,7 @@ def clear_cache():
 def lookup_caller_by_phone(phone_number: str):
     """
     Matches incoming caller ID against registered user phone numbers.
+    Skips deactivated / offboarded callers.
     Returns matched user record or None.
     """
     if not phone_number:
@@ -216,6 +261,8 @@ def lookup_caller_by_phone(phone_number: str):
 
     users = _load_users()
     for user in users.values():
+        if not user.get("active", True):
+            continue
         if _normalize_phone(user.get("phone")) == normalized_input:
             return user
 
@@ -315,6 +362,14 @@ def verify_user(employee_id, employee_name):
     if not record:
         return {"verified": False, "reason": "employee_id_not_found"}
 
+    # Offboarding Check: reject deactivated / departed accounts
+    if not record.get("active", True):
+        return {
+            "verified": False,
+            "reason": "account_deactivated",
+            "message": "This employee account has been deactivated. Please contact IT Helpdesk administration.",
+        }
+
     official_name = record.get("name", "")
     aliases = record.get("aliases", [])
 
@@ -335,5 +390,6 @@ def verify_user(employee_id, employee_name):
         "vip": record.get("vip", False),
         "role": record.get("role", "Employee"),
         "tier": record.get("tier", "STANDARD"),
+        "active": record.get("active", True),
         "is_executive": record.get("is_executive", False),
     }
