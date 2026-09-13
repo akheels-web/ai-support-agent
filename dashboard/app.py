@@ -577,6 +577,11 @@ def startup():
     init_db()
     cleanup_expired_sessions()
     enforce_recording_retention()
+    try:
+        from app.ad_sync import start_ad_sync_worker
+        start_ad_sync_worker()
+    except Exception:
+        pass
 
 
 # -----------------------------------------------------------------------------
@@ -1240,8 +1245,13 @@ def settings_page(request: Request):
         "organization_name", "dashboard_title", "dashboard_subtitle",
         "ai_greeting", "system_prompt", "max_concurrent_calls",
         "recording_retention_days", "frappe_enabled",
+        "ad_enabled", "ad_server", "ad_port", "ad_use_ssl", "ad_bind_dn",
+        "ad_password", "ad_base_dn", "ad_search_filter", "ad_sync_interval_minutes",
     ]
     settings_data = {k: get_setting(k, "") for k in keys}
+
+    from app.ad_sync import get_ad_telemetry
+    ad_telemetry = get_ad_telemetry()
 
     return render_template(
         request, "settings.html",
@@ -1250,6 +1260,7 @@ def settings_page(request: Request):
             "active_page": "settings",
             "user": user,
             "settings": settings_data,
+            "ad": ad_telemetry,
         }
     )
 
@@ -1263,6 +1274,8 @@ async def save_settings(request: Request):
     allowed_keys = {
         "organization_name", "dashboard_title", "dashboard_subtitle", "profile_icon_text",
         "ai_greeting", "system_prompt", "max_concurrent_calls", "recording_retention_days", "frappe_enabled",
+        "ad_enabled", "ad_server", "ad_port", "ad_use_ssl", "ad_bind_dn",
+        "ad_password", "ad_base_dn", "ad_search_filter", "ad_sync_interval_minutes",
     }
 
     conn = db()
@@ -1568,6 +1581,9 @@ def callers_page(request: Request):
         "department": dept_filter,
     }
 
+    from app.ad_sync import get_ad_telemetry
+    ad_telemetry = get_ad_telemetry()
+
     return render_template(
         request, "callers.html",
         {
@@ -1578,6 +1594,7 @@ def callers_page(request: Request):
             "stats": stats,
             "departments": departments,
             "filters": filters,
+            "ad": ad_telemetry,
         }
     )
 
@@ -1869,6 +1886,36 @@ async def import_callers(
 
     audit(admin["username"], "import_callers", "callers", f"count_{imported_count}")
     return RedirectResponse("/callers", status_code=302)
+
+
+# -----------------------------------------------------------------------------
+# Active Directory (AD / LDAP) Sync API Endpoints
+# -----------------------------------------------------------------------------
+
+@app.post("/api/ad/test-connection")
+async def api_test_ad_connection(request: Request):
+    require_roles(request, ["admin"])
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+
+    from app.ad_sync import test_ad_connection
+    report = test_ad_connection(data if data else None)
+    return JSONResponse(report)
+
+
+@app.post("/api/ad/sync-now")
+async def api_ad_sync_now(request: Request):
+    admin = require_roles(request, ["admin"])
+
+    from app.ad_sync import sync_active_directory
+    try:
+        result = sync_active_directory(triggered_by=admin["username"])
+        audit(admin["username"], "ad_manual_sync", "active_directory", f"processed={result.get('total_scanned', 0)}")
+        return JSONResponse(result)
+    except Exception as exc:
+        return JSONResponse({"success": False, "message": str(exc)}, status_code=500)
 
 
 # -----------------------------------------------------------------------------

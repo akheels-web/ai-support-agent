@@ -66,7 +66,68 @@
                 <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">Core instructions governing IT support troubleshooting and escalation playbooks.</div>
             </div>
 
-            <div style="margin-top: 1.5rem; display: flex; justify-content: flex-end;">
+            <div class="nav-section-title" style="margin-top: 2rem; margin-bottom: 0.75rem; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">
+                Active Directory (AD / LDAP) Directory Sync
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">AD Auto-Sync Integration</label>
+                    <select name="ad_enabled" class="select">
+                        <option value="true" {% if settings.ad_enabled == 'true' %}selected{% endif %}>Enabled (Periodic Auto-Sync)</option>
+                        <option value="false" {% if settings.ad_enabled != 'true' %}selected{% endif %}>Disabled (Manual / On-Demand)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Domain Controller URL / IP</label>
+                    <input type="text" name="ad_server" class="input" value="{{ settings.ad_server or 'ldaps://127.0.0.1' }}" placeholder="ldaps://dc01.nationalfinance.local">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">LDAP Port</label>
+                    <input type="number" name="ad_port" class="input" value="{{ settings.ad_port or '636' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Encryption (SSL / LDAPS)</label>
+                    <select name="ad_use_ssl" class="select">
+                        <option value="true" {% if settings.ad_use_ssl != 'false' %}selected{% endif %}>SSL / TLS (Port 636)</option>
+                        <option value="false" {% if settings.ad_use_ssl == 'false' %}selected{% endif %}>Plain LDAP / StartTLS (Port 389)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Sync Interval (Minutes)</label>
+                    <input type="number" name="ad_sync_interval_minutes" class="input" value="{{ settings.ad_sync_interval_minutes or '30' }}">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">Service Account Bind DN / Username</label>
+                    <input type="text" name="ad_bind_dn" class="input" value="{{ settings.ad_bind_dn }}" placeholder="CN=svc-ai-agent,OU=ServiceAccounts,DC=nationalfinance,DC=local">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Service Account Password</label>
+                    <input type="password" name="ad_password" class="input" value="{{ settings.ad_password }}" placeholder="••••••••••••">
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1.25rem;">
+                <div class="form-group">
+                    <label class="form-label">Base Search DN (OU / Root)</label>
+                    <input type="text" name="ad_base_dn" class="input" value="{{ settings.ad_base_dn or 'DC=nationalfinance,DC=local' }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">User Search Filter (LDAP)</label>
+                    <input type="text" name="ad_search_filter" class="input" value="{{ settings.ad_search_filter or '(&(objectCategory=person)(objectClass=user))' }}">
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" class="btn btn-outline" onclick="testConnectionFromSettings()">
+                    <i data-lucide="activity"></i> Test AD Connection
+                </button>
                 <button type="submit" class="btn btn-primary">
                     <i data-lucide="save"></i> Save Configuration
                 </button>
@@ -74,4 +135,42 @@
         </form>
     </div>
 </div>
+
+<script>
+async function testConnectionFromSettings() {
+    const server = document.querySelector('input[name="ad_server"]').value;
+    const port = document.querySelector('input[name="ad_port"]').value;
+    const ssl = document.querySelector('select[name="ad_use_ssl"]').value === 'true';
+    const bind_dn = document.querySelector('input[name="ad_bind_dn"]').value;
+    const password = document.querySelector('input[name="ad_password"]').value;
+    const base_dn = document.querySelector('input[name="ad_base_dn"]').value;
+    const filter = document.querySelector('input[name="ad_search_filter"]').value;
+
+    const payload = {
+        ad_server: server,
+        ad_port: parseInt(port) || 636,
+        ad_use_ssl: ssl,
+        ad_bind_dn: bind_dn,
+        ad_password: password,
+        ad_base_dn: base_dn,
+        ad_search_filter: filter
+    };
+
+    try {
+        const res = await fetch('/api/ad/test-connection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`Active Directory Reachable!\n\n${data.message}\nLatency: ${data.latency_ms} ms\nProtocol: ${data.ssl ? 'LDAPS' : 'LDAP'}`);
+        } else {
+            alert(`Connection Test Failed:\n\n${data.message}\n${data.details || ''}`);
+        }
+    } catch (e) {
+        alert('Test connection request failed: ' + e.message);
+    }
+}
+</script>
 {% endblock %}

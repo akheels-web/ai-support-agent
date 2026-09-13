@@ -68,6 +68,50 @@
     </div>
 </div>
 
+<!-- Active Directory Integration Banner -->
+<div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(to right, rgba(27, 47, 107, 0.03), rgba(43, 74, 159, 0.05)); border: 1px solid rgba(27, 47, 107, 0.15);">
+    <div class="card-body" style="padding: 1rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+            <div style="width: 42px; height: 42px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--nf-light-blue); color: var(--nf-navy);">
+                <i data-lucide="network" style="width: 22px; height: 22px;"></i>
+            </div>
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-weight: 600; font-size: 0.95rem;">Active Directory (AD / LDAP) Connector</span>
+                    {% if ad.enabled %}
+                        <span class="badge" style="font-size: 0.7rem; background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3);">
+                            ● Auto-Sync Active (Every {{ ad.sync_interval_mins }}m)
+                        </span>
+                    {% else %}
+                        <span class="badge badge-secondary" style="font-size: 0.7rem;">
+                            Manual Mode (AD Ready)
+                        </span>
+                    {% endif %}
+                    {% if not ad.ldap3_installed %}
+                        <span class="badge" style="font-size: 0.7rem; background: rgba(245, 158, 11, 0.15); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3);">
+                            ldap3 library needed for live bind
+                        </span>
+                    {% endif %}
+                </div>
+                <div style="font-size: 0.78rem; color: var(--muted-foreground); margin-top: 0.15rem;">
+                    DC: <code>{{ ad.server }}:{{ ad.port }}</code> · Base: <code>{{ ad.base_dn }}</code> · Last Synced: <strong>{{ ad.last_sync_time_human }}</strong>
+                    {% if ad.last_sync_stats %}
+                        ({{ ad.last_sync_stats.total_scanned }} scanned, {{ ad.last_sync_stats.deactivated }} deactivated)
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn btn-outline btn-sm" id="btnTestAd" onclick="runTestAdConnection()">
+                <i data-lucide="activity"></i> Test AD Connection
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnSyncAd" onclick="runAdSyncNow()">
+                <i data-lucide="refresh-cw"></i> Sync with AD Now
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Filters Bar -->
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-body" style="padding: 1rem 1.25rem;">
@@ -457,6 +501,26 @@
     </div>
 </div>
 
+<!-- ========================================== -->
+<!-- MODAL 4: AD Connection Test Diagnostics   -->
+<!-- ========================================== -->
+<div id="adTestModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 520px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header-title">
+                <h3 class="card-title">Active Directory Diagnostics</h3>
+                <p class="card-description">Live domain controller handshake & bind evaluation</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('adTestModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body" id="adTestBody" style="padding: 1.25rem;">
+            <!-- Rendered dynamically -->
+        </div>
+    </div>
+</div>
+
 <script>
 function openModal(id) {
     const el = document.getElementById(id);
@@ -483,6 +547,108 @@ function openEditCallerModal(caller) {
     document.getElementById('edit_tier').value = caller.tier || 'STANDARD';
     document.getElementById('edit_active').checked = (caller.active == 1);
     openModal('editCallerModal');
+}
+
+async function runTestAdConnection() {
+    const btn = document.getElementById('btnTestAd');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" style="width:14px;height:14px;"></i> Testing...</span>';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/ad/test-connection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        renderAdTestResult(data);
+    } catch (err) {
+        renderAdTestResult({
+            success: false,
+            message: 'Network error calling test endpoint: ' + err.message
+        });
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function renderAdTestResult(data) {
+    const body = document.getElementById('adTestBody');
+    if (!body) return;
+
+    if (data.success) {
+        body.innerHTML = `
+            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; color: #059669; font-weight: 600;">
+                    <i data-lucide="check-circle" style="width: 18px; height: 18px;"></i>
+                    Active Directory Reachable
+                </div>
+                <div style="font-size: 0.85rem; color: var(--foreground); margin-top: 0.4rem;">
+                    ${data.message}
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.82rem;">
+                <div><strong>Round-Trip Latency:</strong> ${data.latency_ms} ms</div>
+                <div><strong>Protocol:</strong> ${data.ssl ? 'LDAPS (Port 636)' : 'LDAP (Port 389)'}</div>
+                <div style="grid-column: span 2;"><strong>Target Server:</strong> <code>${data.server}</code></div>
+                <div style="grid-column: span 2;"><strong>Base DN:</strong> <code>${data.base_dn}</code></div>
+                ${data.sample_account ? `<div style="grid-column: span 2;"><strong>Canary Account:</strong> ${data.sample_account}</div>` : ''}
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('adTestModal')">Close</button>
+            </div>
+        `;
+    } else {
+        body.innerHTML = `
+            <div style="background: rgba(200, 16, 46, 0.08); border: 1px solid rgba(200, 16, 46, 0.25); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--nf-crimson); font-weight: 600;">
+                    <i data-lucide="alert-circle" style="width: 18px; height: 18px;"></i>
+                    Active Directory Connection Failed
+                </div>
+                <div style="font-size: 0.85rem; color: var(--foreground); margin-top: 0.4rem;">
+                    ${data.message}
+                </div>
+                ${data.details ? `<div style="font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.4rem; font-family: monospace;">${data.details}</div>` : ''}
+            </div>
+            <div style="font-size: 0.82rem; color: var(--muted-foreground);">
+                Tip: Check that the Domain Controller IP/hostname is reachable on port 636/389 and firewall permits LDAPS traffic.
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('adTestModal')">Close</button>
+            </div>
+        `;
+    }
+    openModal('adTestModal');
+    if (window.lucide) lucide.createIcons();
+}
+
+async function runAdSyncNow() {
+    const btn = document.getElementById('btnSyncAd');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" style="width:14px;height:14px;"></i> Syncing...</span>';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/ad/sync-now', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Active Directory Sync Succeeded!\n\n' + data.message + '\n\n• Added: ' + data.added + '\n• Updated: ' + data.updated + '\n• Deactivated: ' + data.deactivated);
+            window.location.reload();
+        } else {
+            alert('Active Directory Sync Failed:\n' + data.message);
+        }
+    } catch (err) {
+        alert('Sync Request Error: ' + err.message);
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        if (window.lucide) lucide.createIcons();
+    }
 }
 
 // Close modals when clicking backdrop

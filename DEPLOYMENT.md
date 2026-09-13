@@ -95,7 +95,7 @@ pip install --upgrade pip
 Install required packages:
 
 ```bash
-pip install fastapi uvicorn websockets python-dotenv requests python-multipart jinja2
+pip install fastapi uvicorn websockets python-dotenv requests python-multipart jinja2 ldap3
 ```
 
 If using additional features later, update requirements accordingly.
@@ -126,6 +126,19 @@ FRAPPE_DEFAULT_TEAM=IT Support
 DATABASE_URL=postgresql://ai_user:SecurePass@127.0.0.1:5432/ai_dashboard
 
 CSV_USERS_FILE=/opt/ai-support-agent/data/users.csv
+
+# Active Directory (AD / LDAP) Sync Connector
+AD_ENABLED=false
+AD_SERVER=ldaps://dc01.nationalfinance.local
+AD_PORT=636
+AD_USE_SSL=true
+AD_BIND_DN=CN=svc-ai-agent,OU=ServiceAccounts,DC=nationalfinance,DC=local
+AD_PASSWORD=CHANGE_ME_AD_SERVICE_PASSWORD
+AD_BASE_DN=DC=nationalfinance,DC=local
+AD_SEARCH_FILTER=(&(objectCategory=person)(objectClass=user))
+AD_SYNC_INTERVAL_MINUTES=30
+AD_P0_GROUPS=C-Suite,Executives,CEO,CFO
+AD_P1_GROUPS=Directors,Heads,VIP
 
 MAX_CONCURRENT_CALLS=10
 CALL_MAX_SECONDS=1800

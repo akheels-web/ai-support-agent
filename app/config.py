@@ -88,6 +88,23 @@ DASHBOARD_HOST = os.getenv("DASHBOARD_HOST", "127.0.0.1").strip()
 DASHBOARD_PORT = _int_env("DASHBOARD_PORT", 8090, min_value=1024, max_value=65535)
 INITIAL_ADMIN_PASSWORD = (os.getenv("INITIAL_ADMIN_PASSWORD") or "").strip()
 
+# Active Directory (AD / LDAP) Enterprise Connector
+AD_ENABLED = (os.getenv("AD_ENABLED", "false").lower() in ("true", "1", "yes"))
+AD_SERVER = (os.getenv("AD_SERVER", "ldaps://127.0.0.1") or "ldaps://127.0.0.1").strip()
+AD_PORT = _int_env("AD_PORT", 636, min_value=1, max_value=65535)
+AD_USE_SSL = (os.getenv("AD_USE_SSL", "true").lower() in ("true", "1", "yes"))
+AD_USE_STARTTLS = (os.getenv("AD_USE_STARTTLS", "false").lower() in ("true", "1", "yes"))
+AD_VERIFY_CERT = (os.getenv("AD_VERIFY_CERT", "false").lower() in ("true", "1", "yes"))
+AD_CA_CERT_PATH = (os.getenv("AD_CA_CERT_PATH") or "").strip()
+AD_BIND_DN = (os.getenv("AD_BIND_DN") or "").strip()
+AD_PASSWORD = (os.getenv("AD_PASSWORD") or "").strip()
+AD_BASE_DN = (os.getenv("AD_BASE_DN", "DC=nationalfinance,DC=local") or "DC=nationalfinance,DC=local").strip()
+AD_SEARCH_FILTER = (os.getenv("AD_SEARCH_FILTER", "(&(objectCategory=person)(objectClass=user))") or "(&(objectCategory=person)(objectClass=user))").strip()
+AD_PAGE_SIZE = _int_env("AD_PAGE_SIZE", 500, min_value=10, max_value=1000)
+AD_SYNC_INTERVAL_MINUTES = _int_env("AD_SYNC_INTERVAL_MINUTES", 30, min_value=5, max_value=1440)
+AD_P0_GROUPS = [g.strip() for g in (os.getenv("AD_P0_GROUPS", "C-Suite,Executives,CEO,CFO")).split(",") if g.strip()]
+AD_P1_GROUPS = [g.strip() for g in (os.getenv("AD_P1_GROUPS", "Directors,Heads,VIP")).split(",") if g.strip()]
+
 
 def validate_bridge_config():
     if not OPENAI_API_KEY:

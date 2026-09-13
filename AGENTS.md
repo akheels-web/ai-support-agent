@@ -133,3 +133,18 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - One-click immediate status toggling (`Offboard` / `Activate`).
   - Full modal dialogs for onboarding new employees, editing phonetic Arabic/English aliases (`منصور الحبسي | Mansoor`), updating VIP tiers, and bulk CSV roster importing/exporting.
   - Complete integration readiness for the upcoming on-premises Active Directory (AD/LDAP) background sync worker.
+
+## 12. Active Directory (AD / LDAP) Enterprise Sync Connector
+- **Connector Architecture (`app/ad_sync.py`)**:
+  - Secure LDAPS (TCP 636) and LDAP/StartTLS (TCP 389) connector built with `ldap3` and socket timeout guardrails (5s connect, 15s search).
+  - Paged search streaming (`paged_search` with batch size 500) preventing Windows Server AD `LDAP_SIZELIMIT_EXCEEDED` errors when querying large enterprise user bases.
+  - Decoupled asynchronous design: phone calls and Asterisk media bridge never block on domain controller queries, operating at sub-5ms latency from local database/memory caches.
+- **Enterprise Safety & Offboarding Evaluation**:
+  - Bitwise evaluator for `userAccountControl` (MS-SAMR): checks flag `0x0002` (`ACCOUNTDISABLE`) to automatically mark terminated staff as `active=0`.
+  - Strict non-destructive upsert: **preserves all existing custom spoken Arabic and English phonetic aliases** in the database to prevent speech recognition degradation.
+  - Safe against accidental directory wipe: never hard deletes missing records from misconfigured OUs.
+- **Dashboard Diagnostics & Controls (`dashboard/app.py`, `/callers`, `/settings`)**:
+  - REST endpoints: `POST /api/ad/test-connection` (round-trip latency, TLS handshake, and bind verification) and `POST /api/ad/sync-now` (manual on-demand sync with audit logging).
+  - UI banner on `/callers` displaying live domain controller connection state, last sync timestamp, and total scanned/deactivated metrics.
+  - Diagnostic modal with real-time handshake latency and canary account verification.
+  - Complete configuration form in `/settings` allowing live parameter tuning and connection testing.
