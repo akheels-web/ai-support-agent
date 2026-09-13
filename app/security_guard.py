@@ -2,8 +2,14 @@ import time
 import app.db as db
 
 
+_SECURITY_DB_INITIALIZED = False
+
+
 def init_security_db():
-    db.init_all_tables()
+    global _SECURITY_DB_INITIALIZED
+    if not _SECURITY_DB_INITIALIZED:
+        db.init_all_tables()
+        _SECURITY_DB_INITIALIZED = True
 
 
 def log_security_event(event_type, key="", details=""):

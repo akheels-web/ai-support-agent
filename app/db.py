@@ -145,9 +145,23 @@ class PostgresCursorWrapper:
         rows = self._cur.fetchall()
         return [RowDict(r) for r in rows]
 
+    def __iter__(self):
+        while True:
+            row = self.fetchone()
+            if row is None:
+                break
+            yield row
+
     @property
     def rowcount(self) -> int:
         return self._cur.rowcount
+
+    @property
+    def lastrowid(self):
+        return getattr(self._cur, "lastrowid", None)
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
 
     def close(self):
         try:
@@ -174,6 +188,15 @@ class PostgresConnectionWrapper:
         else:
             self.commit()
         self.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
 
     def _normalize_query(self, query: str) -> str:
         # Convert ? parameter markers to %s for Postgres
@@ -209,6 +232,11 @@ class PostgresConnectionWrapper:
             self._closed = True
             if self._pool and self._conn:
                 try:
+                    # Clean up uncommitted/aborted transaction state before returning to pool
+                    try:
+                        self._conn.rollback()
+                    except Exception:
+                        pass
                     self._pool.putconn(self._conn)
                 except Exception as e:
                     logger.debug(f"[DB] Error returning connection to pool: {e}")
@@ -231,6 +259,15 @@ class SQLiteConnectionWrapper:
         else:
             self.commit()
         self.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
 
     def execute(self, query: str, params: Optional[Union[Tuple, List]] = None):
         if params:
@@ -272,9 +309,19 @@ class SQLiteCursorWrapper:
         rows = self._cur.fetchall()
         return [RowDict(dict(r)) for r in rows]
 
+    def __iter__(self):
+        while True:
+            row = self.fetchone()
+            if row is None:
+                break
+            yield row
+
     @property
     def rowcount(self) -> int:
         return self._cur.rowcount
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
 
     def close(self):
         try:
@@ -416,11 +463,18 @@ def _ensure_column(conn, table: str, column: str, definition: str):
             logger.debug(f"[DB] Column check on {table}.{column}: {e}")
 
 
-def init_all_tables():
+_TABLES_INITIALIZED = False
+
+
+def init_all_tables(force: bool = False):
     """
     Initializes all production database tables and composite indexes.
     Idempotent and safe to run on application startup.
     """
+    global _TABLES_INITIALIZED
+    if _TABLES_INITIALIZED and not force:
+        return
+
     engine = _db_manager.engine
 
     with get_db() as conn:
@@ -763,7 +817,16 @@ def init_all_tables():
     # Automatically seed knowledge base articles from files if table is empty
     seed_knowledge_articles_if_empty()
 
+    _TABLES_INITIALIZED = True
     logger.info(f"[DB] Initialized database schema successfully on {engine}.")
+
+
+def init_db(force: bool = False):
+    """
+    Standard deployment and CLI alias for init_all_tables().
+    Allows clean bootstrapping via `python3 -c "import app.db as db; db.init_db()"`.
+    """
+    init_all_tables(force=force)
 
 
 def seed_callers_from_csv_if_empty(conn=None):

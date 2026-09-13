@@ -1,6 +1,7 @@
 import csv
 import os
 import re
+import time
 from pathlib import Path
 from functools import lru_cache
 from difflib import SequenceMatcher
@@ -154,8 +155,29 @@ def _normalize_phone(phone: str) -> str:
     return digits[-8:] if len(digits) >= 8 else digits
 
 
-@lru_cache(maxsize=1)
+_USERS_CACHE = None
+_USERS_CACHE_TIME = 0.0
+_USERS_CACHE_TTL = 15.0  # seconds - auto-refreshes caller roster without daemon restarts
+
+
+def clear_cache():
+    """Manually invalidates the caller directory cache."""
+    global _USERS_CACHE, _USERS_CACHE_TIME
+    _USERS_CACHE = None
+    _USERS_CACHE_TIME = 0.0
+
+
 def _load_users():
+    """
+    Loads verified enterprise users with a 15-second TTL cache.
+    Ensures that caller additions, deactivations, and VIP tier changes
+    reflect across separate processes without requiring daemon restarts.
+    """
+    global _USERS_CACHE, _USERS_CACHE_TIME
+    now = time.time()
+    if _USERS_CACHE is not None and (now - _USERS_CACHE_TIME) < _USERS_CACHE_TTL:
+        return _USERS_CACHE
+
     users = {}
 
     # 1. Attempt loading from app.db callers table
@@ -193,6 +215,8 @@ def _load_users():
                     "active": active,
                     "is_executive": (tier == "P0_EXECUTIVE"),
                 }
+            _USERS_CACHE = users
+            _USERS_CACHE_TIME = now
             return users
     except Exception:
         pass
@@ -239,11 +263,9 @@ def _load_users():
     except FileNotFoundError:
         print(f"[VERIFY] users.csv not found at {USERS_CSV}")
 
+    _USERS_CACHE = users
+    _USERS_CACHE_TIME = now
     return users
-
-
-def clear_cache():
-    _load_users.cache_clear()
 
 
 def lookup_caller_by_phone(phone_number: str):

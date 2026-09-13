@@ -7,8 +7,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 RECORDING_DIR = os.getenv("RECORDING_DIR", "/var/spool/asterisk/monitor/ai-support")
 
 
+_CALL_DB_INITIALIZED = False
+
+
 def init_call_db():
-    db.init_all_tables()
+    global _CALL_DB_INITIALIZED
+    if not _CALL_DB_INITIALIZED:
+        db.init_all_tables()
+        _CALL_DB_INITIALIZED = True
 
 
 def create_call(call_id, status="in_progress"):

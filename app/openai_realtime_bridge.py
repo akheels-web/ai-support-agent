@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -1032,7 +1033,7 @@ async def handle_single_call(asterisk_ws):
         update_call(state["call_id"], status=reason)
         print(f"[CALL] Goodbye queued. Reason: {reason}")
 
-    async def send_queued_response_if_any():
+    async def send_queued_response_if_any(default_fallback=False):
         if state["call_ending"]:
             return
 
@@ -1053,6 +1054,10 @@ async def handle_single_call(asterisk_ws):
             state["active_response"] = True
             await send_response(openai_ws, instruction)
             return
+
+        if default_fallback:
+            state["active_response"] = True
+            await openai_ws.send(json.dumps({"type": "response.create"}))
 
     async def execute_tool(tool_name, arguments):
         state["tool_in_progress"] = True
@@ -1863,6 +1868,16 @@ async def handle_single_call(asterisk_ws):
                     "Respond only in English. Based on the playbook, give the caller the single most practical safe step. Then explicitly ask: Did that resolve the issue for you?"
                 )
 
+        elif tool_name == "lookup_knowledge_base" and not result.get("found"):
+            if state["language"] == "ar":
+                queue_response(
+                    "Respond only in Arabic. Say politely that there is no standard self-service procedure found for this issue, and ask the caller if they would like you to open a support ticket for an IT engineer to investigate."
+                )
+            else:
+                queue_response(
+                    "Respond only in English. Say politely that no self-service procedure is available for this issue, and ask if they would like you to open a support ticket for an IT engineer to investigate."
+                )
+
         elif tool_name == "record_resolution" and result.get("success"):
             ticket_spoken = result.get("ticket_number_spoken")
             if state["language"] == "ar":
@@ -1884,6 +1899,46 @@ async def handle_single_call(asterisk_ws):
                 queue_response(
                     f"Respond only in English. Say: Your ticket has been created successfully. Your ticket number is {ticket_spoken}. Is there anything else I can help you with?"
                 )
+
+        elif tool_name == "create_ticket" and not result.get("success"):
+            err = result.get("error", "Ticket creation could not be completed.")
+            if result.get("out_of_scope"):
+                if state["language"] == "ar":
+                    queue_response(
+                        "Respond only in Arabic. Politely inform the caller that this phone line is strictly for internal IT Support, and guide them to contact customer service for banking or loan inquiries."
+                    )
+                else:
+                    queue_response(
+                        "Respond only in English. Politely inform the caller that this phone line is strictly for internal IT Support, and guide them to contact customer service for banking or loan inquiries."
+                    )
+            elif result.get("unverified"):
+                if state["language"] == "ar":
+                    queue_response(
+                        "Respond only in Arabic. Say that you must verify their employee identity before a ticket can be created. Ask for their full name and employee ID."
+                    )
+                else:
+                    queue_response(
+                        "Respond only in English. Say that you must verify their employee identity before creating a ticket. Ask for their full name and employee ID."
+                    )
+            elif result.get("duplicate_prevented"):
+                ticket_spoken = result.get("ticket_number_spoken")
+                if state["language"] == "ar":
+                    queue_response(
+                        f"Respond only in Arabic. Say that a ticket ({ticket_spoken}) is already registered for this call. Ask how else you can assist."
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Say that a ticket ({ticket_spoken}) is already registered for this call. Ask how else you can assist."
+                    )
+            else:
+                if state["language"] == "ar":
+                    queue_response(
+                        f"Respond only in Arabic. Apologize and explain: {err}. Ask the caller for clarification."
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Apologize and explain: {err}. Ask the caller for clarification."
+                    )
 
         elif tool_name == "check_ticket_status":
             if result.get("found"):
@@ -1984,7 +2039,7 @@ async def handle_single_call(asterisk_ws):
                     "Respond only in English. Say: This has been flagged as a critical incident. Transferring you immediately to the on-call emergency team."
                 )
 
-        await send_queued_response_if_any()
+        await send_queued_response_if_any(default_fallback=True)
 
     async def asterisk_to_openai():
         try:
@@ -2020,59 +2075,59 @@ async def handle_single_call(asterisk_ws):
                                 continue
 
                         if "MEDIA_START" in message:
-                        parts = message.split()
-                        for part in parts:
-                            if part.startswith("channel:"):
-                                state["asterisk_channel"] = part.replace("channel:", "").strip()
-                            if part.startswith("caller:"):
-                                caller_num = part.replace("caller:", "").strip()
-                                if caller_num:
-                                    state["caller_number"] = caller_num
-                                    update_call(state["call_id"], caller_number=caller_num)
+                            parts = message.split()
+                            for part in parts:
+                                if part.startswith("channel:"):
+                                    state["asterisk_channel"] = part.replace("channel:", "").strip()
+                                if part.startswith("caller:"):
+                                    caller_num = part.replace("caller:", "").strip()
+                                    if caller_num:
+                                        state["caller_number"] = caller_num
+                                        update_call(state["call_id"], caller_number=caller_num)
 
-                                    # Fast-track check for CEO, CFO, C-Suite
-                                    pre_user = lookup_caller_by_phone(caller_num)
-                                    if pre_user and pre_user.get("is_executive"):
-                                        state["is_executive"] = True
-                                        state["is_vip"] = True
-                                        state["tier"] = "P0_EXECUTIVE"
-                                        state["verified_user"] = pre_user
-                                        state["caller_name"] = pre_user["name"]
-                                        state["employee_id"] = pre_user["employee_id"]
-                                        update_call(
-                                            state["call_id"],
-                                            is_vip=1,
-                                            tier="P0_EXECUTIVE",
-                                            verified_name=pre_user["name"],
-                                            employee_id=pre_user["employee_id"],
-                                        )
-                                        print(f"[EXECUTIVE DETECTED] CLI match for {pre_user['name']} ({pre_user['role']})")
+                                        # Fast-track check for CEO, CFO, C-Suite
+                                        pre_user = lookup_caller_by_phone(caller_num)
+                                        if pre_user and pre_user.get("is_executive"):
+                                            state["is_executive"] = True
+                                            state["is_vip"] = True
+                                            state["tier"] = "P0_EXECUTIVE"
+                                            state["verified_user"] = pre_user
+                                            state["caller_name"] = pre_user["name"]
+                                            state["employee_id"] = pre_user["employee_id"]
+                                            update_call(
+                                                state["call_id"],
+                                                is_vip=1,
+                                                tier="P0_EXECUTIVE",
+                                                verified_name=pre_user["name"],
+                                                employee_id=pre_user["employee_id"],
+                                            )
+                                            print(f"[EXECUTIVE DETECTED] CLI match for {pre_user['name']} ({pre_user['role']})")
 
-                            if part.startswith("channel_id:"):
-                                real_call_id = part.replace("channel_id:", "").strip()
-                                if real_call_id:
-                                    old_call_id = state["call_id"]
-                                    state["call_id"] = real_call_id
-                                    rename_call_id(old_call_id, real_call_id)
-                                    update_call(state["call_id"], status="in_progress")
+                                if part.startswith("channel_id:"):
+                                    real_call_id = part.replace("channel_id:", "").strip()
+                                    if real_call_id:
+                                        old_call_id = state["call_id"]
+                                        state["call_id"] = real_call_id
+                                        rename_call_id(old_call_id, real_call_id)
+                                        update_call(state["call_id"], status="in_progress")
 
-                        if state["caller_number"]:
-                            rl = check_rate_limit(
-                                f"call:{state['caller_number']}",
-                                CALLS_PER_NUMBER_LIMIT,
-                                CALLS_PER_NUMBER_WINDOW,
-                                CALLS_PER_NUMBER_LOCK,
-                            )
-                            if not rl["allowed"]:
-                                log_security_event(
-                                    "call_rate_limited",
-                                    state["caller_number"],
-                                    f"reason={rl['reason']} retry_after={rl['retry_after']}",
+                            if state["caller_number"]:
+                                rl = check_rate_limit(
+                                    f"call:{state['caller_number']}",
+                                    CALLS_PER_NUMBER_LIMIT,
+                                    CALLS_PER_NUMBER_WINDOW,
+                                    CALLS_PER_NUMBER_LOCK,
                                 )
-                                update_call(state["call_id"], status="rejected")
-                                state["call_ending"] = True
-                                await asterisk_ws.close()
-                                return
+                                if not rl["allowed"]:
+                                    log_security_event(
+                                        "call_rate_limited",
+                                        state["caller_number"],
+                                        f"reason={rl['reason']} retry_after={rl['retry_after']}",
+                                    )
+                                    update_call(state["call_id"], status="rejected")
+                                    state["call_ending"] = True
+                                    await asterisk_ws.close()
+                                    return
 
         except websockets.exceptions.ConnectionClosed:
             pass
@@ -2152,6 +2207,9 @@ async def handle_single_call(asterisk_ws):
                     error = event.get("error", {})
                     if error.get("code") == "conversation_already_has_active_response":
                         state["active_response"] = True
+                    else:
+                        # Release active_response lock on general errors so conversation is not blocked
+                        state["active_response"] = False
 
         except websockets.exceptions.ConnectionClosed:
             pass

@@ -201,4 +201,25 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
 - **Environment Template (`.env.example`)**: Fully populated with `DATABASE_URL`, Active Directory LDAPS credentials, Asterisk AMI TLS, and Queue Capacity parameters.
 - **Single-Command Database Bootstrapping**: `python3 -c "import app.db as db; db.init_db()"` creates tables, composite indexes, default playbooks, and caller rosters prior to starting services.
 
+## 18. Enterprise Database Hardening & OpenAI Realtime Resilience
+- **Database Connection Pool & Cursor Enhancements (`app/db.py`)**:
+  - Added `__iter__` to `PostgresCursorWrapper` and `SQLiteCursorWrapper` for sequential row iteration matching standard DB-API cursor specifications.
+  - Added `lastrowid`, `rowcount`, and `__getattr__` delegation to cursor wrappers.
+  - Safe Connection Return: In `PostgresConnectionWrapper.close()`, uncommitted transactions are rolled back prior to returning the connection to `psycopg_pool` (`self._pool.putconn(self._conn)`), preventing aborted/dirty transactions from poisoning subsequent callers.
+  - Automatic Connection Cleanup: Added `__del__` destructor to connection wrappers to automatically release connection slots if an unhandled exception bypasses explicit `.close()`.
+  - Added `init_db(force=False)` deployment alias for seamless bootstrapping.
+- **Elimination of DDL Thrashing**:
+  - Added `_TABLES_INITIALIZED`, `_SECURITY_DB_INITIALIZED`, and `_CALL_DB_INITIALIZED` idempotency guards.
+  - Completely eliminated the execution of 25 redundant `CREATE TABLE` and `CREATE INDEX` statements previously run on **every single rate limit check and every call status change**.
+- **Voice Bridge Dead-Air Elimination (`app/openai_realtime_bridge.py`)**:
+  - Fixed syntax/indentation bug under `if "MEDIA_START" in message:` in `asterisk_to_openai`.
+  - Added missing `import re` at top level.
+  - Added fallback response generation: `send_queued_response_if_any(default_fallback=True)` automatically triggers `{"type": "response.create"}` if a tool completes without queuing explicit steering, guaranteeing OpenAI will always respond and eliminating dead air on telephone lines.
+  - Added dedicated fallback steering for `lookup_knowledge_base` (when `not found`), `create_ticket` (when `not success`), and unhandled tool execution branches.
+  - General Error Recovery: in `openai_to_asterisk`, `event_type == "error"` resets `state["active_response"] = False` on general errors, preventing the voice assistant from freezing permanently.
+- **Live Cross-Process Caller Reflection (`app/verify.py`)**:
+  - Replaced static `@lru_cache(maxsize=1)` with 15-second TTL in-memory cache (`_USERS_CACHE_TTL = 15.0`).
+  - Caller roster additions, offboarding deactivations, Arabic phonetic aliases, and VIP tier changes made in the dashboard (:8090) or AD sync worker automatically reflect in the voice bridge (:8765) within 15 seconds without requiring daemon restarts.
+
+
 
