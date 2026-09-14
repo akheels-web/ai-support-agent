@@ -59,7 +59,7 @@ DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "data" / "dashboard.db"))
 # Database Configuration (PostgreSQL 16 Enterprise with SQLite fallback)
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 DB_POOL_MIN = _int_env("DB_POOL_MIN", 2, min_value=1, max_value=50)
-DB_POOL_MAX = _int_env("DB_POOL_MAX", 20, min_value=2, max_value=100)
+DB_POOL_MAX = _int_env("DB_POOL_MAX", 20, min_value=2, max_value=200)
 
 # Telephony & Escalation Queues
 ASTERISK_QUEUE_STANDARD = os.getenv("ASTERISK_QUEUE_STANDARD", os.getenv("ASTERISK_AGENT_EXTENSION", "7001"))
@@ -73,7 +73,7 @@ ASTERISK_ARI_PASSWORD = (os.getenv("ASTERISK_ARI_PASSWORD") or "").strip()
 ASTERISK_ARI_APP = os.getenv("ASTERISK_ARI_APP", "ai-support")
 
 # Call Parameters
-MAX_CONCURRENT_CALLS = _int_env("MAX_CONCURRENT_CALLS", 10, min_value=1, max_value=50)
+MAX_CONCURRENT_CALLS = _int_env("MAX_CONCURRENT_CALLS", 30, min_value=1, max_value=500)
 CALL_MAX_SECONDS = _int_env("CALL_MAX_SECONDS", 1800, min_value=60, max_value=7200)
 
 # Voice Activity Detection (VAD)
