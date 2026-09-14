@@ -77,6 +77,21 @@ This document outlines upcoming strategic enhancements and future feature phases
   - Controlled via single configuration flag in `.env`: `VIP_AUTO_TRANSFER_ALL=true|false`.
   - Enables instant toggling without codebase refactoring once the client confirms their preferred protocol.
 
+### Phase 11: Enterprise Redis Distributed Cache, Pub/Sub & High-Throughput State Engine (Planned Scale-Out)
+- **Objective**: Introduce Redis 7+ / Valkey as a distributed, high-performance in-memory state engine for multi-node voice edge clustering and sub-millisecond live dashboard telemetry.
+- **Architectural Triggers & Use Cases**:
+  1. **Multi-Node Voice Edge Clustering**:
+     - Centralizes session states, employee verification rate limits, and global channel concurrency counters across multiple Asterisk / Voice Bridge VMs deployed behind a SIP Load Balancer (Kamailio / Cisco CUBE).
+  2. **Sub-Second Event-Driven Cache Invalidation (Pub/Sub)**:
+     - Replaces the 15-second TTL cache with instant Redis Pub/Sub event broadcasting (`PUBLISH caller_updated 1002`). When an administrator offboards an employee or adds a new playbook in the dashboard, all voice bridge workers across all VMs invalidate their cache in under 5 milliseconds.
+  3. **Real-Time Live Call Telemetry & Transcript Streaming**:
+     - Voice bridge publishes live call status changes and incremental transcript chunks to Redis Pub/Sub (`live_calls_channel`).
+     - FastAPI dashboard streams live updates to supervisors' browsers via WebSockets / Server-Sent Events (SSE), showing real-time conversational speech bubbles as callers speak, with zero database polling overhead.
+  4. **Distributed Atomic Rate Limiting**:
+     - Moves sliding-window call frequency checks (`CALLS_PER_NUMBER_LIMIT`) and brute-force verification protection to Redis Sorted Sets (`ZADD / ZREMRANGEBYSCORE`), capable of 120,000 ops/sec to protect PostgreSQL during storm surges.
+  5. **Asynchronous Background Task Broker**:
+     - Serves as the message broker for Celery / RQ workers handling WhatsApp/SMS delivery (Phase 7), bulk Active Directory synchronizations (10,000+ users), and automated executive report distribution.
+
 ---
 
 ## 2. Completed Milestones

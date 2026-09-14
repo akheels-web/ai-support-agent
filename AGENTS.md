@@ -239,6 +239,11 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   14. *Dynamic Knowledge Base Zero-Downtime Telephony Reflection*
 - Outlines exact spoken test phrases, expected audio outputs, Asterisk AMI channel variables, Frappe Helpdesk ticket statuses, and dashboard inspection drawer telemetry.
 
+## 20. Redis Scale-Out Architecture & Live Telemetry Roadmap (Phase 11)
+- Documented in `ROADMAP.md` (Phase 11): Redis 7+ / Valkey planned for multi-node voice edge clustering, sub-second event-driven cache invalidation (Pub/Sub), distributed atomic rate limiting, and background task queuing (Celery/RQ).
+- **Lightweight Live Call Telemetry Pattern**: Enables real-time speech event streaming from the voice bridge to the FastAPI dashboard via Redis Pub/Sub and WebSockets / Server-Sent Events (SSE), eliminating database polling overhead for live calls.
+
+
 
 
 

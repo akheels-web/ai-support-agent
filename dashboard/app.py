@@ -906,12 +906,17 @@ def api_active_calls_data(request: Request):
 
     result = []
     for r in rows:
+        caller_disp = display_caller_id(r)
+        name_disp = display_caller_name(r)
         result.append({
             "id": r["id"],
             "call_id": r["call_id"] or "",
-            "caller_id": display_caller_id(r),
-            "caller_name": display_caller_name(r),
+            "caller_id": caller_disp,
+            "caller_number": r["caller_number"] or caller_disp,
+            "caller_name": name_disp,
+            "verified_name": r["verified_name"] or name_disp,
             "employee_id": r["employee_id"] or "",
+            "tier": r["tier"] or "STANDARD",
             "status": r["status"] or "in_progress",
             "duration_minutes": live_call_duration(r["start_time"]),
             "started_at": human_time(r["start_time"]),
