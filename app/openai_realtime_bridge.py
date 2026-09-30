@@ -4,6 +4,9 @@ import json
 import os
 import re
 import time
+import struct
+import uuid
+import audioop
 from pathlib import Path
 
 import websockets
@@ -35,7 +38,7 @@ from app.call_logger import (
     reconcile_stale_calls,
 )
 from app.verify import verify_user, lookup_caller_by_phone
-from app.transfer import transfer_call, check_queue_availability
+from app.transfer import transfer_call, check_queue_availability, get_active_channel_info
 from app.ticketing import get_ticketing_client
 
 CALLS_PER_NUMBER_LIMIT = int(os.getenv("CALLS_PER_NUMBER_LIMIT", "5"))
@@ -778,12 +781,12 @@ def build_session_config():
             "output_modalities": ["audio"],
             "tools": TOOLS,
             "tool_choice": "auto",
-            "input_audio_transcription": {
-                "model": "whisper-1",
-            },
             "audio": {
                 "input": {
                     "format": {"type": "audio/pcmu"},
+                    "transcription": {
+                        "model": "whisper-1",
+                    },
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": VAD_THRESHOLD,
@@ -850,6 +853,92 @@ def language_prefix(state):
     if state.get("language") == "ar":
         return "Respond only in Arabic."
     return "Respond only in English."
+
+
+class AudioSocketChannel:
+    """
+    Adapter that wraps Asterisk AudioSocket TCP connection to match WebSocket API.
+    Converts Asterisk 16-bit 8kHz linear PCM (ast_format_slin) <-> OpenAI Realtime audio/pcmu (G.711 u-law).
+    Handles Asterisk AudioSocket frame headers (0x01 UUID, 0x10 Audio, 0x03 DTMF, 0x00 Hangup).
+    """
+
+    def __init__(self, reader, writer, call_uuid):
+        self.reader = reader
+        self.writer = writer
+        self.call_uuid = call_uuid
+        self._closed = False
+
+    async def __aiter__(self):
+        # Look up Asterisk incoming channel name & caller ID via AMI
+        caller_info = await asyncio.to_thread(get_active_channel_info, self.call_uuid)
+        chan_arg = f" channel:{caller_info['channel']}" if caller_info and caller_info.get("channel") else ""
+        caller_arg = f" caller:{caller_info['caller_num']}" if caller_info and caller_info.get("caller_num") else ""
+        yield f"MEDIA_START channel_id:{self.call_uuid}{chan_arg}{caller_arg}"
+
+        while not self._closed:
+            try:
+                hdr = await self.reader.readexactly(3)
+            except (asyncio.IncompleteReadError, ConnectionResetError, Exception):
+                break
+            kind, length = struct.unpack("!BH", hdr)
+            payload = await self.reader.readexactly(length) if length > 0 else b""
+
+            if kind == 0x10:  # Audio (16-bit 8kHz slin PCM)
+                try:
+                    ulaw = audioop.lin2ulaw(payload, 2)
+                    yield ulaw
+                except Exception:
+                    pass
+            elif kind == 0x03:  # DTMF digit
+                digit = payload.decode("ascii", errors="ignore")
+                yield f"DTMF:{digit}"
+            elif kind == 0x00:  # Hangup
+                break
+
+    async def send(self, data):
+        if self._closed or self.writer.is_closing():
+            return
+        if isinstance(data, bytes):
+            try:
+                slin = audioop.ulaw2lin(data, 2)
+                frame = struct.pack("!BH", 0x10, len(slin)) + slin
+                self.writer.write(frame)
+                await self.writer.drain()
+            except Exception:
+                pass
+
+    async def close(self):
+        if not self._closed:
+            self._closed = True
+            try:
+                self.writer.write(struct.pack("!BH", 0x00, 0))
+                await self.writer.drain()
+            except Exception:
+                pass
+            try:
+                self.writer.close()
+                await self.writer.wait_closed()
+            except Exception:
+                pass
+
+
+async def handle_audiosocket_connection(reader, writer):
+    """Entry point for native Asterisk AudioSocket TCP calls."""
+    try:
+        hdr = await reader.readexactly(3)
+        kind, length = struct.unpack("!BH", hdr)
+        if kind == 0x01 and length == 16:
+            uuid_bytes = await reader.readexactly(16)
+            call_uuid = str(uuid.UUID(bytes=uuid_bytes))
+        else:
+            call_uuid = str(int(time.time() * 1000))
+    except Exception as exc:
+        print(f"[AUDIOSOCKET] Handshake error: {exc}")
+        writer.close()
+        return
+
+    channel = AudioSocketChannel(reader, writer, call_uuid)
+    await handle_asterisk_call(channel)
 
 
 async def handle_asterisk_call(asterisk_ws):
@@ -2196,7 +2285,7 @@ async def handle_single_call(asterisk_ws):
                         state["transcript_lines"].append(f"[{t_str}] Caller: {transcript}")
                         print(f"[CALLER SAID] {transcript}")
 
-                elif event_type == "response.audio_transcript.done":
+                elif event_type in ("response.output_audio_transcript.done", "response.audio_transcript.done"):
                     a_text = (event.get("transcript") or "").strip()
                     if a_text:
                         t_str = time.strftime("%H:%M:%S")
@@ -2251,22 +2340,31 @@ async def main():
         else:
             print("[SERVER] Notice: ASTERISK_WS_SSL_CERT/KEY configured but files not found. Using plain WS on loopback.")
 
-    proto = "wss" if ssl_context else "ws"
-    print(f"[SERVER] Starting on {proto}://{ASTERISK_WS_HOST}:{ASTERISK_WS_PORT}")
     print(f"[SERVER] Model: {OPENAI_REALTIME_MODEL}")
     print(f"[SERVER] Ticketing Provider: Frappe Helpdesk")
     print(f"[SERVER] Loaded {len(KNOWLEDGE_BASE)} Knowledge Base Playbooks: {list(KNOWLEDGE_BASE.keys())}")
 
-    async with websockets.serve(
-        handle_asterisk_call,
+    audiosocket_server = await asyncio.start_server(
+        handle_audiosocket_connection,
         ASTERISK_WS_HOST,
         ASTERISK_WS_PORT,
+    )
+    print(f"[SERVER] Asterisk AudioSocket listening on {ASTERISK_WS_HOST}:{ASTERISK_WS_PORT}")
+
+    ws_port = ASTERISK_WS_PORT + 1
+    ws_server = await websockets.serve(
+        handle_asterisk_call,
+        ASTERISK_WS_HOST,
+        ws_port,
         ssl=ssl_context,
         max_size=None,
         ping_interval=20,
         ping_timeout=10,
-    ):
-        print("[SERVER] Ready. Waiting for calls...")
+    )
+    print(f"[SERVER] WebSocket fallback listening on {ASTERISK_WS_HOST}:{ws_port}")
+
+    async with audiosocket_server, ws_server:
+        print("[SERVER] Ready. Waiting for calls from Asterisk AudioSocket...")
         await asyncio.Future()
 
 

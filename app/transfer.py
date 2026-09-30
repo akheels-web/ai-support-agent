@@ -258,3 +258,47 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
             "success": False,
             "error": str(exc)
         }
+
+
+def get_active_channel_info(call_uuid=None):
+    """Queries Asterisk AMI Status to find the active incoming channel and caller ID."""
+    if not ASTERISK_AMI_USER or not ASTERISK_AMI_SECRET:
+        return None
+    try:
+        sock = _ami_connect()
+        try:
+            _ami_send(sock, {"Action": "Status"})
+            data = ""
+            while "StatusComplete" not in data:
+                chunk = sock.recv(4096).decode(errors="ignore")
+                if not chunk:
+                    break
+                data += chunk
+            _ami_send(sock, {"Action": "Logoff"})
+
+            events = data.split("\r\n\r\n")
+            first_pjsip = None
+            matched = None
+            for ev in events:
+                if "Event: Status" in ev:
+                    lines = ev.split("\r\n")
+                    ev_dict = {}
+                    for line in lines:
+                        if ": " in line:
+                            k, v = line.split(": ", 1)
+                            ev_dict[k.strip()] = v.strip()
+                    chan = ev_dict.get("Channel")
+                    caller_num = ev_dict.get("CallerIDNum")
+                    acct = ev_dict.get("AccountCode")
+                    if chan and ("PJSIP" in chan or "Local" in chan or "SIP" in chan):
+                        if not first_pjsip:
+                            first_pjsip = {"channel": chan, "caller_num": caller_num}
+                        if call_uuid and acct and acct.strip() == str(call_uuid).strip():
+                            matched = {"channel": chan, "caller_num": caller_num}
+                            break
+            return matched or first_pjsip
+        finally:
+            sock.close()
+    except Exception:
+        pass
+    return None

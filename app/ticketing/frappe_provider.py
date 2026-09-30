@@ -79,8 +79,8 @@ class FrappeProvider(BaseTicketingProvider):
         if not email:
             raise ValueError("Email is required to get or create contact")
 
-        # 1. Search for existing HD Contact or User
-        contact_doctype = "HD Contact" if self.ticket_doctype == "HD Ticket" else "Contact"
+        # 1. Search for existing HD Customer or Contact
+        contact_doctype = "HD Customer" if self.ticket_doctype == "HD Ticket" else "Contact"
         try:
             filters = json.dumps([["email_id", "=", email]])
             resp = self._request("GET", f"/api/resource/{contact_doctype}?filters={filters}&fields=[\"*\"]")
@@ -91,12 +91,20 @@ class FrappeProvider(BaseTicketingProvider):
             logger.warning(f"Could not query {contact_doctype} by email ({exc}). Proceeding to create.")
 
         # 2. Create if not found
-        payload = {
-            "email_id": email,
-            "first_name": name or email.split("@")[0],
-            "phone": phone or "",
-            "department": department or "",
-        }
+        customer_display_name = name or email.split("@")[0]
+        if contact_doctype == "HD Customer":
+            payload = {
+                "customer_name": customer_display_name,
+                "email_id": email,
+                "mobile_no": phone or "",
+            }
+        else:
+            payload = {
+                "first_name": customer_display_name,
+                "email_id": email,
+                "phone": phone or "",
+                "department": department or "",
+            }
         if employee_id:
             payload["employee_id"] = employee_id
 
@@ -105,7 +113,7 @@ class FrappeProvider(BaseTicketingProvider):
             return resp.json().get("data", {})
         except Exception as exc:
             logger.warning(f"Failed to create {contact_doctype}: {exc}. Using fallback dict.")
-            return {"email_id": email, "first_name": name or "Caller"}
+            return {"name": customer_display_name, "email_id": email, "first_name": customer_display_name}
 
     HARDWARE_KEYWORDS = {
         "laptop", "desktop", "computer", "pc", "monitor", "screen", "keyboard",
@@ -139,7 +147,7 @@ class FrappeProvider(BaseTicketingProvider):
 
         # Ensure customer exists with real name & metadata
         caller_name = caller_info.get("name") or caller_info.get("verified_name")
-        self.get_or_create_customer(
+        cust_doc = self.get_or_create_customer(
             email=customer_email,
             name=caller_name,
             phone=caller_info.get("phone"),
@@ -182,15 +190,15 @@ class FrappeProvider(BaseTicketingProvider):
 
         # Build payload based on DocType
         if self.ticket_doctype == "HD Ticket":
+            customer_ref = (cust_doc.get("name") if isinstance(cust_doc, dict) else None) or customer_email
             payload = {
                 "subject": title,
                 "description": body,
                 "priority": frappe_priority,
                 "status": ticket_status,
                 "ticket_type": category or "Service Request",
-                "customer": customer_email,
+                "customer": customer_ref,
                 "customer_name": caller_name or customer_email,
-                "contact": customer_email,
             }
             if self.default_team:
                 payload["team"] = self.default_team

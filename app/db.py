@@ -15,9 +15,14 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from dotenv import load_dotenv
+
 logger = logging.getLogger("app.db")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+env_path = os.getenv("ENV_FILE", str(BASE_DIR / ".env"))
+load_dotenv(env_path, override=True)
+
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "data" / "dashboard.db"))
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 DB_POOL_MIN = int(os.getenv("DB_POOL_MIN", "2"))
@@ -445,7 +450,7 @@ def _ensure_column(conn, table: str, column: str, definition: str):
     """Adds column if missing (SQLite specific migration helper) with strict identifier sanitization."""
     if not re.match(r"^[a-zA-Z0-9_]+$", table) or not re.match(r"^[a-zA-Z0-9_]+$", column):
         raise ValueError(f"Invalid SQL identifier in _ensure_column: {table}.{column}")
-    if not re.match(r"^[a-zA-Z0-9_() ]+$", definition):
+    if not re.match(r"^[a-zA-Z0-9_() ']+$", definition):
         raise ValueError(f"Invalid SQL column definition: {definition}")
 
     if _db_manager.engine == "postgres":
