@@ -468,32 +468,49 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - Say: "Understood. This is flagged as a critical incident. I am transferring you immediately to our on-call emergency engineering team and raising an emergency ticket."
 - Immediately call escalate_emergency with reason and incident_summary.
 
-6. ACTIVE DIAGNOSTIC INTAKE & DETAIL TRACKING:
-- When a verified caller presents a technical issue, systematically capture the symptom and error message.
-- Call record_issue_detail to record the category, symptom, and caller's responses for telemetry and ticket auditability.
-- Never jump to conclusions without understanding the problem.
+6. EXPERT CORPORATE IT ENGINEER PERSONA & CONVERSATIONAL FILLERS:
+- You are Arif, a senior, highly skilled Tier-1 Corporate IT Support Engineer for National Finance. Think and speak like an elite Service Desk professional in a major corporate enterprise.
+- Your primary mission is FIRST-CONTACT RESOLUTION: diagnosing and solving technical issues directly on the call through structured troubleshooting.
+- NEVER ASK "Shall I create a ticket for you?" or offer a ticket when a caller first explains an issue! Premature ticketing is strictly prohibited.
+- NATURAL CONVERSATIONAL FILLERS & REASSURANCE:
+  - When the caller explains their technical problem, acknowledge immediately with natural conversational fillers and professional empathy:
+    - English: "Umm, I got it. Let's troubleshoot that together right now. Let me check the diagnostic steps for your WiFi...", "Understood, let's get that sorted out for you right away. Let's try the first step...", "I see, let's take a look at that together..."
+    - Arabic: "تمام، فهمت عليك تماماً. ولا تشيل هم بنحل المشكلة معك خطوة بخطوة. أولاً...", "أفهمك تماماً، خلني أشيك على خطوات حل مشكلة الواي فاي الحين...", "واضح جداً، خلنا نجرب خطوة أولى بسيطة مع بعض..."
+  - This reassures the employee immediately that you understand and are taking ownership of the issue.
 
-7. PLAYBOOK-GUIDED TROUBLESHOOTING:
-- For technical issues (Account locked, Password reset, VPN issues, Outlook, Teams, Slow PC):
-- Always call lookup_knowledge_base to retrieve verified IT playbooks.
-- Deliver ONE practical, safe instruction at a time.
-- NEVER instruct callers to restart their computer for domain account lockouts (rebooting does not unlock domain accounts).
+7. MANDATORY 3 TO 4 STEPS TROUBLESHOOTING PROTOCOL:
+- When a caller reports ANY technical problem (Wi-Fi/Network, Outlook, Teams, VPN, Printer, Slow PC, MFA, etc.):
+  1. Immediately call record_issue_detail and lookup_knowledge_base to retrieve the technical playbook.
+  2. Deliver ONE step at a time, clearly and calmly.
+  3. You MUST guide the caller through 3 to 4 sequential diagnostic steps before ever considering raising an unresolved ticket:
+     - Step 1 (Physical / Basic checks): e.g. For WiFi: Check physical WiFi switch / Airplane mode toggle, and verify connected to corporate SSID ('NF-Corporate') not guest network. Ask: "Could you check that right now and let me know what you see?" / "جرب معي هالخطوة الحين وقولي وش يطلع معك؟"
+     - Step 2 (Reset / Re-authenticate): If Step 1 didn't resolve it, move to Step 2: Disconnect and reconnect to the network, or 'Forget Network' and re-enter corporate credentials, or disable/re-enable the network adapter. Ask them to test.
+     - Step 3 (Diagnostic / IP Refresh): If Step 2 didn't resolve it, move to Step 3: Run command prompt to release and renew IP (`ipconfig /renew` and `ipconfig /flushdns`), or check if colleagues nearby have the same issue. Ask them to test.
+     - Step 4 (Device Reboot / Advanced Isolation): If Step 3 didn't resolve it, move to Step 4: Perform a clean reboot of the laptop/PC, or test with a phone hotspot to isolate hardware versus network.
+- NEVER dump all steps at once. Provide one instruction, then wait for the caller to test and reply.
 
 8. MANDATORY RESOLUTION VERIFICATION:
-- After providing each troubleshooting step, you MUST explicitly ask the caller to test it and verify the outcome:
+- After providing each troubleshooting step, you MUST ask the caller to test it and verify the outcome:
   - In English: "Did that resolve the issue for you?"
-  - In Arabic: "هل تم حل المشكلة معك الآن؟"
-- Wait for the caller's confirmation before taking further action.
+  - In Arabic: "هل اشتغلت معك الحين؟"
+- Wait for the caller's confirmation before proceeding.
 
-9. MANDATORY RESOLUTION & DEFLECTION TRACKING:
-- If the caller confirms the issue is RESOLVED:
-  - Call record_resolution immediately to register a resolved ticket in the IT Helpdesk for SLA deflection metrics.
-  - Recite the generated ticket number slowly digit-by-digit.
-  - Say: "Glad that resolved it! I have recorded reference ticket [number]. Have a great day."
-- If the caller states the issue is NOT resolved after 1-2 attempts, or if the issue requires IT administrator rights (e.g. AD account unlock, server-side permissions):
-  - Call create_ticket immediately compiling the caller's exact symptom, error message, and attempted steps into the ticket description.
-  - Give the caller their ticket number clearly digit-by-digit.
-  - Offer to transfer them to an IT engineer via transfer_to_agent, or schedule a callback via request_callback.
+9. RESOLUTION VS. ESCALATION TICKETING PROTOCOL:
+- SCENARIO A — ISSUE RESOLVED:
+  - If the caller confirms the issue is RESOLVED:
+  - Congratulate them: "Excellent! Glad we could get that resolved for you." / "ممتاز جداً! الحمد لله إنها اشتغلت معك تمام."
+  - Call record_resolution immediately. This creates a ticket marked 'Resolved' closed under the AI Agent in the IT Helpdesk.
+  - Recite the reference ticket number slowly digit-by-digit.
+- SCENARIO B — ISSUE UNRESOLVED AFTER 3-4 STEPS (OR CALLER DEMANDS ESCALATION):
+  - If the issue is NOT resolved after trying 3 to 4 steps, or if the problem requires IT administrator rights / physical hardware replacement:
+  - Say:
+    - In English: "Since those steps haven't resolved the issue, I will now create an official IT support ticket for our desktop engineering team to investigate. Let me log that for you right away..."
+    - In Arabic: "بما إن الخطوات السابقة ما حلت المشكلة، راح أفتح لك تذكرة رسمية لفريق الدعم الفني لمتابعة الموضوع معك فوراً..."
+  - Call create_ticket compiling all symptoms, error messages, and troubleshooting steps attempted.
+  - MANDATORY TICKET NUMBER REPETITION:
+    - You MUST recite the ticket number slowly and clearly, and then REPEAT it once more:
+    - In English: "Your ticket has been logged under reference number [TICKET NUMBER]. Let me repeat that for you: [TICKET NUMBER]. Our IT support team will follow up with you shortly."
+    - In Arabic: "تم تسجيل تذكرتك برقم مرجعي [TICKET NUMBER]. أكرر لك الرقم: [TICKET NUMBER]. سيتواصل معك فريق الدعم الفني قريباً."
 
 10. EXISTING TICKET STATUS TRACKING PROTOCOL:
 - If the caller asks about an existing ticket, asks for an update, or provides a ticket number (e.g. "What is the status of ticket HD-2026-0012?" or "Has my ticket been approved?"):
@@ -503,7 +520,7 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - State the status (e.g. Open, In Progress, Pending Manager Approval, Resolved, Closed).
   - If the ticket requires Department Manager approval, explain clearly: "Your ticket is currently Pending Manager Approval by your Department Manager."
   - If the ticket is resolved, read the resolution notes.
-- Recite the ticket number slowly digit-by-digit.
+- Recite the ticket number slowly digit-by-digit and repeat it.
 - Ask if they need any further assistance with this ticket.
 
 11. HARDWARE REQUESTS & MANAGER APPROVAL POLICY:
@@ -511,10 +528,10 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - Call create_ticket with group="Hardware Request".
 - The ticket is automatically registered with status 'Pending Approval'.
 - State clearly to the caller: "Your hardware request has been logged under ticket [number] with status 'Pending Manager Approval'. Per National Finance policy, your Department Manager must approve this in the IT Helpdesk before our IT team can dispatch the equipment."
-- Hand over the ticket number clearly digit-by-digit.
+- Hand over the ticket number clearly digit-by-digit and repeat it.
 
 12. TICKET RECITAL & REPETITION RULE:
-- Whenever you share any ticket reference number, recite it clearly and slowly, digit by digit (e.g. "H D 2 0 2 6 0 0 1 2").
+- Whenever you share any ticket reference number, recite it clearly and slowly, digit by digit (e.g. "H D 2 0 2 6 0 0 1 2"), and repeat it once for clarity.
 - If the caller asks to repeat the ticket number or asks "what was my ticket number?", call repeat_ticket_number immediately and recite it slowly digit-by-digit.
 - Never invent or fabricate ticket numbers.
 
@@ -549,8 +566,8 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 STANDARD CALL FLOW:
 1. Greet caller: "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
 2. Caller selects language -> call set_language.
-   - If English chosen: Speak 100% in English only.
-   - If Arabic chosen: Speak 100% in Gulf White Arabic only.
+   - If English chosen: Speak 100% in professional corporate English.
+   - If Arabic chosen: Speak 100% in natural Gulf White Arabic.
 3. If caller is not pre-identified:
    - Ask caller full name -> call capture_name.
    - Ask employee ID -> call capture_employee_id.
@@ -558,16 +575,16 @@ STANDARD CALL FLOW:
 4. If unverified caller requests transfer to agent or supervisor:
    - Refuse politely and require identity verification first.
    - Callers have maximum 3 verification attempts. After 3 failed attempts, call drops automatically.
-5. If verified, ask: "How can I help you today?"
+5. If verified, ask: "How can I assist you with your IT support today?"
 6. Classify caller intent:
    - If inquiry on existing ticket -> call check_ticket_status.
-   - If technical issue -> call record_issue_detail, then lookup_knowledge_base, deliver 1 step, and ask: "Did that resolve the issue for you?".
-   - If hardware replacement/damage -> call create_ticket with group="Hardware Request" and state manager approval policy.
+   - If technical issue -> Acknowledge with natural filler, call record_issue_detail, then lookup_knowledge_base, deliver Step 1, and troubleshoot through 3-4 steps. DO NOT offer a ticket upfront!
+   - If hardware replacement/damage -> call create_ticket with group="Hardware Request" and explain manager approval policy.
    - If critical outage -> call escalate_emergency.
-7. Record outcome:
-   - If resolved -> call record_resolution.
-   - If unresolved -> call create_ticket.
-8. Recite ticket number digit-by-digit and close cleanly with close_call.
+7. Outcome:
+   - If resolved through troubleshooting -> call record_resolution, praise caller, and recite ticket number.
+   - If unresolved after 3-4 steps -> announce ticket creation, call create_ticket, and REPEAT ticket number clearly.
+8. Close cleanly with close_call.
 """
 
 TOOLS = [
@@ -617,13 +634,13 @@ TOOLS = [
     {
         "type": "function",
         "name": "lookup_knowledge_base",
-        "description": "Fetch verified IT troubleshooting steps for account lockouts, password resets, VPN, or hardware.",
+        "description": "Fetch verified enterprise IT troubleshooting playbook for WiFi, network, Outlook, Teams, VPN, account lockouts, passwords, printers, or PC issues. Call this as soon as the caller reports a technical problem to get diagnostic steps.",
         "parameters": {
             "type": "object",
             "properties": {
                 "topic": {
                     "type": "string",
-                    "description": "Issue topic keyword e.g. account_locked, password_reset, vpn_issue, hardware"
+                    "description": "Issue topic keyword e.g. wifi_issue, network, vpn_issue, outlook_issue, printer_issue, account_locked, password_reset, hardware"
                 }
             },
             "required": ["topic"],
@@ -647,7 +664,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "record_resolution",
-        "description": "Record that caller issue was successfully resolved on call and create a resolved ticket for IT telemetry.",
+        "description": "Call this immediately when the caller confirms their technical issue is resolved and working. Creates a resolved ticket closed under the AI Agent.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -659,18 +676,8 @@ TOOLS = [
     },
     {
         "type": "function",
-        "name": "confirm_ticket",
-        "description": "Confirm caller clearly agreed to ticket creation.",
-        "parameters": {
-            "type": "object",
-            "properties": {"confirmed": {"type": "boolean"}},
-            "required": ["confirmed"],
-        },
-    },
-    {
-        "type": "function",
         "name": "create_ticket",
-        "description": "Create ticket in the IT Helpdesk.",
+        "description": "Create an IT support ticket in the IT Helpdesk. ONLY call this after attempting 3-4 troubleshooting steps with the caller or if the caller explicitly demands escalation, or for hardware requests. NEVER offer or call this at the start of an issue.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -678,8 +685,9 @@ TOOLS = [
                 "description": {"type": "string"},
                 "priority": {"type": "string", "enum": ["1 low", "2 normal", "3 high", "4 urgent"]},
                 "group": {"type": "string"},
+                "caller_insisted": {"type": "boolean", "description": "Set to true if caller explicitly insisted on immediate ticket logging without troubleshooting."},
             },
-            "required": ["title", "description", "priority"],
+            "required": ["title", "description"],
         },
     },
     {
@@ -1102,10 +1110,103 @@ async def handle_single_call(asterisk_ws):
             summary_parts.append(f"Transferred: Queue {state.get('transfer_target', '7001')}")
         return " | ".join(summary_parts)
 
+    def ensure_ticket_logged(close_status="completed"):
+        """Guarantee every call has a ticket created in Frappe Helpdesk:
+        - If resolved: status='Resolved', marked as deflected, closed under AI agent Arif.
+        - If not resolved: status='Open', unassigned to team 'IT Support'.
+        """
+        if state.get("ticket_created") or state.get("last_ticket_number"):
+            return state.get("last_ticket_number")
+
+        try:
+            verified_user = state.get("verified_user") or {}
+            caller_name = verified_user.get("name") or state.get("caller_name") or f"Caller ({state.get('caller_phone', 'Direct')})"
+            caller_phone = verified_user.get("phone") or state.get("caller_phone", "")
+            employee_id = verified_user.get("employee_id") or state.get("employee_id", "")
+            department = verified_user.get("department", "General")
+            caller_email = verified_user.get("email") or f"caller_{state['call_id'][:8]}@nationalfinance.com"
+
+            is_resolved = (
+                state.get("resolution_recorded")
+                or state.get("current_state") == "resolved"
+                or close_status == "resolved"
+            )
+
+            ticket_status = "Resolved" if is_resolved else "Open"
+            issue_cat = state.get("issue_category") or "IT Support"
+            ticket_category = "Resolved on Call" if is_resolved else issue_cat
+
+            summary_text = state.get("issue_summary") or state.get("summary") or "Internal IT Support Inquiry"
+            ticket_title = f"{issue_cat}: {summary_text}" if summary_text else f"IT Call - {state['call_id'][:8]}"
+            if len(ticket_title) > 80:
+                ticket_title = ticket_title[:77] + "..."
+
+            key_points = "\n".join([f"- {item['field']}: {item['value']}" for item in state.get("answers_received", [])[-10:]])
+            troubleshooting = "\n".join([f"- {step}" for step in state.get("troubleshooting_steps", [])[-10:]])
+            recent_transcript = "\n".join(state.get("transcript_lines", [])[-12:])
+
+            resolution_note = (
+                "Issue resolved directly on call via AI Service Desk Agent Arif (First-Contact Resolution)."
+                if is_resolved else
+                "Call concluded without complete resolution on the voice channel. Status: Open (Unassigned) for IT Support Desk follow-up."
+            )
+
+            ticket_body = (
+                f"Caller: {caller_name}\n"
+                f"Phone: {caller_phone if caller_phone else 'N/A'}\n"
+                f"Employee ID: {employee_id if employee_id else 'Unverified'}\n"
+                f"Department: {department}\n"
+                f"Call ID: {state['call_id']}\n"
+                f"Call Outcome: {close_status}\n\n"
+                f"Issue Summary:\n{summary_text}\n\n"
+                f"Key Details:\n{key_points if key_points else '- None'}\n\n"
+                f"Troubleshooting Steps Attempted:\n{troubleshooting if troubleshooting else '- None recorded on call'}\n\n"
+                f"Transcript Snippet:\n{recent_transcript if recent_transcript else '- No transcript available'}\n\n"
+                f"Agent: AI Voice Agent Arif\n"
+                f"Resolution / Action:\n{resolution_note}"
+            )
+
+            client = get_ticketing_client()
+            res = client.create_ticket(
+                customer_email=caller_email,
+                title=ticket_title,
+                body=ticket_body,
+                priority="normal",
+                category=ticket_category,
+                caller_info={
+                    "name": caller_name,
+                    "phone": caller_phone,
+                    "employee_id": employee_id,
+                    "department": department,
+                },
+                custom_fields={
+                    "call_id": state["call_id"],
+                },
+                status=ticket_status,
+            )
+            ticket_number = res.get("ticket_number")
+            if ticket_number:
+                state["last_ticket_number"] = ticket_number
+                state["ticket_created"] = True
+                update_call(
+                    state["call_id"],
+                    ticket_number=ticket_number,
+                    ticket_created=1,
+                    ai_deflected=1 if is_resolved else 0,
+                    resolution_type="AI_Resolved" if is_resolved else "Escalated_Open",
+                    status="resolved" if is_resolved else "ticket_created",
+                )
+                print(f"[AUTO-TICKET] Created {ticket_status} ticket {ticket_number} for call {state['call_id']}")
+                return ticket_number
+        except Exception as exc:
+            print(f"[AUTO-TICKET ERROR] Could not ensure ticket logged: {exc!r}")
+        return None
+
     def wrap_up_call(status="completed"):
         if state.get("call_logged_closed"):
             return
         state["call_logged_closed"] = True
+        ensure_ticket_logged(status)
         full_transcript = "\n".join(state["transcript_lines"]) if state["transcript_lines"] else None
         auto_summary = generate_call_summary(status)
         log_close_call(state["call_id"], status=status, summary=auto_summary, transcript=full_transcript)
@@ -1467,10 +1568,19 @@ async def handle_single_call(asterisk_ws):
                 search_res = search_knowledge_base(topic)
                 if search_res.get("found"):
                     print(f"[KB MATCH] Query='{topic}' -> Playbook='{search_res.get('playbook_id')}' (Score: {search_res.get('score')})")
+                    search_res["instruction"] = (
+                        "Deliver Step 1 to the caller now. Acknowledge with a natural professional filler (e.g., 'Umm, I understand. Let's troubleshoot that together right now.'). "
+                        "Ask the caller to test Step 1 and wait for their response. Do NOT create a ticket yet! Guide through 3 to 4 sequential diagnostic steps."
+                    )
                     return search_res
                 return {
                     "found": False,
-                    "message": "No specific local playbook found. Use standard IT troubleshooting questions."
+                    "message": "No specific local playbook found. Use standard corporate IT troubleshooting steps.",
+                    "instruction": (
+                        "Acknowledge naturally with a professional filler (e.g. 'Umm, I got it. Let's troubleshoot that together right away.'). "
+                        "Guide the caller through standard Step 1 diagnostics for this issue (e.g., check connections, restart application, or toggle network). "
+                        "Ask the caller to test it and wait for their response. Do NOT offer to open a ticket yet! Troubleshoot through 3 to 4 sequential steps first."
+                    )
                 }
 
             if tool_name == "record_issue_detail":
@@ -1565,13 +1675,12 @@ async def handle_single_call(asterisk_ws):
                     "success": True,
                     "ticket_number": ticket_number,
                     "ticket_number_spoken": digit_by_digit(ticket_number),
-                    "message": "Recorded resolution and closed ticket successfully."
+                    "message": (
+                        f"Recorded resolution and closed ticket {ticket_number} successfully under AI Agent Arif. "
+                        f"You MUST recite this ticket number slowly and clearly, and repeat it to the caller: "
+                        f"'Your issue has been resolved and logged under reference ticket {digit_by_digit(ticket_number)}. Let me repeat that: {digit_by_digit(ticket_number)}.'"
+                    )
                 }
-
-            if tool_name == "confirm_ticket":
-                confirmed = bool(arguments.get("confirmed"))
-                state["ticket_confirmed"] = confirmed
-                return {"success": True, "ticket_confirmed": confirmed}
 
             if tool_name == "create_ticket":
                 verified_user = state.get("verified_user") or {}
@@ -1580,6 +1689,7 @@ async def handle_single_call(asterisk_ws):
                 if not verified_user.get("employee_id"):
                     return {
                         "success": False,
+                        "unverified": True,
                         "error": "Caller identity must be verified before creating an IT ticket. Ask for the caller's full name and employee ID first.",
                     }
 
@@ -1634,6 +1744,20 @@ async def handle_single_call(asterisk_ws):
                 )
                 if is_hardware:
                     group = "Hardware Request"
+
+                # 6. Premature Ticketing Gate: Corporate policy requires 3-4 steps troubleshooting first
+                caller_insisted = arguments.get("caller_insisted", False) or arguments.get("escalation_requested", False)
+                troubleshooting_count = len(state.get("troubleshooting_steps", [])) + state.get("question_count", 0)
+
+                if not is_hardware and not caller_insisted and troubleshooting_count < 2:
+                    return {
+                        "success": False,
+                        "premature_ticket": True,
+                        "error": (
+                            "Corporate IT Service Desk policy requires troubleshooting 3 to 4 diagnostic steps with the caller first before creating an unresolved ticket. "
+                            "Please provide Step 1 or the next diagnostic step to the caller, ask them to test it, and verify the outcome."
+                        )
+                    }
 
                 customer_email = verified_user.get("email") or f"caller_{state['call_id']}@nationalfinance.com"
 
@@ -1706,7 +1830,11 @@ async def handle_single_call(asterisk_ws):
                             "ticket_number": ticket_number,
                             "ticket_number_spoken": digit_by_digit(ticket_number),
                             "status": ticket_status,
-                            "message": "Ticket created successfully.",
+                            "message": (
+                                f"Ticket created successfully with reference number {ticket_number}. "
+                                f"You MUST recite this ticket number slowly and clearly, and repeat it once more to the caller: "
+                                f"'Your ticket has been logged under reference number {digit_by_digit(ticket_number)}. Let me repeat that: {digit_by_digit(ticket_number)}.'"
+                            ),
                         }
 
                     return {"success": False, "error": "Ticketing backend did not return ticket number."}
@@ -2113,48 +2241,73 @@ async def handle_single_call(asterisk_ws):
         elif tool_name == "lookup_knowledge_base" and result.get("found"):
             if state["language"] == "ar":
                 queue_response(
-                    "Respond only in Arabic. Based on the playbook, give the caller the single most practical safe step. Then explicitly ask: هل تم حل المشكلة معك الآن؟"
+                    "Respond only in Arabic. Acknowledge with a natural filler: تمام، فهمت عليك تماماً، ولا تشيل هم بنحل المشكلة معك خطوة بخطوة. "
+                    "قدم الخطوة الأولى فقط من الدليل الفني بوضوح، واطلب من المتصل تجربتها الآن وإخبارك بما يظهر معه. "
+                    "ممنوع منعاً باتاً عرض إنشاء تذكرة الآن، يجب اتباع 3 إلى 4 خطوات تشخيصية متتالية أولاً."
                 )
             else:
                 queue_response(
-                    "Respond only in English. Based on the playbook, give the caller the single most practical safe step. Then explicitly ask: Did that resolve the issue for you?"
+                    "Respond only in English. Acknowledge with a natural corporate filler: Umm, I understand how frustrating that is. Let's troubleshoot that together right now. "
+                    "Give Step 1 from the playbook clearly. Ask the caller to try Step 1 right now and tell you what happens. "
+                    "DO NOT offer to create a ticket yet. You must guide the caller through 3 to 4 troubleshooting steps first."
                 )
 
         elif tool_name == "lookup_knowledge_base" and not result.get("found"):
             if state["language"] == "ar":
                 queue_response(
-                    "Respond only in Arabic. Say politely that there is no standard self-service procedure found for this issue, and ask the caller if they would like you to open a support ticket for an IT engineer to investigate."
+                    "Respond only in Arabic. Acknowledge with a natural filler: تمام، فهمت مشكلتك وخلنا نشيك عليها مع بعض خطوة بخطوة. "
+                    "قدم الخطوة التشخيصية الأولى المناسبة للمشكلة (مثل إعادة تشغيل الجهاز أو فحص التوصيلات أو التحقق من الشبكة). "
+                    "اطلب من المتصل تجربتها وانتظر رده. لا تعرض إنشاء تذكرة الآن، بل ابدأ استكشاف الأخطاء خطوة بخطوة (3 إلى 4 خطوات)."
                 )
             else:
                 queue_response(
-                    "Respond only in English. Say politely that no self-service procedure is available for this issue, and ask if they would like you to open a support ticket for an IT engineer to investigate."
+                    "Respond only in English. Acknowledge with a natural filler: Umm, I got it. Let's troubleshoot that together right now. "
+                    "Provide Step 1 of standard enterprise IT diagnostics for this issue. "
+                    "Ask the caller to test Step 1 right now and tell you what happens. "
+                    "DO NOT offer or ask to open a ticket yet. Guide through 3 to 4 diagnostic steps first."
                 )
 
         elif tool_name == "record_resolution" and result.get("success"):
             ticket_spoken = result.get("ticket_number_spoken")
             if state["language"] == "ar":
                 queue_response(
-                    f"Respond only in Arabic. Say that the issue was marked as resolved under reference ticket {ticket_spoken}. Ask if they need anything else."
+                    f"Respond only in Arabic. Say clearly: ممتاز جداً! تم حل المشكلة وإغلاق التذكرة بنجاح برقم مرجعي: {ticket_spoken}. "
+                    f"وأكرر الرقم للتأكيد: {ticket_spoken}. هل تحتاج أي مساعدة أخرى؟"
                 )
             else:
                 queue_response(
-                    f"Respond only in English. Say: Excellent, I have logged this as resolved with reference ticket {ticket_spoken}. Is there anything else I can help you with?"
+                    f"Respond only in English. Say clearly: Excellent! I'm glad we could get that resolved for you today. "
+                    f"I have logged and closed this ticket under reference number {ticket_spoken}. "
+                    f"Let me repeat that for your records: {ticket_spoken}. Is there anything else I can help you with today?"
                 )
 
         elif tool_name == "create_ticket" and result.get("success"):
             ticket_spoken = result.get("ticket_number_spoken")
             if state["language"] == "ar":
                 queue_response(
-                    f"Respond only in Arabic. Say the ticket was created successfully. رقم التذكرة هو {ticket_spoken}. Ask if they need anything else."
+                    f"Respond only in Arabic. Say clearly: تم تسجيل تذكرتك بنجاح برقم مرجعي: {ticket_spoken}. "
+                    f"وأكرر الرقم للتأكيد: {ticket_spoken}. سيتابع فريق الدعم الفني طلبك بأسرع وقت. هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
                 )
             else:
                 queue_response(
-                    f"Respond only in English. Say: Your ticket has been created successfully. Your ticket number is {ticket_spoken}. Is there anything else I can help you with?"
+                    f"Respond only in English. Say clearly: Your IT ticket has been logged under reference number {ticket_spoken}. "
+                    f"Let me repeat that for your records: {ticket_spoken}. Our IT support team will follow up with you. Is there anything else I can assist you with?"
                 )
 
         elif tool_name == "create_ticket" and not result.get("success"):
             err = result.get("error", "Ticket creation could not be completed.")
-            if result.get("out_of_scope"):
+            if result.get("premature_ticket"):
+                if state["language"] == "ar":
+                    queue_response(
+                        "Respond only in Arabic. Say naturally with a filler: تمام، ولا تشيل هم بنحلها معك خطوة بخطوة. "
+                        "قدم الخطوة الأولى لاستكشاف المشكلة واطلب من المتصل تجربتها الآن. لا تقم بإنشاء تذكرة قبل استكشاف الأخطاء."
+                    )
+                else:
+                    queue_response(
+                        "Respond only in English. Say naturally with a filler: Umm, let's troubleshoot this together first to see if we can resolve it right now. "
+                        "Provide Step 1 of diagnostic troubleshooting and ask the caller to test it. Do not create a ticket yet."
+                    )
+            elif result.get("out_of_scope"):
                 if state["language"] == "ar":
                     queue_response(
                         "Respond only in Arabic. Politely inform the caller that this phone line is strictly for internal IT Support, and guide them to contact customer service for banking or loan inquiries."
@@ -2409,14 +2562,13 @@ async def handle_single_call(asterisk_ws):
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # Caller interrupted while AI is speaking (barge-in)
-                    if state.get("active_response"):
-                        state["active_response"] = False
-                        if hasattr(asterisk_ws, "clear_outbound_queue"):
-                            asterisk_ws.clear_outbound_queue()
-                        try:
-                            await openai_ws.send(json.dumps({"type": "response.cancel"}))
-                        except Exception:
-                            pass
+                    state["active_response"] = False
+                    if hasattr(asterisk_ws, "clear_outbound_queue"):
+                        asterisk_ws.clear_outbound_queue()
+                    try:
+                        await openai_ws.send(json.dumps({"type": "response.cancel"}))
+                    except Exception:
+                        pass
 
                 elif event_type == "response.output_audio.delta":
                     if state["call_ending"]:

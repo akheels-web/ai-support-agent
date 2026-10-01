@@ -189,6 +189,18 @@ class FrappeProvider(BaseTicketingProvider):
             )
             body = approval_header + body
 
+        # Map or normalize ticket_type to valid HD Ticket Type DocTypes:
+        # Valid in Frappe Helpdesk: "Incident", "Service Request", "Question", "Bug", "Unspecified"
+        valid_ticket_types = {"Incident", "Service Request", "Question", "Bug", "Unspecified"}
+        if category in valid_ticket_types:
+            hd_ticket_type = category
+        elif is_hardware or (category and "request" in category.lower()):
+            hd_ticket_type = "Service Request"
+        elif category and any(w in category.lower() for w in ["incident", "outage", "emergency", "down", "issue", "bug", "error", "resolved", "call"]):
+            hd_ticket_type = "Incident"
+        else:
+            hd_ticket_type = "Incident"
+
         # Build payload based on DocType
         if self.ticket_doctype == "HD Ticket":
             customer_ref = (cust_doc.get("name") if isinstance(cust_doc, dict) else None) or customer_email
@@ -196,8 +208,8 @@ class FrappeProvider(BaseTicketingProvider):
                 "subject": title,
                 "description": body,
                 "priority": frappe_priority,
-                "status": ticket_status,
-                "ticket_type": category or "Service Request",
+                "status": "Open",
+                "ticket_type": hd_ticket_type,
                 "customer": customer_ref,
                 "customer_name": caller_name or customer_email,
             }
@@ -238,6 +250,15 @@ class FrappeProvider(BaseTicketingProvider):
 
         ticket_id = ticket_data.get("name")
         ticket_number = str(ticket_id)
+
+        # In Frappe Helpdesk, new tickets default to Open; transition to Resolved if requested
+        if ticket_status.lower() in ("resolved", "closed") and ticket_id and self.ticket_doctype == "HD Ticket":
+            try:
+                self._request("PUT", f"/api/resource/{self.ticket_doctype}/{ticket_id}", json={"status": "Resolved"})
+                ticket_data["status"] = "Resolved"
+                logger.info(f"[FRAPPE] Updated {self.ticket_doctype} {ticket_number} status to Resolved")
+            except Exception as upd_exc:
+                logger.warning(f"[FRAPPE] Could not update status to Resolved for {ticket_number}: {upd_exc}")
 
         logger.info(f"[FRAPPE] Created {self.ticket_doctype} {ticket_number} (status={ticket_status}, approval={approval_status})")
 
