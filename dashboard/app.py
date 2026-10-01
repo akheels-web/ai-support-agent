@@ -234,6 +234,12 @@ def validate_csrf(request: Request, submitted_token):
         raise HTTPException(status_code=403, detail="Invalid CSRF token")
 
 
+def is_request_secure(request: Request) -> bool:
+    if not DASHBOARD_COOKIE_SECURE:
+        return False
+    return request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+
+
 # -----------------------------------------------------------------------------
 # Auth & First-Run Setup helpers
 # -----------------------------------------------------------------------------
@@ -524,8 +530,8 @@ def render_template(request: Request, template_name: str, context: dict = None, 
         CSRF_COOKIE_NAME,
         csrf_token,
         httponly=True,
-        secure=DASHBOARD_COOKIE_SECURE,
-        samesite="strict",
+        secure=is_request_secure(request),
+        samesite="lax",
         max_age=SESSION_TTL_SECONDS,
     )
     return response
@@ -665,8 +671,8 @@ def setup_admin(
         COOKIE_NAME,
         token,
         httponly=True,
-        secure=DASHBOARD_COOKIE_SECURE,
-        samesite="strict",
+        secure=is_request_secure(request),
+        samesite="lax",
         max_age=SESSION_TTL_SECONDS,
     )
     return response
@@ -702,9 +708,16 @@ def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    csrf_token: str = Form(...),
+    csrf_token: str = Form(""),
 ):
-    validate_csrf(request, csrf_token)
+    try:
+        validate_csrf(request, csrf_token)
+    except HTTPException:
+        return render_template(
+            request, "login.html",
+            {"error": "Session security token expired. Please refresh the page and sign in again.", "title": "Login"},
+            status_code=403
+        )
     client_ip = request.client.host if request.client else "127.0.0.1"
 
     if not check_rate_limit(f"dashboard_login:{client_ip}", max_attempts=5, window_seconds=300):
@@ -744,8 +757,8 @@ def login(
         COOKIE_NAME,
         token,
         httponly=True,
-        secure=DASHBOARD_COOKIE_SECURE,
-        samesite="strict",
+        secure=is_request_secure(request),
+        samesite="lax",
         max_age=SESSION_TTL_SECONDS,
     )
     return response
@@ -1367,8 +1380,8 @@ def change_password(
         COOKIE_NAME,
         new_token,
         httponly=True,
-        secure=DASHBOARD_COOKIE_SECURE,
-        samesite="strict",
+        secure=is_request_secure(request),
+        samesite="lax",
         max_age=SESSION_TTL_SECONDS,
     )
     return response

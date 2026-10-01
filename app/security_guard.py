@@ -29,28 +29,39 @@ def log_security_event(event_type, key="", details=""):
         conn.close()
 
 
-def check_rate_limit(key, limit, window_seconds, lock_seconds):
+class RateLimitResult(dict):
+    """Dict that evaluates to True if allowed, False if blocked/rate-limited."""
+    def __bool__(self):
+        return bool(self.get("allowed", False))
+
+
+def check_rate_limit(key, limit=5, window_seconds=300, lock_seconds=None, max_attempts=None):
     """
-    Returns:
-      allowed=True/False
+    Returns RateLimitResult:
+      allowed=True/False (also supports `if not check_rate_limit(...)`)
       reason
       retry_after
     """
+    if max_attempts is not None:
+        limit = max_attempts
+    if lock_seconds is None:
+        lock_seconds = window_seconds
+
     init_security_db()
     res = db.atomic_check_rate_limit(key, limit, window_seconds, lock_seconds)
     # Normalize return dict to match security_guard contract
     if res.get("allowed"):
-        return {
+        return RateLimitResult({
             "allowed": True,
             "reason": "allowed",
             "retry_after": 0,
-        }
+        })
     else:
-        return {
+        return RateLimitResult({
             "allowed": False,
             "reason": res.get("reason", "rate_limited"),
             "retry_after": res.get("retry_after", lock_seconds),
-        }
+        })
 
 
 def is_locked(key):

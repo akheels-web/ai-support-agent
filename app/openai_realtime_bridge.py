@@ -414,6 +414,21 @@ You are Arif, an AI IT Support voice agent for National Finance IT Support team.
 
 CRITICAL OPERATIONAL RULES & PROTOCOLS:
 
+0. MANDATORY STRICT INITIAL LANGUAGE SELECTION GATE:
+- The initial greeting explicitly prompts: "Welcome to National Finance IT Support, I am Arif. Please say Arabic or English to continue. للمتابعة باللغة العربية، يرجى قول عربي."
+- You MUST wait for the caller to indicate their preferred language.
+- DO NOT answer questions, start troubleshooting, ask for employee ID, or speak in a single language until the language is confirmed!
+- If the caller says "English" or speaks in English:
+  1. Immediately call the tool: set_language(language="en").
+  2. Reply strictly in English: "Thank you for choosing English. May I please have your full name?"
+  3. From this point forward, you must speak STRICTLY AND ONLY in English. Do not speak any Arabic.
+- If the caller says "Arabic" or "عربي" or speaks in Arabic:
+  1. Immediately call the tool: set_language(language="ar").
+  2. Reply strictly in Gulf White Arabic: "شكراً لك. تفضل بالاسم الكامل لو سمحت؟"
+  3. From this point forward, you must speak STRICTLY AND ONLY in Arabic. Do not speak English except standard IT acronyms (VPN, Outlook, Teams).
+- If the caller's language selection is ambiguous or they immediately describe a problem without picking a language:
+  Ask once more in both languages: "To serve you best, please say English or Arabic? للمتابعة، هل تفضل اللغة الإنجليزية أم العربية؟"
+
 1. BILINGUAL & ARABIC EXCELLENCE PROTOCOL:
 - National Finance is based in the Sultanate of Oman. The majority of employees are Arabic speaking.
 - When Arabic is chosen, speak in natural, warm, and professional Gulf White Arabic / Simplified Modern Standard Arabic (لهجة خليجية بيضاء مهنية ومبسطة مقبولة في بيئة العمل العمانية).
@@ -515,8 +530,10 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - When the caller speaks or submits keypad digits, handle them via submit_dtmf_keypad or verify_user.
 
 STANDARD CALL FLOW:
-1. Greet caller: "مرحباً بك في الدعم الفني لناشيونال فاينانس، أنا عارف. للمتابعة باللغة العربية يرجى قول عربي. For English, please say English."
+1. Greet caller: "Welcome to National Finance IT Support, I am Arif. Please say Arabic or English to continue. للمتابعة باللغة العربية، يرجى قول عربي."
 2. Caller selects language -> call set_language.
+   - If English chosen: Speak 100% in English only.
+   - If Arabic chosen: Speak 100% in Gulf White Arabic only.
 3. If caller is not pre-identified:
    - Ask caller full name -> call capture_name.
    - Ask employee ID -> call capture_employee_id.
@@ -838,7 +855,7 @@ async def connect_openai():
         ws,
         (
             "Say exactly this and nothing else: "
-            "مرحباً بك في الدعم الفني لناشيونال فاينانس، أنا عارف. للمتابعة باللغة العربية يرجى قول عربي. For English, please say English."
+            "Welcome to National Finance IT Support, I am Arif. Please say Arabic or English to continue. للمتابعة باللغة العربية، يرجى قول عربي."
         ),
     )
 
@@ -860,6 +877,7 @@ class AudioSocketChannel:
     Adapter that wraps Asterisk AudioSocket TCP connection to match WebSocket API.
     Converts Asterisk 16-bit 8kHz linear PCM (ast_format_slin) <-> OpenAI Realtime audio/pcmu (G.711 u-law).
     Handles Asterisk AudioSocket frame headers (0x01 UUID, 0x10 Audio, 0x03 DTMF, 0x00 Hangup).
+    Implements real-time 20ms pacing to Asterisk to eliminate jitter, stuttering, and dropped packets.
     """
 
     def __init__(self, reader, writer, call_uuid):
@@ -867,6 +885,34 @@ class AudioSocketChannel:
         self.writer = writer
         self.call_uuid = call_uuid
         self._closed = False
+        self.outbound_queue = asyncio.Queue(maxsize=1500)
+        self.playback_task = asyncio.create_task(self._playback_loop())
+
+    async def _playback_loop(self):
+        """Paces audio frames to Asterisk at exactly 20ms per 320-byte SLIN frame."""
+        interval = 0.020
+        while not self._closed:
+            try:
+                frame = await self.outbound_queue.get()
+                if self._closed or self.writer.is_closing():
+                    break
+                slin = audioop.ulaw2lin(frame, 2)
+                packet = struct.pack("!BH", 0x10, len(slin)) + slin
+                self.writer.write(packet)
+                await self.writer.drain()
+                await asyncio.sleep(interval)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                break
+
+    def clear_outbound_queue(self):
+        """Instantly flush all pending outbound audio frames on barge-in / speech interruption."""
+        while not self.outbound_queue.empty():
+            try:
+                self.outbound_queue.get_nowait()
+            except Exception:
+                break
 
     async def __aiter__(self):
         # Look up Asterisk incoming channel name & caller ID via AMI
@@ -883,10 +929,11 @@ class AudioSocketChannel:
             kind, length = struct.unpack("!BH", hdr)
             payload = await self.reader.readexactly(length) if length > 0 else b""
 
-            if kind == 0x10:  # Audio (16-bit 8kHz slin PCM)
+            if kind == 0x10 and len(payload) > 0:  # Audio (16-bit 8kHz slin PCM)
                 try:
                     ulaw = audioop.lin2ulaw(payload, 2)
-                    yield ulaw
+                    if len(ulaw) > 0:
+                        yield ulaw
                 except Exception:
                     pass
             elif kind == 0x03:  # DTMF digit
@@ -896,20 +943,30 @@ class AudioSocketChannel:
                 break
 
     async def send(self, data):
+        """Enqueue u-law audio data chunked into 160-byte (20ms) frames for smooth paced playback."""
         if self._closed or self.writer.is_closing():
             return
-        if isinstance(data, bytes):
-            try:
-                slin = audioop.ulaw2lin(data, 2)
-                frame = struct.pack("!BH", 0x10, len(slin)) + slin
-                self.writer.write(frame)
-                await self.writer.drain()
-            except Exception:
-                pass
+        if isinstance(data, bytes) and len(data) > 0:
+            frame_size = 160
+            for i in range(0, len(data), frame_size):
+                chunk = data[i:i + frame_size]
+                if len(chunk) < frame_size:
+                    chunk = chunk + b"\xff" * (frame_size - len(chunk))
+                try:
+                    self.outbound_queue.put_nowait(chunk)
+                except asyncio.QueueFull:
+                    try:
+                        self.outbound_queue.get_nowait()
+                        self.outbound_queue.put_nowait(chunk)
+                    except Exception:
+                        pass
 
     async def close(self):
         if not self._closed:
             self._closed = True
+            if self.playback_task and not self.playback_task.done():
+                self.playback_task.cancel()
+            self.clear_outbound_queue()
             try:
                 self.writer.write(struct.pack("!BH", 0x00, 0))
                 await self.writer.drain()
@@ -2145,7 +2202,7 @@ async def handle_single_call(asterisk_ws):
                 if state["closing"]:
                     continue
 
-                if isinstance(message, bytes):
+                if isinstance(message, bytes) and len(message) > 0:
                     await openai_ws.send(
                         json.dumps(
                             {
@@ -2235,6 +2292,12 @@ async def handle_single_call(asterisk_ws):
                 elif event_type == "input_audio_buffer.speech_started":
                     # Caller interrupted while AI is speaking (barge-in)
                     state["active_response"] = False
+                    if hasattr(asterisk_ws, "clear_outbound_queue"):
+                        asterisk_ws.clear_outbound_queue()
+                    try:
+                        await openai_ws.send(json.dumps({"type": "response.cancel"}))
+                    except Exception:
+                        pass
 
                 elif event_type == "response.output_audio.delta":
                     if state["call_ending"]:
@@ -2242,10 +2305,8 @@ async def handle_single_call(asterisk_ws):
                     audio_b64 = event.get("delta", "")
                     if audio_b64:
                         raw_pcm = base64.b64decode(audio_b64)
-                        # Chunk into 320-byte (40ms @ 8kHz PCMU) frames to prevent jitter buffer underrun/overflow
-                        chunk_size = 320
-                        for i in range(0, len(raw_pcm), chunk_size):
-                            await asterisk_ws.send(raw_pcm[i:i + chunk_size])
+                        if len(raw_pcm) > 0:
+                            await asterisk_ws.send(raw_pcm)
 
                 elif event_type == "response.output_item.done":
                     item = event.get("item", {})
@@ -2284,6 +2345,21 @@ async def handle_single_call(asterisk_ws):
                         t_str = time.strftime("%H:%M:%S")
                         state["transcript_lines"].append(f"[{t_str}] Caller: {transcript}")
                         print(f"[CALLER SAID] {transcript}")
+
+                        # Deterministic initial language selection gate:
+                        if state["language"] is None:
+                            t_lower = transcript.lower()
+                            is_english = any(w in t_lower for w in ["english", "inglizi", "ingleezi"]) or bool(re.search(r"\b(en|english)\b", t_lower))
+                            is_arabic = any(w in transcript for w in ["عربي", "عربية", "العربية"]) or any(w in t_lower for w in ["arabic", "arabi"])
+
+                            if is_english and not is_arabic:
+                                await execute_tool("set_language", {"language": "en"})
+                                queue_response("Respond only in English. Say: Thank you for choosing English. May I please have your full name?")
+                                await send_queued_response_if_any()
+                            elif is_arabic and not is_english:
+                                await execute_tool("set_language", {"language": "ar"})
+                                queue_response("Respond only in Arabic. Say: شكراً لك. تفضل بالاسم الكامل لو سمحت؟")
+                                await send_queued_response_if_any()
 
                 elif event_type in ("response.output_audio_transcript.done", "response.audio_transcript.done"):
                     a_text = (event.get("transcript") or "").strip()
