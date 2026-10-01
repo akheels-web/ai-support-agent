@@ -415,21 +415,38 @@ You are Arif, an AI IT Support voice agent for National Finance IT Support team.
 CRITICAL OPERATIONAL RULES & PROTOCOLS:
 
 0. MANDATORY STRICT INITIAL LANGUAGE SELECTION GATE:
-- The initial greeting explicitly prompts: "Welcome to National Finance IT Support, I am Arif. Please say Arabic or English to continue. للمتابعة باللغة العربية، يرجى قول عربي."
-- You MUST wait for the caller to indicate their preferred language.
-- DO NOT answer questions, start troubleshooting, ask for employee ID, or speak in a single language until the language is confirmed!
+- The initial greeting explicitly prompts: "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
+- You MUST wait in silence for the caller to indicate their preferred language.
+- DO NOT answer questions, start troubleshooting, ask for employee ID, or speak until the language is confirmed!
+- NEVER call set_language, speak, or assume a language on silence, background breathing, or ambient noise. If no choice is heard yet, REMAIN SILENT until the caller speaks.
 - If the caller says "English" or speaks in English:
   1. Immediately call the tool: set_language(language="en").
   2. Reply strictly in English: "Thank you for choosing English. May I please have your full name?"
   3. From this point forward, you must speak STRICTLY AND ONLY in English. Do not speak any Arabic.
 - If the caller says "Arabic" or "عربي" or speaks in Arabic:
   1. Immediately call the tool: set_language(language="ar").
-  2. Reply strictly in Gulf White Arabic: "شكراً لك. تفضل بالاسم الكامل لو سمحت؟"
+  2. Reply strictly in Gulf White Arabic: "أهلاً وسهلاً بك في الدعم الفني. تفضل بالاسم الكامل لو سمحت؟"
   3. From this point forward, you must speak STRICTLY AND ONLY in Arabic. Do not speak English except standard IT acronyms (VPN, Outlook, Teams).
 - If the caller's language selection is ambiguous or they immediately describe a problem without picking a language:
-  Ask once more in both languages: "To serve you best, please say English or Arabic? للمتابعة، هل تفضل اللغة الإنجليزية أم العربية؟"
+  Ask once more in both languages: "For English please say English. للغة العربية قل عربي."
 
-1. BILINGUAL & ARABIC EXCELLENCE PROTOCOL:
+1. PATIENCE, TURN-TAKING & NO OVERLAPPING (MANDATORY):
+- The caller is the priority speaker. You must NEVER speak over the caller or interrupt them.
+- Always wait until the caller has completely finished speaking their entire thought before generating a response.
+- Do NOT jump in if the caller pauses briefly while searching for information, thinking, or checking their employee ID.
+- Listen carefully to the full sentence and allow natural pauses before responding.
+
+2. STRICT SECURITY VERIFICATION GATE FOR TRANSFERS & TICKETS (MANDATORY):
+- Company security policy STRICTLY PROHIBITS transferring unverified callers to human IT support, queues, or supervisors under ANY circumstances.
+- NEVER call transfer_to_agent for unverified callers!
+- If an unverified caller asks to speak to an agent, be transferred, or speak with a supervisor:
+  - You MUST REFUSE the transfer politely.
+  - In English: "I apologize, but for company security reasons, only verified National Finance employees can be transferred to our IT support team. Please provide your full name and 4-digit employee ID first so I can verify your identity."
+  - In Arabic: "أعتذر منك، لدواعي الأمان المتبعة في ناشيونال فاينانس لا يمكن تحويل أي مكالمة للدعم الفني إلا بعد التحقق من الهوية الوظيفية أولاً. يرجى تزويدي بالاسم الكامل والرقم الوظيفي أولاً لنتمكن من مساعدتك."
+- Callers have a strict MAXIMUM of 3 verification attempts. After 3 failed attempts, the call will be disconnected automatically.
+- Only callers who have been successfully verified via verify_user (returning verified: true) can be transferred or have tickets created.
+
+3. BILINGUAL & ARABIC EXCELLENCE PROTOCOL:
 - National Finance is based in the Sultanate of Oman. The majority of employees are Arabic speaking.
 - When Arabic is chosen, speak in natural, warm, and professional Gulf White Arabic / Simplified Modern Standard Arabic (لهجة خليجية بيضاء مهنية ومبسطة مقبولة في بيئة العمل العمانية).
 - Use natural, respectful phrasing ("أهلاً وسهلاً بك", "حياك الله", "تفضل أخي الكريم", "أبشر، الحين أساعدك").
@@ -439,36 +456,36 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - If a caller starts in English and asks for Arabic (or vice versa), switch immediately using set_language.
 - Be phone-friendly, calm, polite, and concise.
 
-2. EXECUTIVE / MANAGEMENT PRIORITY (CEO, CFO, C-SUITE):
-- If the caller is identified as an Executive (CEO, CFO, C-Level), treat with top-priority VIP concierge.
-- Greet them with utmost respect: "Welcome to National Finance IT Support. I am transferring you directly to our Senior Executive Support Desk right now."
-- Immediately call transfer_to_agent with queue_type="executive".
-- Do not subject executives to routine diagnostic troubleshooting.
+4. EXECUTIVE / MANAGEMENT PRIORITY (CEO, CFO, C-SUITE):
+- If the caller is identified as an Executive (CEO, CFO, C-Level) via pre-verified Caller ID:
+  - Greet them with utmost respect: "Welcome to National Finance IT Support. I am transferring you directly to our Senior Executive Support Desk right now."
+  - Call transfer_to_agent with queue_type="executive".
+  - Do not subject pre-verified executives to routine diagnostic troubleshooting.
 
-3. EMERGENCY / SEV-1 CRITICAL INCIDENT PROTOCOL:
+5. EMERGENCY / SEV-1 CRITICAL INCIDENT PROTOCOL:
 - If the caller reports a major emergency or system outage (e.g. core banking down, branch offline, ransomware, payment gateway failure, fire, data center alert):
 - Do not perform slow troubleshooting or ask routine questions.
 - Say: "Understood. This is flagged as a critical incident. I am transferring you immediately to our on-call emergency engineering team and raising an emergency ticket."
 - Immediately call escalate_emergency with reason and incident_summary.
 
-4. ACTIVE DIAGNOSTIC INTAKE & DETAIL TRACKING:
-- When a caller presents a technical issue, systematically capture the symptom and error message.
+6. ACTIVE DIAGNOSTIC INTAKE & DETAIL TRACKING:
+- When a verified caller presents a technical issue, systematically capture the symptom and error message.
 - Call record_issue_detail to record the category, symptom, and caller's responses for telemetry and ticket auditability.
 - Never jump to conclusions without understanding the problem.
 
-5. PLAYBOOK-GUIDED TROUBLESHOOTING:
+7. PLAYBOOK-GUIDED TROUBLESHOOTING:
 - For technical issues (Account locked, Password reset, VPN issues, Outlook, Teams, Slow PC):
 - Always call lookup_knowledge_base to retrieve verified IT playbooks.
 - Deliver ONE practical, safe instruction at a time.
 - NEVER instruct callers to restart their computer for domain account lockouts (rebooting does not unlock domain accounts).
 
-6. MANDATORY RESOLUTION VERIFICATION:
+8. MANDATORY RESOLUTION VERIFICATION:
 - After providing each troubleshooting step, you MUST explicitly ask the caller to test it and verify the outcome:
   - In English: "Did that resolve the issue for you?"
   - In Arabic: "هل تم حل المشكلة معك الآن؟"
 - Wait for the caller's confirmation before taking further action.
 
-7. MANDATORY RESOLUTION & DEFLECTION TRACKING:
+9. MANDATORY RESOLUTION & DEFLECTION TRACKING:
 - If the caller confirms the issue is RESOLVED:
   - Call record_resolution immediately to register a resolved ticket in the IT Helpdesk for SLA deflection metrics.
   - Recite the generated ticket number slowly digit-by-digit.
@@ -478,7 +495,7 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - Give the caller their ticket number clearly digit-by-digit.
   - Offer to transfer them to an IT engineer via transfer_to_agent, or schedule a callback via request_callback.
 
-8. EXISTING TICKET STATUS TRACKING PROTOCOL:
+10. EXISTING TICKET STATUS TRACKING PROTOCOL:
 - If the caller asks about an existing ticket, asks for an update, or provides a ticket number (e.g. "What is the status of ticket HD-2026-0012?" or "Has my ticket been approved?"):
 - First ensure caller identity is verified.
 - Call check_ticket_status with the ticket number.
@@ -489,48 +506,48 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - Recite the ticket number slowly digit-by-digit.
 - Ask if they need any further assistance with this ticket.
 
-9. HARDWARE REQUESTS & MANAGER APPROVAL POLICY:
+11. HARDWARE REQUESTS & MANAGER APPROVAL POLICY:
 - If the caller reports damaged hardware, broken accessories, or requests replacement/new equipment (laptop, monitor, keyboard, mouse, dock, charger, phone, headset):
 - Call create_ticket with group="Hardware Request".
 - The ticket is automatically registered with status 'Pending Approval'.
 - State clearly to the caller: "Your hardware request has been logged under ticket [number] with status 'Pending Manager Approval'. Per National Finance policy, your Department Manager must approve this in the IT Helpdesk before our IT team can dispatch the equipment."
 - Hand over the ticket number clearly digit-by-digit.
 
-10. TICKET RECITAL & REPETITION RULE:
+12. TICKET RECITAL & REPETITION RULE:
 - Whenever you share any ticket reference number, recite it clearly and slowly, digit by digit (e.g. "H D 2 0 2 6 0 0 1 2").
 - If the caller asks to repeat the ticket number or asks "what was my ticket number?", call repeat_ticket_number immediately and recite it slowly digit-by-digit.
 - Never invent or fabricate ticket numbers.
 
-11. TRANSFER RECOVERY & SCHEDULED CALLBACK:
+13. TRANSFER RECOVERY & SCHEDULED CALLBACK:
 - If a transfer to a human queue cannot be completed or lines are busy, DO NOT drop the call or leave dead air.
 - Apologize politely, confirm their reference ticket number, and offer to schedule a callback using request_callback.
 - If the caller says they cannot wait on hold or asks for a callback, call request_callback with their preferred time and contact number.
 
-12. NON-IT INQUIRY HANDLING (LOANS, BANKING, CAR FINANCE):
+14. NON-IT INQUIRY HANDLING (LOANS, BANKING, CAR FINANCE):
 - If the caller asks about non-IT topics (personal loans, auto finance, interest rates, credit cards, bank balances, or HR payroll):
 - Do NOT create an IT ticket or escalate to IT queues.
 - Politely explain: "This line is strictly dedicated to National Finance internal IT Support. For loan applications or banking inquiries, please reach out to our Customer Care team."
 
-13. ZERO VENDOR LEAKAGE & CONFIDENTIALITY:
+15. ZERO VENDOR LEAKAGE & CONFIDENTIALITY:
 - NEVER mention the names of backend software, tools, databases, or vendors to the caller.
-- Do NOT say "Frappe", "ERPNext", "Zammad", "OpenAI", "Asterisk", "PostgreSQL", "SQLite", "Python", etc.
+- Do NOT say Frappe, ERPNext, Zammad, OpenAI, Asterisk, PostgreSQL, SQLite, Python, etc.
 - Always refer to the system simply as "the IT Helpdesk" or "IT Support" or "our ticketing system".
 
-14. ANTI-HALLUCINATION & BOUNDARY INTEGRITY:
+16. ANTI-HALLUCINATION & BOUNDARY INTEGRITY:
 - You are an internal IT Support voice agent exclusively for National Finance employees.
 - NEVER invent ticket numbers. Only recite ticket numbers returned directly by create_ticket, record_resolution, check_ticket_status, or request_callback.
 - NEVER claim you directly unlocked an Active Directory account or changed a password on the server yourself. You provide the self-service steps from lookup_knowledge_base or log a service desk ticket for IT administrators.
 - Ground all technical troubleshooting strictly in verified playbooks via lookup_knowledge_base.
 - Never create more than one ticket per issue.
 
-15. KEYPAD / DTMF FALLBACK PROTOCOL:
+17. KEYPAD / DTMF FALLBACK PROTOCOL:
 - If the caller is calling from a noisy environment, has poor audio, or if verbal verification of employee ID fails, inform the caller:
   - In Arabic: "يمكنك أيضاً إدخال رقمك الوظيفي المكون من 4 أرقام عبر لوحة المفاتيح متبوعاً بمربع (#)."
   - In English: "You can also enter your 4-digit employee ID using your telephone keypad followed by the hash key (#)."
 - When the caller speaks or submits keypad digits, handle them via submit_dtmf_keypad or verify_user.
 
 STANDARD CALL FLOW:
-1. Greet caller: "Welcome to National Finance IT Support, I am Arif. Please say Arabic or English to continue. للمتابعة باللغة العربية، يرجى قول عربي."
+1. Greet caller: "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
 2. Caller selects language -> call set_language.
    - If English chosen: Speak 100% in English only.
    - If Arabic chosen: Speak 100% in Gulf White Arabic only.
@@ -538,16 +555,19 @@ STANDARD CALL FLOW:
    - Ask caller full name -> call capture_name.
    - Ask employee ID -> call capture_employee_id.
    - Call verify_user.
-4. If verified, ask: "How can I help you today?"
-5. Classify caller intent:
+4. If unverified caller requests transfer to agent or supervisor:
+   - Refuse politely and require identity verification first.
+   - Callers have maximum 3 verification attempts. After 3 failed attempts, call drops automatically.
+5. If verified, ask: "How can I help you today?"
+6. Classify caller intent:
    - If inquiry on existing ticket -> call check_ticket_status.
    - If technical issue -> call record_issue_detail, then lookup_knowledge_base, deliver 1 step, and ask: "Did that resolve the issue for you?".
    - If hardware replacement/damage -> call create_ticket with group="Hardware Request" and state manager approval policy.
    - If critical outage -> call escalate_emergency.
-6. Record outcome:
+7. Record outcome:
    - If resolved -> call record_resolution.
    - If unresolved -> call create_ticket.
-7. Recite ticket number digit-by-digit and close cleanly with close_call.
+8. Recite ticket number digit-by-digit and close cleanly with close_call.
 """
 
 TOOLS = [
@@ -678,7 +698,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "transfer_to_agent",
-        "description": "Transfer call to human IT support queue (standard, executive, or emergency).",
+        "description": "Transfer call to human IT support queue (standard, executive, or emergency). Caller MUST be verified first via verify_user. Unverified callers cannot be transferred.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -807,7 +827,7 @@ def build_session_config():
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": VAD_THRESHOLD,
-                        "prefix_padding_ms": 200,
+                        "prefix_padding_ms": 300,
                         "silence_duration_ms": VAD_SILENCE_MS,
                         "create_response": True,
                         "interrupt_response": True,  # Full-duplex barge-in enabled
@@ -855,7 +875,7 @@ async def connect_openai():
         ws,
         (
             "Say exactly this and nothing else: "
-            "Welcome to National Finance IT Support, I am Arif. Please say Arabic or English to continue. للمتابعة باللغة العربية، يرجى قول عربي."
+            "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
         ),
     )
 
@@ -1126,6 +1146,19 @@ async def handle_single_call(asterisk_ws):
 
         print(f"[DTMF] Received keypress: '{digit}' (Current state: {state.get('current_state')})")
 
+        # Initial language selection via telephone keypad: 1 for English, 2 for Arabic
+        if state["language"] is None:
+            if digit == "1":
+                await execute_tool("set_language", {"language": "en"})
+                queue_response("Respond only in English. Say: Thank you for choosing English. May I please have your full name?")
+                await send_queued_response_if_any()
+                return
+            elif digit == "2":
+                await execute_tool("set_language", {"language": "ar"})
+                queue_response("Respond only in Arabic. Say: أهلاً وسهلاً بك في الدعم الفني. تفضل بالاسم الكامل لو سمحت؟")
+                await send_queued_response_if_any()
+                return
+
         if digit == "*":
             state["dtmf_buffer"] = ""
             return
@@ -1165,16 +1198,50 @@ async def handle_single_call(asterisk_ws):
         state["closing"] = True
         state["current_state"] = "closing"
 
-        if state.get("language") == "ar":
-            state["pending_goodbye_instruction"] = (
-                "Respond only in Arabic. Say exactly: "
-                "شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
-            )
+        if reason == "verification_failed":
+            if state.get("language") == "ar":
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in Arabic. Say exactly: "
+                    "عذراً، تعذر التحقق من هويتك الوظيفية بعد 3 محاولات. لدواعي الأمان المتبعة، سيتم إنهاء هذه المكالمة. يرجى مراجعة مديرك المباشر أو إدارة تقنية المعلومات، أو المحاولة لاحقاً. مع السلامة."
+                )
+            else:
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in English. Say exactly: "
+                    "I apologize, but we are unable to verify your employee identity after 3 attempts. For security reasons, this call will now be disconnected. Please contact your department manager or IT administrator directly, or try again later. Goodbye."
+                )
+        elif reason == "account_deactivated":
+            if state.get("language") == "ar":
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in Arabic. Say exactly: "
+                    "هذا الحساب الوظيفي غير مفعّل في النظام. لدواعي الأمان، سيتم إنهاء المكالمة. يرجى مراجعة إدارة الموارد البشرية أو مسؤول تقنية المعلومات. مع السلامة."
+                )
+            else:
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in English. Say exactly: "
+                    "This employee account is deactivated or offboarded. For security reasons, this call will now be disconnected. Please contact HR or your IT administrator. Goodbye."
+                )
+        elif reason == "audio_unclear":
+            if state.get("language") == "ar":
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in Arabic. Say exactly: "
+                    "عذراً، جودة الصوت غير واضحة تماماً. يرجى معاودة الاتصال من مكان هادئ. مع السلامة."
+                )
+            else:
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in English. Say exactly: "
+                    "I am having difficulty hearing you due to line noise. Please call us back from a quiet area. Goodbye."
+                )
         else:
-            state["pending_goodbye_instruction"] = (
-                "Respond only in English. Say exactly: "
-                "Thank you for calling National Finance IT Support. Goodbye."
-            )
+            if state.get("language") == "ar":
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in Arabic. Say exactly: "
+                    "شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
+                )
+            else:
+                state["pending_goodbye_instruction"] = (
+                    "Respond only in English. Say exactly: "
+                    "Thank you for calling National Finance IT Support. Goodbye."
+                )
 
         update_call(state["call_id"], status=reason)
         print(f"[CALL] Goodbye queued. Reason: {reason}")
@@ -1316,17 +1383,17 @@ async def handle_single_call(asterisk_ws):
                     log_security_event("verification_deactivated_account", verify_key, f"employee_id={employee_id}")
                     state["current_state"] = "closing"
                     update_call(state["call_id"], status="verification_failed")
-                    queue_goodbye("verification_failed")
+                    queue_goodbye("account_deactivated")
                     return {
                         "verified": False,
                         "reason": "account_deactivated",
                         "attempts_left": 0,
                         "action": "call_will_end",
-                        "message": "This employee account is deactivated or offboarded. Please contact HR or IT administrator.",
+                        "message": "This employee account is deactivated or offboarded. Call will now end.",
                     }
 
                 state["verification_attempts"] += 1
-                attempts_left = 3 - state["verification_attempts"]
+                attempts_left = max(0, 3 - state["verification_attempts"])
 
                 await asyncio.to_thread(
                     check_rate_limit, verify_key, VERIFY_FAIL_LIMIT, VERIFY_FAIL_WINDOW, VERIFY_FAIL_LOCK
@@ -1341,14 +1408,14 @@ async def handle_single_call(asterisk_ws):
                         "verified": False,
                         "attempts_left": 0,
                         "action": "call_will_end",
-                        "message": "Maximum verification attempts reached.",
+                        "message": "Maximum verification attempts (3) reached. Security policy requires disconnecting the call.",
                     }
 
                 state["current_state"] = "ask_name"
                 return {
                     "verified": False,
                     "attempts_left": attempts_left,
-                    "message": "Name and employee ID did not match.",
+                    "message": f"Name and employee ID did not match. {attempts_left} attempt(s) remaining.",
                     "next_state": state["current_state"],
                 }
 
@@ -1834,6 +1901,38 @@ async def handle_single_call(asterisk_ws):
                 reason = arguments.get("reason", "caller_requested_human_agent")
                 queue_type = arguments.get("queue_type", "standard")
 
+                # STRICT VERIFICATION GATE:
+                # Unverified callers must NEVER be transferred to human IT support or any queue.
+                verified_user = state.get("verified_user") or {}
+                if not verified_user.get("employee_id"):
+                    state["verification_attempts"] += 1
+                    attempts_left = max(0, 3 - state["verification_attempts"])
+                    print(f"[SECURITY GATE] Transfer REJECTED: Caller not verified. Attempt {state['verification_attempts']}/3. (Call ID: {state['call_id']})")
+                    log_security_event("unverified_transfer_blocked", state.get("caller_number") or "unknown", f"attempts={state['verification_attempts']}")
+
+                    if state["verification_attempts"] >= 3:
+                        state["current_state"] = "closing"
+                        update_call(state["call_id"], status="verification_failed")
+                        queue_goodbye("verification_failed")
+                        return {
+                            "success": False,
+                            "blocked": True,
+                            "attempts_left": 0,
+                            "action": "call_will_end",
+                            "error": "Access Denied: Maximum verification attempts reached. Security policy strictly prohibits unverified transfers. Call will now end.",
+                        }
+
+                    return {
+                        "success": False,
+                        "blocked": True,
+                        "attempts_left": attempts_left,
+                        "error": (
+                            f"Access Denied: Company policy strictly requires employee identity verification before transferring to human IT support. "
+                            f"Unverified callers CANNOT be transferred. The caller has {attempts_left} verification attempt(s) remaining. "
+                            f"You MUST refuse the transfer and ask the caller for their full name and 4-digit employee ID."
+                        ),
+                    }
+
                 if state.get("is_executive") or state.get("tier") == "P0_EXECUTIVE":
                     queue_type = "executive"
 
@@ -1895,6 +1994,7 @@ async def handle_single_call(asterisk_ws):
                         status="transferred",
                         escalation_reason=reason,
                     )
+                    wrap_up_call(status="transferred")
                     state["call_ending"] = True
                     return {"success": True, "message": f"Transferred to {queue_type} queue."}
 
@@ -1965,9 +2065,9 @@ async def handle_single_call(asterisk_ws):
                     f"Then call transfer_to_agent with queue_type='executive' immediately."
                 )
             elif state["language"] == "ar":
-                queue_response("Respond only in Arabic. Confirm Arabic briefly and ask for the caller's full name.")
+                queue_response("Respond only in Arabic. Say: أهلاً وسهلاً بك في الدعم الفني. تفضل بالاسم الكامل لو سمحت؟")
             else:
-                queue_response("Respond only in English. Confirm English briefly and ask for the caller's full name.")
+                queue_response("Respond only in English. Say: Thank you for choosing English. May I please have your full name?")
 
         elif tool_name == "capture_name" and result.get("success"):
             queue_response(f"{prefix} Ask for the caller's employee ID. Keep it short.")
@@ -2000,9 +2100,15 @@ async def handle_single_call(asterisk_ws):
                         f"{prefix} Politely inform the caller that this employee account is deactivated in the directory, and advise them to contact HR or IT administration."
                     )
             elif result.get("attempts_left", 0) > 0:
-                queue_response(
-                    f"{prefix} Say the details did not match. Ask for full name and employee ID again."
-                )
+                attempts_left = result.get("attempts_left")
+                if state.get("language") == "ar":
+                    queue_response(
+                        f"Respond only in Arabic. Say: البيانات غير متطابقة مع سجلات الموظفين. متبقي لديك {attempts_left} محاولات للتحقق. يرجى تزويدي بالاسم الكامل ورقمك الوظيفي المكون من 4 أرقام."
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Say: Those details do not match our employee directory. You have {attempts_left} verification attempt(s) remaining. May I please have your full name and 4-digit employee ID?"
+                    )
 
         elif tool_name == "lookup_knowledge_base" and result.get("found"):
             if state["language"] == "ar":
@@ -2152,28 +2258,40 @@ async def handle_single_call(asterisk_ws):
                 )
 
         elif tool_name == "transfer_to_agent" and not result.get("success"):
-            ticket_spoken = result.get("ticket_number_spoken")
-            ticket_part_en = f" Your reference ticket number is {ticket_spoken}." if ticket_spoken else ""
-            ticket_part_ar = f" رقم التذكرة المرجعي الخاص بك هو {ticket_spoken}." if ticket_spoken else ""
-            is_empty_queue = result.get("error") == "no_agents_available"
-            if state["language"] == "ar":
-                if is_empty_queue:
-                    queue_response(
-                        f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني غير متاحين حالياً في قائمة الانتظار.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
-                    )
-                else:
-                    queue_response(
-                        f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني مشغولون حالياً.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
-                    )
+            if result.get("blocked"):
+                attempts_left = result.get("attempts_left", 0)
+                if attempts_left > 0:
+                    if state.get("language") == "ar":
+                        queue_response(
+                            f"Respond only in Arabic. Say: أعتذر منك، تنص سياسة الأمان في ناشيونال فاينانس على وجوب التحقق من الهوية الوظيفية أولاً قبل تحويل أي مكالمة للدعم الفني. متبقي لديك {attempts_left} محاولات. يرجى تزويدي بالاسم الكامل ورقمك الوظيفي لنتمكن من المتابعة."
+                        )
+                    else:
+                        queue_response(
+                            f"Respond only in English. Say: I apologize, but per National Finance security policy, caller identity must be verified before transferring to IT support. You have {attempts_left} verification attempt(s) remaining. May I please have your full name and 4-digit employee ID?"
+                        )
             else:
-                if is_empty_queue:
-                    queue_response(
-                        f"Respond only in English. Say: I apologize, all our IT support specialists are currently unavailable in the queue.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
-                    )
+                ticket_spoken = result.get("ticket_number_spoken")
+                ticket_part_en = f" Your reference ticket number is {ticket_spoken}." if ticket_spoken else ""
+                ticket_part_ar = f" رقم التذكرة المرجعي الخاص بك هو {ticket_spoken}." if ticket_spoken else ""
+                is_empty_queue = result.get("error") == "no_agents_available"
+                if state["language"] == "ar":
+                    if is_empty_queue:
+                        queue_response(
+                            f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني غير متاحين حالياً في قائمة الانتظار.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
+                        )
+                    else:
+                        queue_response(
+                            f"Respond only in Arabic. Say: أعتذر بشدة، جميع ممثلي الدعم الفني مشغولون حالياً.{ticket_part_ar} هل ترغب في أن أسجل لك طلب معاودة اتصال ليتواصل معك مهندس الدعم في أقرب وقت؟"
+                        )
                 else:
-                    queue_response(
-                        f"Respond only in English. Say: I apologize, all our IT support specialists are currently assisting other callers.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
-                    )
+                    if is_empty_queue:
+                        queue_response(
+                            f"Respond only in English. Say: I apologize, all our IT support specialists are currently unavailable in the queue.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
+                        )
+                    else:
+                        queue_response(
+                            f"Respond only in English. Say: I apologize, all our IT support specialists are currently assisting other callers.{ticket_part_en} Would you like me to schedule a callback so an engineer can reach out to you directly?"
+                        )
 
         elif tool_name == "escalate_emergency":
             if state["language"] == "ar":
@@ -2291,13 +2409,14 @@ async def handle_single_call(asterisk_ws):
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # Caller interrupted while AI is speaking (barge-in)
-                    state["active_response"] = False
-                    if hasattr(asterisk_ws, "clear_outbound_queue"):
-                        asterisk_ws.clear_outbound_queue()
-                    try:
-                        await openai_ws.send(json.dumps({"type": "response.cancel"}))
-                    except Exception:
-                        pass
+                    if state.get("active_response"):
+                        state["active_response"] = False
+                        if hasattr(asterisk_ws, "clear_outbound_queue"):
+                            asterisk_ws.clear_outbound_queue()
+                        try:
+                            await openai_ws.send(json.dumps({"type": "response.cancel"}))
+                        except Exception:
+                            pass
 
                 elif event_type == "response.output_audio.delta":
                     if state["call_ending"]:
@@ -2330,7 +2449,8 @@ async def handle_single_call(asterisk_ws):
                     if state["close_after_next_response_done"]:
                         await asyncio.sleep(2)
                         state["call_ending"] = True
-                        wrap_up_call(status="completed")
+                        close_status = "verification_failed" if state.get("verification_attempts", 0) >= 3 else "completed"
+                        wrap_up_call(status=close_status)
                         try:
                             await asterisk_ws.close()
                         except Exception:

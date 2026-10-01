@@ -201,6 +201,26 @@ class TestAIGuardrails(unittest.TestCase):
         self.assertIn("check_ticket_status", SYSTEM_PROMPT)
         self.assertIn("Pending Manager Approval", SYSTEM_PROMPT)
 
+    def test_unverified_transfer_guardrail(self):
+        from app.openai_realtime_bridge import SYSTEM_PROMPT, TOOLS
+        tool = next((t for t in TOOLS if t.get("name") == "transfer_to_agent"), None)
+        self.assertIsNotNone(tool)
+        self.assertIn("MUST be verified first", tool["description"])
+        self.assertIn("STRICT SECURITY VERIFICATION GATE FOR TRANSFERS", SYSTEM_PROMPT)
+        self.assertIn("NEVER call transfer_to_agent for unverified callers", SYSTEM_PROMPT)
+
+    def test_clean_greeting_and_turn_taking_prompt(self):
+        from app.openai_realtime_bridge import SYSTEM_PROMPT
+        self.assertIn("Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي.", SYSTEM_PROMPT)
+        self.assertIn("PATIENCE, TURN-TAKING & NO OVERLAPPING (MANDATORY)", SYSTEM_PROMPT)
+        self.assertIn("NEVER speak over the caller or interrupt them", SYSTEM_PROMPT)
+        self.assertIn("strict MAXIMUM of 3 verification attempts", SYSTEM_PROMPT)
+
+    def test_vad_config_defaults(self):
+        from app.config import VAD_THRESHOLD, VAD_SILENCE_MS
+        self.assertGreaterEqual(VAD_THRESHOLD, 0.70)
+        self.assertGreaterEqual(VAD_SILENCE_MS, 1000)
+
 
 if __name__ == "__main__":
     unittest.main()

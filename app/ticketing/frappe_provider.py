@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Dict, Any, Optional, List
 import requests
 
@@ -126,7 +127,7 @@ class FrappeProvider(BaseTicketingProvider):
         if category and "hardware" in category.lower():
             return True
         combined = f"{title} {body}".lower()
-        return any(kw in combined for kw in self.HARDWARE_KEYWORDS)
+        return any(re.search(rf"\b{re.escape(kw)}\b", combined) for kw in self.HARDWARE_KEYWORDS)
 
     def create_ticket(
         self,
