@@ -4,7 +4,7 @@
 <div class="page-header">
     <div class="page-title">
         <h1>System Health & Component Status</h1>
-        <p>Live diagnostics across telephony bridge, database connection pool, Asterisk PBX, and helpdesk APIs</p>
+        <p>Live diagnostics across voice stream engine, enterprise data store, telephony routing gateway, and service desk APIs</p>
     </div>
     <div class="page-actions">
         <a href="/health" class="btn btn-secondary btn-sm">
@@ -17,7 +17,7 @@
     <div class="card-header">
         <div class="card-header-title">
             <h3 class="card-title">Infrastructure Telemetry Matrix</h3>
-            <p class="card-description">Core service daemons and network communication ports</p>
+            <p class="card-description">Core service daemons and network communication status</p>
         </div>
     </div>
     <div class="card-body" style="padding: 0;">
@@ -33,7 +33,7 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td><strong>AI Voice Bridge (WebSocket)</strong></td>
+                        <td><strong>Voice Stream Bridge (WebSocket)</strong></td>
                         <td>
                             {% if health.bridge_ok %}
                                 <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
@@ -41,11 +41,11 @@
                                 <span class="badge badge-destructive">Offline</span>
                             {% endif %}
                         </td>
-                        <td><code>127.0.0.1:8765</code></td>
-                        <td>Full-duplex WebSocket audio streaming</td>
+                        <td><code>Audio Stream Gateway (Port 8765)</code></td>
+                        <td>Full-duplex real-time voice streaming</td>
                     </tr>
                     <tr>
-                        <td><strong>Voice Bridge Daemon Service</strong></td>
+                        <td><strong>Voice Media Processing Service</strong></td>
                         <td>
                             {% if health.bridge_status == 'active' or health.bridge_status == 'Operational' %}
                                 <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
@@ -53,11 +53,11 @@
                                 <span class="badge badge-destructive">Degraded</span>
                             {% endif %}
                         </td>
-                        <td><code>Core Voice Service</code></td>
-                        <td>Supervised background media pipeline</td>
+                        <td><code>Core Telephony Pipeline</code></td>
+                        <td>Supervised background audio processing and RTP pipeline</td>
                     </tr>
                     <tr>
-                        <td><strong>Asterisk PBX Core</strong></td>
+                        <td><strong>Telephony & Call Routing Subsystem</strong></td>
                         <td>
                             {% if health.asterisk_status == 'active' or health.asterisk_status == 'Operational' %}
                                 <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
@@ -65,11 +65,11 @@
                                 <span class="badge badge-destructive">Degraded</span>
                             {% endif %}
                         </td>
-                        <td><code>PBX Audio Engine</code></td>
-                        <td>Audio routing, queues (7001, 7002, 7003), SIP channels</td>
+                        <td><code>Internal Telephony Gateway</code></td>
+                        <td>Inbound call routing, VIP/Executive ACD queues, and SIP extensions</td>
                     </tr>
                     <tr>
-                        <td><strong>Operations Dashboard Service</strong></td>
+                        <td><strong>Operations Management Portal</strong></td>
                         <td>
                             {% if health.dashboard_status == 'active' or health.dashboard_status == 'Operational' %}
                                 <span class="badge badge-success"><span class="pulse-dot"></span> Operational</span>
@@ -78,18 +78,18 @@
                             {% endif %}
                         </td>
                         <td><code>Operations Telemetry Engine</code></td>
-                        <td>Telemetry analytics and management portal</td>
+                        <td>Real-time telemetry, supervision, and analytics portal</td>
                     </tr>
                     <tr>
-                        <td><strong>Enterprise Database Core</strong></td>
+                        <td><strong>Enterprise Relational Data Store</strong></td>
                         <td>
                             <span class="badge badge-success"><span class="pulse-dot"></span> Connected</span>
                         </td>
-                        <td><code>app.db Connection Pool</code></td>
-                        <td>PostgreSQL 16 pool with thread-safe atomic operations</td>
+                        <td><code>Encrypted Connection Pool</code></td>
+                        <td>High-performance relational pool with ACID transactions and audit telemetry</td>
                     </tr>
                     <tr>
-                        <td><strong>IT Helpdesk Synchronizer</strong></td>
+                        <td><strong>IT Service Desk & Ticketing API</strong></td>
                         <td>
                             {% if health.frappe_ok %}
                                 <span class="badge badge-success"><span class="pulse-dot"></span> Reachable</span>
@@ -97,11 +97,11 @@
                                 <span class="badge badge-warning">Unreachable / Retrying</span>
                             {% endif %}
                         </td>
-                        <td><code>{{ health.frappe_url }}</code></td>
-                        <td>Ticket generation, SLA calculation, hardware manager approval</td>
+                        <td><code>Enterprise Service Desk Endpoint</code></td>
+                        <td>Automated ticket generation, SLA classification, and escalation workflow</td>
                     </tr>
                     <tr>
-                        <td><strong>AI Voice Cognitive API</strong></td>
+                        <td><strong>Cognitive AI Voice & Language Model</strong></td>
                         <td>
                             {% if health.openai_key_configured %}
                                 <span class="badge badge-success">Configured</span>
@@ -109,8 +109,8 @@
                                 <span class="badge badge-destructive">Missing Key</span>
                             {% endif %}
                         </td>
-                        <td><code>OpenAI Realtime API</code></td>
-                        <td>Bilingual English/Arabic speech synthesis and intent reasoning</td>
+                        <td><code>Enterprise Cognitive Voice Engine</code></td>
+                        <td>Bilingual English/Arabic speech synthesis, intent recognition, and conversational reasoning</td>
                     </tr>
                 </tbody>
             </table>

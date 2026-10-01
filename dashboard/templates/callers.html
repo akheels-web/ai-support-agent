@@ -3,8 +3,13 @@
 {% block content %}
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
     <div class="page-title">
-        <h1>Caller Directory & VIP Roster</h1>
-        <p>Manage telephony caller verification, bilingual spoken aliases, VIP concierge tiers, and instant offboarding</p>
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <h1 style="margin-bottom: 0;">Caller Directory & VIP Roster</h1>
+            <span class="badge badge-secondary" style="font-size: 0.8125rem; font-weight: 700; padding: 0.25rem 0.6rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <i data-lucide="users" style="width: 13px; height: 13px;"></i> {{ stats.total }} Registered
+            </span>
+        </div>
+        <p style="margin-top: 0.25rem;">Manage telephony caller verification, bilingual spoken aliases, VIP concierge tiers, and instant offboarding</p>
     </div>
     <div style="display: flex; gap: 0.5rem; align-items: center;">
         <a href="/callers/export" class="btn btn-outline btn-sm">
@@ -20,51 +25,51 @@
 </div>
 
 <!-- KPI Cards -->
-<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Total Registered</span>
-            <div class="stat-icon" style="color: var(--nf-navy); background: var(--nf-light-blue);">
+<div class="metrics-grid stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
+    <div class="metric-card stat-card">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Total Registered</span>
+            <div class="metric-icon-box stat-icon" style="color: var(--nf-navy); background: rgba(27, 47, 107, 0.08);">
                 <i data-lucide="users"></i>
             </div>
         </div>
-        <div class="stat-value">{{ stats.total }}</div>
-        <div class="stat-description">Telephony caller records in system</div>
+        <div class="metric-number stat-value">{{ stats.total }}</div>
+        <div class="metric-footer stat-description">Telephony caller records in system</div>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Active & Verified</span>
-            <div class="stat-icon" style="color: #10B981; background: rgba(16, 185, 129, 0.12);">
+    <div class="metric-card stat-card emerald-accent">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Active & Verified</span>
+            <div class="metric-icon-box stat-icon" style="color: #10B981; background: rgba(16, 185, 129, 0.12);">
                 <i data-lucide="user-check"></i>
             </div>
         </div>
-        <div class="stat-value" style="color: #10B981;">{{ stats.active }}</div>
-        <div class="stat-description">Allowed inbound voice verification</div>
+        <div class="metric-number stat-value" style="color: #10B981;">{{ stats.active }}</div>
+        <div class="metric-footer stat-description">Allowed inbound voice verification</div>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Executive & VIP</span>
-            <div class="stat-icon" style="color: #8B5CF6; background: rgba(139, 92, 246, 0.12);">
+    <div class="metric-card stat-card amber-accent">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Executive & VIP</span>
+            <div class="metric-icon-box stat-icon" style="color: #8B5CF6; background: rgba(139, 92, 246, 0.12);">
                 <i data-lucide="crown"></i>
             </div>
         </div>
-        <div class="stat-value" style="color: #8B5CF6;">{{ stats.vip }}</div>
-        <div class="stat-description">P0 Executives & P1 VIP Concierge</div>
+        <div class="metric-number stat-value" style="color: #8B5CF6;">{{ stats.vip }}</div>
+        <div class="metric-footer stat-description">P0 Executives & P1 VIP Concierge</div>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Offboarded / Inactive</span>
-            <div class="stat-icon" style="color: var(--nf-crimson); background: rgba(200, 16, 46, 0.1);">
+    <div class="metric-card stat-card crimson-accent">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Offboarded / Inactive</span>
+            <div class="metric-icon-box stat-icon" style="color: var(--nf-crimson); background: rgba(200, 16, 46, 0.1);">
                 <i data-lucide="user-x"></i>
             </div>
         </div>
-        <div class="stat-value" style="color: {% if stats.inactive > 0 %}var(--nf-crimson){% else %}var(--muted-foreground){% endif %};">
+        <div class="metric-number stat-value" style="color: {% if stats.inactive > 0 %}var(--nf-crimson){% else %}var(--muted-foreground){% endif %};">
             {{ stats.inactive }}
         </div>
-        <div class="stat-description">Blocked from voice verification</div>
+        <div class="metric-footer stat-description">Blocked from voice verification</div>
     </div>
 </div>
 
@@ -151,7 +156,9 @@
                     <i data-lucide="filter"></i> Filter
                 </button>
                 {% if filters.q or filters.tier != 'ALL' or filters.status != 'ALL' or filters.department != 'ALL' %}
-                <a href="/callers" class="btn btn-outline btn-sm">Reset</a>
+                <a href="/callers" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Reset
+                </a>
                 {% endif %}
             </div>
         </form>
@@ -160,10 +167,24 @@
 
 <!-- Main Callers Table Card -->
 <div class="card">
-    <div class="card-header">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
         <div class="card-header-title">
             <h3 class="card-title">Authorized Callers & Telephony Roster</h3>
-            <p class="card-description">{{ rows|length }} caller profile(s) listed</p>
+            <p class="card-description">
+                Showing <strong>{{ rows|length }}</strong> of <strong>{{ stats.total }}</strong> registered caller profile(s)
+                {% if filters.q or filters.tier != 'ALL' or filters.status != 'ALL' or filters.department != 'ALL' %}
+                    <span style="color: var(--nf-navy); font-weight: 600; margin-left: 0.25rem;">(Filtered View)</span>
+                {% endif %}
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <span class="badge badge-secondary" style="font-size: 0.75rem;">Active: <strong>{{ stats.active }}</strong></span>
+            <span class="badge badge-secondary" style="font-size: 0.75rem;">VIP / Exec: <strong>{{ stats.vip }}</strong></span>
+            {% if stats.inactive > 0 %}
+            <span class="badge" style="font-size: 0.75rem; background: rgba(200, 16, 46, 0.1); color: var(--nf-crimson); border: 1px solid rgba(200, 16, 46, 0.25);">
+                Offboarded: <strong>{{ stats.inactive }}</strong>
+            </span>
+            {% endif %}
         </div>
     </div>
     <div class="card-body" style="padding: 0;">
@@ -177,7 +198,7 @@
                         <th style="min-width: 140px;">Department & Role</th>
                         <th style="min-width: 130px;">Escalation Tier</th>
                         <th style="min-width: 100px;">Status</th>
-                        <th style="min-width: 180px; text-align: right;">Actions</th>
+                        <th style="min-width: 220px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -242,32 +263,32 @@
                             {% endif %}
                         </td>
                         <td style="text-align: right;">
-                            <div style="display: inline-flex; gap: 0.35rem; align-items: center;">
+                            <div style="display: inline-flex; gap: 0.4rem; align-items: center; justify-content: flex-end;">
                                 <!-- Toggle Active / Offboard Status Form -->
                                 <form method="post" action="/callers/toggle-status" style="margin: 0;">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="caller_id" value="{{ r.id }}">
                                     {% if r.active == 1 %}
-                                    <button type="submit" class="btn btn-outline btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--nf-crimson); border-color: rgba(200, 16, 46, 0.3);" title="Deactivate caller immediately">
-                                        <i data-lucide="user-minus" style="width: 13px; height: 13px;"></i> Offboard
+                                    <button type="submit" class="btn btn-outline-danger btn-xs" title="Deactivate caller immediately">
+                                        <i data-lucide="user-minus"></i> Offboard
                                     </button>
                                     {% else %}
-                                    <button type="submit" class="btn btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; background: #10B981; color: white;" title="Re-activate caller">
-                                        <i data-lucide="user-check" style="width: 13px; height: 13px;"></i> Activate
+                                    <button type="submit" class="btn btn-success-subtle btn-xs" title="Re-activate caller">
+                                        <i data-lucide="user-check"></i> Activate
                                     </button>
                                     {% endif %}
                                 </form>
 
                                 <!-- Edit Caller Trigger -->
-                                <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick='openEditCallerModal({{ r|tojson }})' title="Edit Caller Profile">
-                                    <i data-lucide="edit-2" style="width: 13px; height: 13px;"></i> Edit
+                                <button type="button" class="btn btn-secondary btn-xs" onclick='openEditCallerModal({{ r|tojson }})' title="Edit Caller Profile">
+                                    <i data-lucide="edit-2"></i> Edit
                                 </button>
 
                                 <!-- Delete Form -->
                                 <form method="post" action="/callers/delete" style="margin: 0;" onsubmit="return confirm('Permanently delete caller {{ r.name }} ({{ r.employee_id }})? This action cannot be undone.');">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="caller_id" value="{{ r.id }}">
-                                    <button type="submit" class="btn btn-ghost btn-sm" style="padding: 0.25rem 0.4rem; color: var(--muted-foreground);" title="Delete Record">
+                                    <button type="submit" class="btn btn-ghost-danger btn-xs btn-icon" style="width: 28px; height: 28px; padding: 0;" title="Delete Record">
                                         <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                                     </button>
                                 </form>

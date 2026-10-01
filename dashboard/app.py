@@ -404,13 +404,47 @@ def human_time(ts):
         return ""
 
 
+STATUS_HUMAN_MAP = {
+    "language_selected": "Language Chosen",
+    "in_progress": "In Progress",
+    "verified": "Caller Verified",
+    "troubleshooting": "Troubleshooting",
+    "ai_deflected": "AI Deflected",
+    "AI_Resolved": "AI Deflected",
+    "transferred": "Transferred to Agent",
+    "emergency_escalated": "Sev-1 Escalation",
+    "ended": "Completed",
+    "completed": "Completed",
+    "failed_verification": "Verification Failed",
+    "failed": "Failed",
+}
+
+
+def human_status(status: str) -> str:
+    if not status:
+        return "In Progress"
+    if status in STATUS_HUMAN_MAP:
+        return STATUS_HUMAN_MAP[status]
+    return status.replace("_", " ").replace("-", " ").title()
+
+
+# Register custom filters into Jinja template environment
+templates.env.filters["human_time"] = human_time
+templates.env.filters["human_status"] = human_status
+
+
 def extract_caller_from_recording(recording_file):
     if not recording_file:
         return ""
     name = Path(recording_file).name
-    parts = name.split("-")
+    stem = Path(recording_file).stem
+    if "_" in stem:
+        parts = stem.split("_")
+        if len(parts) >= 3:
+            return parts[2]
+    parts = stem.split("-")
     if len(parts) >= 4:
-        return parts[2]
+        return parts[-2]
     return ""
 
 
@@ -456,10 +490,16 @@ def recording_files():
     files = []
     for file in sorted(base.glob("*.wav"), reverse=True):
         stat = file.stat()
-        caller = "unknown"
-        parts = file.name.split("-")
-        if len(parts) >= 4:
-            caller = parts[2]
+        caller = "Unknown"
+        stem = file.stem
+        if "_" in stem:
+            parts = stem.split("_")
+            if len(parts) >= 3:
+                caller = parts[2]
+        else:
+            parts = stem.split("-")
+            if len(parts) >= 4:
+                caller = parts[-2]
 
         files.append(
             {
@@ -930,7 +970,8 @@ def api_active_calls_data(request: Request):
             "verified_name": r["verified_name"] or name_disp,
             "employee_id": r["employee_id"] or "",
             "tier": r["tier"] or "STANDARD",
-            "status": r["status"] or "in_progress",
+            "status": human_status(r["status"] or "in_progress"),
+            "raw_status": r["status"] or "in_progress",
             "duration_minutes": live_call_duration(r["start_time"]),
             "started_at": human_time(r["start_time"]),
         })
@@ -944,10 +985,16 @@ def api_call_detail(request: Request, call_identifier: str):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     conn = db()
-    row = conn.execute(
-        "SELECT * FROM calls WHERE call_id=? OR id=?",
-        (call_identifier, call_identifier),
-    ).fetchone()
+    if call_identifier.isdigit():
+        row = conn.execute(
+            "SELECT * FROM calls WHERE id=? OR call_id=?",
+            (int(call_identifier), call_identifier),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT * FROM calls WHERE call_id=?",
+            (call_identifier,),
+        ).fetchone()
     conn.close()
 
     if not row:
@@ -962,7 +1009,8 @@ def api_call_detail(request: Request, call_identifier: str):
         "tier": row["tier"] or "STANDARD",
         "language": row["language"] or "en",
         "duration_minutes": format_minutes(row["duration_seconds"]),
-        "status": row["status"] or "completed",
+        "status": human_status(row["status"] or "completed"),
+        "raw_status": row["status"] or "completed",
         "ticket_number": row["ticket_number"] or "",
         "summary": row["summary"] or "",
         "transcript": row.get("transcript") or "",
@@ -1228,16 +1276,104 @@ def health_page(request: Request):
 def security_events_page(request: Request):
     user = require_roles(request, ["admin"])
     conn = db()
-    raw_rows = conn.execute("SELECT * FROM security_events ORDER BY id DESC LIMIT 300").fetchall()
+    raw_rows = conn.execute(
+        """
+        SELECT * FROM security_events 
+        WHERE event_type IN (
+            'dashboard_login_success',
+            'dashboard_login_failed',
+            'dashboard_login_rate_limited',
+            'change_password_success',
+            'change_password_failed',
+            'admin_reset_user_password',
+            'initial_admin_setup_success',
+            'operator_created',
+            'operator_updated'
+        )
+        ORDER BY id DESC LIMIT 300
+        """
+    ).fetchall()
+
+    user_rows = conn.execute("SELECT username, role FROM users").fetchall()
     conn.close()
+
+    role_map = {u["username"]: u["role"] for u in user_rows}
 
     rows = []
     for r in raw_rows:
+        raw_details = r["details"] or ""
+        parsed = {}
+        for item in raw_details.split(","):
+            if "=" in item:
+                k, v = item.strip().split("=", 1)
+                parsed[k.strip()] = v.strip()
+
+        operator = parsed.get("username") or parsed.get("admin") or parsed.get("operator") or "System"
+        role_raw = role_map.get(operator, "admin" if operator == "admin" else "user")
+        if role_raw == "admin":
+            role_label = "Administrator"
+        elif role_raw == "quality_reviewer":
+            role_label = "Quality Reviewer"
+        else:
+            role_label = "Console User"
+
+        key = r["key"] or ""
+        ip_addr = key if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", key) else "127.0.0.1"
+
+        event_type = r["event_type"]
+        if event_type == "dashboard_login_success":
+            action = "Sign In Successful"
+            badge_variant = "success"
+            description = f"Operator '{operator}' successfully authenticated into the operations console."
+        elif event_type == "dashboard_login_failed":
+            action = "Sign In Failed"
+            badge_variant = "destructive"
+            description = f"Authentication rejected: invalid credentials attempted for operator '{operator}'."
+        elif event_type == "dashboard_login_rate_limited":
+            action = "Rate Limit Locked"
+            badge_variant = "warning"
+            description = "Console access temporarily suspended due to consecutive failed sign-in attempts."
+        elif event_type == "change_password_success":
+            action = "Password Updated"
+            badge_variant = "info"
+            description = f"Operator '{operator}' successfully updated their console password."
+        elif event_type == "change_password_failed":
+            action = "Password Change Failed"
+            badge_variant = "destructive"
+            description = "Password change rejected: invalid current password provided."
+        elif event_type == "admin_reset_user_password":
+            action = "Credentials Reset"
+            badge_variant = "warning"
+            target_id = parsed.get("target_id", "operator")
+            description = f"Administrator reset access credentials for operator account #{target_id}."
+        elif event_type == "initial_admin_setup_success":
+            action = "System Provisioned"
+            badge_variant = "success"
+            description = "Primary administrative root credentials successfully initialized."
+        elif event_type == "operator_created":
+            action = "Operator Created"
+            badge_variant = "info"
+            target = parsed.get("operator", "account")
+            role_assigned = parsed.get("role", "user")
+            description = f"Administrator created new operator account '{target}' with {role_assigned} privileges."
+        elif event_type == "operator_updated":
+            action = "Role Updated"
+            badge_variant = "info"
+            target_id = parsed.get("operator_id", "")
+            description = f"Administrator updated operator permissions and status for account #{target_id}."
+        else:
+            action = event_type.replace("_", " ").title()
+            badge_variant = "secondary"
+            description = "Console administrative operation executed."
+
         rows.append({
             "id": r["id"],
-            "event_type": r["event_type"],
-            "key": r["key"],
-            "details": r["details"],
+            "operator": operator,
+            "role": role_label,
+            "action": action,
+            "badge_variant": badge_variant,
+            "ip_address": ip_addr,
+            "description": description,
             "created_at_human": human_time(r["created_at"]),
         })
 
@@ -1447,6 +1583,7 @@ def add_user(
     conn.close()
 
     audit(admin["username"], "add_user", "user", username)
+    log_security_event("operator_created", client_ip, f"admin={admin['username']}, operator={username}, role={role}")
     return RedirectResponse("/users", status_code=302)
 
 
@@ -1475,6 +1612,8 @@ def update_user(
     conn.commit()
     conn.close()
     audit(admin["username"], "update_user", "user", str(user_id))
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    log_security_event("operator_updated", client_ip, f"admin={admin['username']}, operator_id={user_id}, role={role}, active={active_value}")
     return RedirectResponse("/users", status_code=302)
 
 

@@ -1,54 +1,99 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
     <div class="page-title">
-        <h1>Security Audit Trail</h1>
-        <p>Real-time security events, verification lockouts, brute-force rate limits, and audit logs</p>
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <h1 style="margin-bottom: 0;">Security & Access Audit Trail</h1>
+            <span class="badge badge-secondary" style="font-size: 0.8125rem; font-weight: 700; padding: 0.25rem 0.6rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <i data-lucide="shield-check" style="width: 13px; height: 13px;"></i> {{ rows|length }} Audit Records
+            </span>
+        </div>
+        <p style="margin-top: 0.25rem;">Authorized console operator activities, authentication events, and administrative credential modifications</p>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-header">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
         <div class="card-header-title">
-            <h3 class="card-title">Security Event Log</h3>
-            <p class="card-description">Immutable audit records captured by security guards</p>
+            <h3 class="card-title">Console Operator Activity Log</h3>
+            <p class="card-description">Immutable security trail for Administrators, Quality Reviewers, and Console Users</p>
         </div>
-        <span class="badge badge-secondary">{{ rows|length }} Events</span>
+        <span class="badge badge-secondary">{{ rows|length }} Events Logged</span>
     </div>
     <div class="card-body" style="padding: 0;">
         <div class="table-wrapper" style="border:none; border-radius:0;">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Event Type</th>
-                        <th>IP / Key Target</th>
-                        <th>Diagnostic Details</th>
-                        <th>Timestamp</th>
+                        <th style="width: 70px;">ID</th>
+                        <th style="min-width: 200px;">Console Operator</th>
+                        <th style="min-width: 170px;">Activity Event</th>
+                        <th style="min-width: 140px;">Client IP</th>
+                        <th style="min-width: 320px;">Operational Details</th>
+                        <th style="min-width: 160px; text-align: right;">Timestamp</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for r in rows %}
                     <tr>
-                        <td>{{ r.id }}</td>
                         <td>
-                            {% if 'fail' in r.event_type or 'lockout' in r.event_type or 'block' in r.event_type %}
-                                <span class="badge badge-destructive">{{ r.event_type }}</span>
-                            {% elif 'success' in r.event_type %}
-                                <span class="badge badge-success">{{ r.event_type }}</span>
+                            <span style="font-family: monospace; font-weight: 700; color: var(--foreground); background: var(--secondary); padding: 0.2rem 0.45rem; border-radius: 4px; font-size: 0.8rem;">
+                                #{{ r.id }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.65rem;">
+                                <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--nf-navy); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700;">
+                                    {{ r.operator[:2].upper() }}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 700; color: var(--foreground); font-size: 0.875rem;">
+                                        {{ r.operator }}
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: var(--muted-foreground);">
+                                        {{ r.role }}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if r.badge_variant == 'success' %}
+                                <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600;">
+                                    <i data-lucide="check-circle" style="width: 12px; height: 12px; margin-right: 4px;"></i> {{ r.action }}
+                                </span>
+                            {% elif r.badge_variant == 'destructive' %}
+                                <span class="badge badge-destructive" style="font-weight: 600;">
+                                    <i data-lucide="alert-triangle" style="width: 12px; height: 12px; margin-right: 4px;"></i> {{ r.action }}
+                                </span>
+                            {% elif r.badge_variant == 'warning' %}
+                                <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600;">
+                                    <i data-lucide="key" style="width: 12px; height: 12px; margin-right: 4px;"></i> {{ r.action }}
+                                </span>
                             {% else %}
-                                <span class="badge badge-secondary">{{ r.event_type }}</span>
+                                <span class="badge" style="background: rgba(27, 47, 107, 0.1); color: var(--nf-navy); border: 1px solid rgba(27, 47, 107, 0.2); font-weight: 600;">
+                                    <i data-lucide="activity" style="width: 12px; height: 12px; margin-right: 4px;"></i> {{ r.action }}
+                                </span>
                             {% endif %}
                         </td>
-                        <td><code>{{ r.key or '--' }}</code></td>
-                        <td>{{ r.details or '--' }}</td>
-                        <td>{{ r.created_at_human }}</td>
+                        <td>
+                            <code style="font-size: 0.8rem; background: var(--secondary); padding: 0.2rem 0.4rem; border-radius: 4px; color: var(--foreground);">
+                                {{ r.ip_address }}
+                            </code>
+                        </td>
+                        <td style="font-size: 0.85rem; color: var(--foreground); line-height: 1.5;">
+                            {{ r.description }}
+                        </td>
+                        <td style="text-align: right; color: var(--muted-foreground); font-size: 0.8rem;">
+                            {{ r.created_at_human }}
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="5" style="text-align:center; padding: 3rem; color: hsl(var(--muted-foreground));">
-                            No security incidents or lockouts recorded.
+                        <td colspan="6" style="text-align:center; padding: 3.5rem 1rem; color: var(--muted-foreground);">
+                            <i data-lucide="shield-check" style="width: 36px; height: 36px; color: #10B981; margin-bottom: 0.5rem;"></i>
+                            <div style="font-weight: 600;">No operator security incidents recorded</div>
+                            <div style="font-size: 0.8125rem; margin-top: 0.25rem;">All dashboard access and administrative activities are compliant.</div>
                         </td>
                     </tr>
                     {% endfor %}

@@ -6,21 +6,303 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Design System & Dependencies -->
-    <link rel="stylesheet" href="/static/css/shadcn.css">
+    <link rel="stylesheet" href="/static/css/shadcn.css?v=20261001_v4">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="/static/js/vendor/html2pdf.bundle.min.js"></script>
+    <script>if (!window.html2pdf) { document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>'); }</script>
+
+    <style>
+    /* Critical Embedded Styles for Header and Sidebar */
+    .sidebar-brand-link {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.65rem !important;
+        text-decoration: none !important;
+        color: inherit !important;
+        width: 100% !important;
+    }
+    .sidebar-brand-link:hover, .sidebar-brand-link:visited {
+        text-decoration: none !important;
+        color: inherit !important;
+    }
+    .sidebar-logo-container {
+        background: #ffffff !important;
+        border-radius: 8px !important;
+        padding: 7px 12px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        border: 1px solid rgba(226, 232, 240, 0.9) !important;
+    }
+    .sidebar-logo {
+        height: 38px !important;
+        width: auto !important;
+        max-width: 100% !important;
+        object-fit: contain !important;
+        display: block !important;
+    }
+    .sidebar-brand-meta {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 0 0.15rem !important;
+    }
+    .sidebar-ops-badge {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
+        font-size: 0.6875rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.05em !important;
+        text-transform: uppercase !important;
+        color: #1B2F6B !important;
+        background: rgba(27, 47, 107, 0.08) !important;
+        padding: 0.15rem 0.45rem !important;
+        border-radius: 4px !important;
+        text-decoration: none !important;
+    }
+    .dark .sidebar-ops-badge {
+        color: #93C5FD !important;
+        background: rgba(59, 130, 246, 0.18) !important;
+    }
+    .sidebar-ops-badge .badge-dot {
+        width: 6px !important;
+        height: 6px !important;
+        border-radius: 50% !important;
+        background: #10B981 !important;
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.6) !important;
+    }
+    .sidebar-voice-tag {
+        font-size: 0.6875rem !important;
+        font-weight: 600 !important;
+        color: #64748B !important;
+        letter-spacing: 0.01em !important;
+        text-decoration: none !important;
+    }
+
+    /* Profile Dropdown Component */
+    .profile-dropdown-wrapper {
+        position: relative !important;
+        display: inline-block !important;
+    }
+    .profile-pill-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 0.625rem !important;
+        padding: 0.3rem 0.75rem 0.3rem 0.35rem !important;
+        border-radius: 9999px !important;
+        background: #F1F5F9 !important;
+        border: 1px solid #E2E8F0 !important;
+        color: #0F172A !important;
+        cursor: pointer !important;
+        outline: none !important;
+        font-family: inherit !important;
+        font-size: 0.8125rem !important;
+    }
+    .dark .profile-pill-btn {
+        background: #1E293B !important;
+        border-color: #334155 !important;
+        color: #F8FAFC !important;
+    }
+    .profile-pill-text {
+        display: flex !important;
+        flex-direction: column !important;
+        text-align: left !important;
+        line-height: 1.15 !important;
+    }
+    .profile-pill-name {
+        font-size: 0.8125rem !important;
+        font-weight: 700 !important;
+        color: inherit !important;
+    }
+    .profile-pill-role {
+        font-size: 0.6875rem !important;
+        font-weight: 500 !important;
+        color: #64748B !important;
+        text-transform: uppercase !important;
+    }
+    .profile-chevron-icon {
+        width: 14px !important;
+        height: 14px !important;
+        stroke-width: 2.2 !important;
+        color: #64748B !important;
+        transition: transform 0.2s ease !important;
+    }
+    .profile-pill-btn[aria-expanded="true"] .profile-chevron-icon {
+        transform: rotate(180deg) !important;
+    }
+    .user-avatar {
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 50% !important;
+        background: #1B2F6B !important;
+        color: #ffffff !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 0.6875rem !important;
+        font-weight: 700 !important;
+    }
+    .profile-menu {
+        position: absolute !important;
+        top: calc(100% + 8px) !important;
+        right: 0 !important;
+        min-width: 230px !important;
+        background: #ffffff !important;
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+        padding: 0.4rem !important;
+        z-index: 100 !important;
+    }
+    .dark .profile-menu {
+        background: #0F172A !important;
+        border-color: #1E293B !important;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+    }
+    .profile-menu-header {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+        padding: 0.6rem 0.75rem !important;
+    }
+    .menu-avatar {
+        width: 36px !important;
+        height: 36px !important;
+        border-radius: 50% !important;
+        background: #1B2F6B !important;
+        color: white !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 0.8125rem !important;
+        font-weight: 700 !important;
+    }
+    .menu-user-details {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 0.15rem !important;
+    }
+    .menu-user-name {
+        font-size: 0.875rem !important;
+        font-weight: 700 !important;
+        color: inherit !important;
+    }
+    .menu-user-role {
+        font-size: 0.65rem !important;
+        padding: 0.1rem 0.4rem !important;
+    }
+    .menu-divider {
+        height: 1px !important;
+        background: #E2E8F0 !important;
+        margin: 0.35rem 0 !important;
+    }
+    .dark .menu-divider {
+        background: #1E293B !important;
+    }
+    .menu-item {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.625rem !important;
+        padding: 0.5rem 0.75rem !important;
+        border-radius: 6px !important;
+        color: inherit !important;
+        text-decoration: none !important;
+        font-size: 0.8125rem !important;
+        font-weight: 500 !important;
+    }
+    .menu-item svg {
+        width: 16px !important;
+        height: 16px !important;
+        color: #64748B !important;
+    }
+    .menu-item:hover {
+        background: #F1F5F9 !important;
+    }
+    .dark .menu-item:hover {
+        background: #1E293B !important;
+    }
+    .menu-item-danger {
+        color: #DC2626 !important;
+    }
+    .menu-item-danger svg {
+        color: #DC2626 !important;
+    }
+    .menu-item-danger:hover {
+        background: rgba(220, 38, 38, 0.08) !important;
+        color: #B91C1C !important;
+    }
+
+    /* KPI Stats Grid & Cards */
+    .metrics-grid, .stats-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 1.25rem !important;
+        margin-bottom: 1.75rem !important;
+    }
+    .metric-card, .stat-card {
+        background: #ffffff !important;
+        border-radius: 8px !important;
+        border: 1px solid #E2E8F0 !important;
+        padding: 1.25rem !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+        position: relative !important;
+        overflow: hidden !important;
+    }
+    .dark .metric-card, .dark .stat-card {
+        background: #0F172A !important;
+        border-color: #1E293B !important;
+    }
+    .metric-header, .stat-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 0.75rem !important;
+    }
+    .metric-title, .stat-title {
+        font-size: 0.8125rem !important;
+        font-weight: 600 !important;
+        color: #64748B !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.04em !important;
+    }
+    .metric-icon-box, .stat-icon {
+        width: 36px !important;
+        height: 36px !important;
+        border-radius: 8px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    .metric-number, .stat-value {
+        font-size: 2rem !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+        letter-spacing: -0.025em !important;
+        margin: 0.35rem 0 !important;
+    }
+    .metric-footer, .stat-description {
+        font-size: 0.75rem !important;
+        color: #64748B !important;
+    }
+    </style>
 </head>
 <body>
     <div class="app-wrapper">
         <!-- Sidebar Navigation -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <img class="sidebar-logo" src="{{ nf_logo_url }}" alt="National Finance">
-                <div class="sidebar-brand-text">
-                    <h3>AI OPERATIONS</h3>
-                    <p>Voice IT Support</p>
-                </div>
+                <a href="/dashboard" class="sidebar-brand-link">
+                    <div class="sidebar-logo-container">
+                        <img class="sidebar-logo" src="{{ nf_logo_url }}" alt="National Finance">
+                    </div>
+                    <div class="sidebar-brand-meta">
+                        <span class="sidebar-ops-badge"><span class="badge-dot"></span> AI OPERATIONS</span>
+                        <span class="sidebar-voice-tag">Voice IT Support</span>
+                    </div>
+                </a>
             </div>
 
             <nav class="sidebar-nav">
@@ -121,19 +403,47 @@
                         <i data-lucide="sun-moon"></i>
                     </button>
 
-                    <!-- User Profile & Actions -->
-                    <div class="user-badge">
-                        <div class="user-avatar">{{ user.username[:2].upper() }}</div>
-                        <span>{{ user.username }}</span>
-                        <span class="badge badge-secondary" style="font-size: 0.65rem;">{{ user.role }}</span>
-                    </div>
+                    <!-- Clickable User Profile Dropdown Menu -->
+                    <div class="profile-dropdown-wrapper" id="profileDropdownWrapper">
+                        <button type="button" class="profile-pill-btn" id="profileDropdownTrigger" onclick="toggleProfileDropdown(event)" aria-haspopup="true" aria-expanded="false">
+                            <div class="user-avatar">{{ user.username[:2].upper() }}</div>
+                            <div class="profile-pill-text">
+                                <span class="profile-pill-name">{{ user.username }}</span>
+                                <span class="profile-pill-role">{{ user.role|capitalize }}</span>
+                            </div>
+                            <i data-lucide="chevron-down" class="profile-chevron-icon"></i>
+                        </button>
 
-                    <a href="/change-password" class="btn btn-ghost btn-icon" title="Change Password">
-                        <i data-lucide="key"></i>
-                    </a>
-                    <a href="/logout" class="btn btn-ghost btn-icon" title="Logout" style="color: var(--nf-crimson);">
-                        <i data-lucide="log-out"></i>
-                    </a>
+                        <div class="profile-menu" id="profileMenu" style="display: none;">
+                            <div class="profile-menu-header">
+                                <div class="menu-avatar">{{ user.username[:2].upper() }}</div>
+                                <div class="menu-user-details">
+                                    <span class="menu-user-name">{{ user.username }}</span>
+                                    <span class="menu-user-role badge badge-secondary">{{ user.role|capitalize }}</span>
+                                </div>
+                            </div>
+                            <div class="menu-divider"></div>
+                            <a href="/change-password" class="menu-item">
+                                <i data-lucide="key-round"></i>
+                                <span>Change Password</span>
+                            </a>
+                            {% if user.role == 'admin' %}
+                            <a href="/settings" class="menu-item">
+                                <i data-lucide="sliders"></i>
+                                <span>System Settings</span>
+                            </a>
+                            <a href="/users" class="menu-item">
+                                <i data-lucide="users"></i>
+                                <span>User Management</span>
+                            </a>
+                            {% endif %}
+                            <div class="menu-divider"></div>
+                            <a href="/logout" class="menu-item menu-item-danger">
+                                <i data-lucide="log-out"></i>
+                                <span>Sign Out</span>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -163,9 +473,9 @@
     </div>
 
     <!-- Application Engine Scripts -->
-    <script src="/static/js/app.js"></script>
-    <script src="/static/js/charts.js"></script>
-    <script src="/static/js/pdf-report.js"></script>
+    <script src="/static/js/app.js?v=20261001_v4"></script>
+    <script src="/static/js/charts.js?v=20261001_v4"></script>
+    <script src="/static/js/pdf-report.js?v=20261001_v4"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             if (window.lucide) lucide.createIcons();

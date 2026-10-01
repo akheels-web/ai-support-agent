@@ -1,116 +1,315 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
     <div class="page-title">
-        <h1>User Management & Access Control</h1>
-        <p>Manage administrative operators, quality reviewers, and system credentials</p>
+        <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+            <h1 style="margin-bottom: 0;">User Management & Access Control</h1>
+            <span class="badge badge-secondary" style="font-size: 0.8125rem; font-weight: 700; padding: 0.25rem 0.6rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                <i data-lucide="users" style="width: 13px; height: 13px;"></i> {{ rows|length }} Accounts
+            </span>
+        </div>
+        <p style="margin-top: 0.25rem;">Manage administrative operators, quality reviewers, and system credentials</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <button type="button" class="btn btn-primary btn-sm" onclick="openModal('addUserModal')">
+            <i data-lucide="user-plus"></i> Add New Operator
+        </button>
     </div>
 </div>
 
-<div class="charts-grid-2" style="grid-template-columns: 1fr 2fr;">
-    <!-- Add User Card -->
-    <div class="card">
-        <div class="card-header">
+<!-- Main Operators Table Card -->
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+        <div class="card-header-title">
+            <h3 class="card-title">Authorized Console Operators</h3>
+            <p class="card-description">Showing <strong>{{ rows|length }}</strong> operator account(s) registered in the system</p>
+        </div>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <div class="table-wrapper" style="border: none; border-radius: 0;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th style="min-width: 220px;">Operator / Username</th>
+                        <th style="min-width: 180px;">System Role</th>
+                        <th style="min-width: 130px;">Account Status</th>
+                        <th style="min-width: 160px;">Registered</th>
+                        <th style="min-width: 260px; text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr style="{% if r.active == 0 %}opacity: 0.7; background: rgba(200, 16, 46, 0.02);{% endif %}">
+                        <td>
+                            <span style="font-family: monospace; font-weight: 700; color: var(--foreground); background: var(--secondary); padding: 0.2rem 0.45rem; border-radius: 4px; font-size: 0.8rem;">
+                                #{{ r.id }}
+                            </span>
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--nf-navy); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700;">
+                                    {{ r.username[:2].upper() }}
+                                </div>
+                                <div>
+                                    <div style="font-weight: 700; color: var(--foreground); font-size: 0.9rem;">
+                                        {{ r.username }}
+                                        {% if user.username == r.username %}
+                                            <span class="badge badge-secondary" style="font-size: 0.65rem; margin-left: 0.35rem;">You</span>
+                                        {% endif %}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--muted-foreground);">
+                                        System Operator
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if r.role == 'admin' %}
+                                <span class="badge" style="background: rgba(27, 47, 107, 0.12); color: var(--nf-navy); border: 1px solid rgba(27, 47, 107, 0.3); font-weight: 700;">
+                                    <i data-lucide="shield-check" style="width: 12px; height: 12px; margin-right: 4px;"></i> Administrator
+                                </span>
+                            {% elif r.role == 'quality_reviewer' %}
+                                <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600;">
+                                    <i data-lucide="headphones" style="width: 12px; height: 12px; margin-right: 4px;"></i> Quality Reviewer
+                                </span>
+                            {% else %}
+                                <span class="badge badge-secondary" style="font-weight: 500;">
+                                    <i data-lucide="user" style="width: 12px; height: 12px; margin-right: 4px;"></i> Operator (User)
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.active == 1 %}
+                                <span style="display: inline-flex; align-items: center; gap: 0.35rem; color: #10B981; font-size: 0.8rem; font-weight: 600;">
+                                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #10B981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);"></span> Active
+                                </span>
+                            {% else %}
+                                <span style="display: inline-flex; align-items: center; gap: 0.35rem; color: var(--nf-crimson); font-size: 0.8rem; font-weight: 600;">
+                                    <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--nf-crimson);"></span> Disabled
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="font-size: 0.8rem; color: var(--muted-foreground);">
+                                {{ r.created_at|human_time if r.created_at else 'System Init' }}
+                            </div>
+                        </td>
+                        <td style="text-align: right;">
+                            <div style="display: inline-flex; gap: 0.4rem; align-items: center; justify-content: flex-end;">
+                                <!-- Edit Role Button -->
+                                <button type="button" class="btn btn-secondary btn-xs" onclick='openEditUserModal({{ r|tojson }})' title="Update Operator Role & Status">
+                                    <i data-lucide="sliders"></i> Role & Access
+                                </button>
+
+                                <!-- Reset Password Button -->
+                                <button type="button" class="btn btn-outline btn-xs" onclick='openResetPasswordModal({{ r|tojson }})' title="Reset Password">
+                                    <i data-lucide="key-round"></i> Reset Password
+                                </button>
+
+                                <!-- Toggle Active Status Form -->
+                                {% if user.username != r.username %}
+                                <form method="post" action="/users/update" style="margin: 0;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="user_id" value="{{ r.id }}">
+                                    <input type="hidden" name="role" value="{{ r.role }}">
+                                    {% if r.active == 1 %}
+                                    <input type="hidden" name="active" value="0">
+                                    <button type="submit" class="btn btn-outline-danger btn-xs" title="Disable user access immediately" onclick="return confirm('Disable operator {{ r.username }}? Active sessions will be terminated immediately.');">
+                                        <i data-lucide="user-x"></i> Disable
+                                    </button>
+                                    {% else %}
+                                    <input type="hidden" name="active" value="1">
+                                    <button type="submit" class="btn btn-success-subtle btn-xs" title="Re-enable operator account">
+                                        <i data-lucide="user-check"></i> Activate
+                                    </button>
+                                    {% endif %}
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL 1: Add New Operator                  -->
+<!-- ========================================== -->
+<div id="addUserModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 480px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <div class="card-header-title">
-                <h3 class="card-title">Add New User</h3>
-                <p class="card-description">Create credential with role</p>
+                <h3 class="card-title">Add New Operator</h3>
+                <p class="card-description">Create authenticated credentials for dashboard access</p>
             </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('addUserModal')">
+                <i data-lucide="x"></i>
+            </button>
         </div>
         <div class="card-body">
             <form method="post" action="/users/add">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-                <div class="form-group">
-                    <label class="form-label">Username</label>
-                    <input type="text" name="username" class="input" required>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Username *</label>
+                    <input type="text" name="username" class="input" placeholder="e.g. j_doe" required autocomplete="off">
+                    <small style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 0.2rem;">
+                        Alphanumeric characters, underscores, hyphens, and dots.
+                    </small>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">Initial Password</label>
-                    <input type="password" name="password" class="input" placeholder="Min 8 characters" required>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Initial Password *</label>
+                    <input type="password" name="password" class="input" placeholder="Minimum 10 characters" required minlength="10">
+                    <small style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 0.2rem;">
+                        Must be at least 10 characters. Operator will be asked to update it.
+                    </small>
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label">System Role</label>
-                    <select name="role" class="select">
-                        <option value="user">User (View Dashboard & Calls)</option>
-                        <option value="quality_reviewer">Quality Reviewer (QA & Audio)</option>
-                        <option value="admin">Administrator (Full Access)</option>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label">System Role *</label>
+                    <select name="role" class="select" required>
+                        <option value="user">Operator (View Dashboard, Live Calls & Telemetry)</option>
+                        <option value="quality_reviewer">Quality Reviewer (QA Audio & Reviews)</option>
+                        <option value="admin">Administrator (Full System & User Control)</option>
                     </select>
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:0.5rem;">
-                    <i data-lucide="user-plus"></i> Create User
-                </button>
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('addUserModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="user-plus"></i> Create Operator
+                    </button>
+                </div>
             </form>
         </div>
     </div>
+</div>
 
-    <!-- Users Table Card -->
-    <div class="card">
-        <div class="card-header">
+<!-- ========================================== -->
+<!-- MODAL 2: Edit Operator Role & Status       -->
+<!-- ========================================== -->
+<div id="editUserModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 480px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
             <div class="card-header-title">
-                <h3 class="card-title">Existing Operators & Roles</h3>
-                <p class="card-description">{{ rows|length }} accounts registered</p>
+                <h3 class="card-title">Update Operator Role</h3>
+                <p class="card-description">Modify permissions and access state for <strong id="edit_modal_username"></strong></p>
             </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('editUserModal')">
+                <i data-lucide="x"></i>
+            </button>
         </div>
-        <div class="card-body" style="padding: 0;">
-            <div class="table-wrapper" style="border:none; border-radius:0;">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Username</th>
-                            <th>Role & Status</th>
-                            <th style="min-width: 220px;">Role Update</th>
-                            <th style="min-width: 200px;">Reset Password</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for r in rows %}
-                        <tr>
-                            <td>{{ r.id }}</td>
-                            <td><strong>{{ r.username }}</strong></td>
-                            <td>
-                                <div><span class="badge badge-secondary">{{ r.role }}</span></div>
-                                <div style="font-size:0.75rem; margin-top:0.25rem;">
-                                    {% if r.active == 1 %}
-                                        <span style="color:#10B981;">● Active</span>
-                                    {% else %}
-                                        <span style="color:var(--nf-crimson);">● Inactive</span>
-                                    {% endif %}
-                                </div>
-                            </td>
-                            <td>
-                                <form method="post" action="/users/update" style="display:flex; gap:0.4rem; align-items:center;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="user_id" value="{{ r.id }}">
-                                    <select name="role" class="select" style="padding:0.35rem 0.5rem; font-size:0.75rem;">
-                                        <option value="admin" {% if r.role == 'admin' %}selected{% endif %}>Admin</option>
-                                        <option value="user" {% if r.role == 'user' %}selected{% endif %}>User</option>
-                                        <option value="quality_reviewer" {% if r.role == 'quality_reviewer' %}selected{% endif %}>Reviewer</option>
-                                    </select>
-                                    <label style="font-size:0.75rem; display:flex; align-items:center; gap:0.25rem;">
-                                        <input type="checkbox" name="active" value="1" {% if r.active == 1 %}checked{% endif %}> On
-                                    </label>
-                                    <button type="submit" class="btn btn-outline btn-sm">Save</button>
-                                </form>
-                            </td>
-                            <td>
-                                <form method="post" action="/users/reset-password" style="display:flex; gap:0.4rem;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="user_id" value="{{ r.id }}">
-                                    <input type="password" name="new_password" class="input" placeholder="New pwd" style="padding:0.35rem 0.5rem; font-size:0.75rem;" required>
-                                    <button type="submit" class="btn btn-secondary btn-sm">Reset</button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        <div class="card-body">
+            <form method="post" action="/users/update">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="user_id" id="edit_modal_user_id">
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">System Role</label>
+                    <select name="role" id="edit_modal_role" class="select" required>
+                        <option value="user">Operator (View Dashboard, Live Calls & Telemetry)</option>
+                        <option value="quality_reviewer">Quality Reviewer (QA Audio & Reviews)</option>
+                        <option value="admin">Administrator (Full System & User Control)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" name="active" id="edit_modal_active" value="1">
+                        <span>Account Active & Permitted to Sign In</span>
+                    </label>
+                    <small style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 0.2rem;">
+                        Unchecking this disables the account and terminates all active sessions immediately.
+                    </small>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('editUserModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="check"></i> Save Changes
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
+
+<!-- ========================================== -->
+<!-- MODAL 3: Reset Password                    -->
+<!-- ========================================== -->
+<div id="resetPasswordModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 480px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header-title">
+                <h3 class="card-title">Reset Password</h3>
+                <p class="card-description">Set a new password for <strong id="reset_modal_username"></strong></p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('resetPasswordModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/users/reset-password">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="user_id" id="reset_modal_user_id">
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label">New Password *</label>
+                    <input type="password" name="new_password" class="input" placeholder="Minimum 10 characters" required minlength="10" autocomplete="new-password">
+                    <small style="font-size: 0.72rem; color: var(--muted-foreground); display: block; margin-top: 0.2rem;">
+                        Active sessions for this operator will be invalidated upon reset.
+                    </small>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <button type="button" class="btn btn-outline" onclick="closeModal('resetPasswordModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i data-lucide="key-round"></i> Update Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.style.display = 'flex';
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+
+function openEditUserModal(user) {
+    document.getElementById('edit_modal_user_id').value = user.id;
+    document.getElementById('edit_modal_username').textContent = user.username;
+    document.getElementById('edit_modal_role').value = user.role;
+    document.getElementById('edit_modal_active').checked = (user.active == 1);
+    openModal('editUserModal');
+}
+
+function openResetPasswordModal(user) {
+    document.getElementById('reset_modal_user_id').value = user.id;
+    document.getElementById('reset_modal_username').textContent = user.username;
+    openModal('resetPasswordModal');
+}
+
+window.addEventListener('click', function(e) {
+    if (e.target.classList.contains('modal-backdrop')) {
+        e.target.style.display = 'none';
+    }
+});
+</script>
 {% endblock %}

@@ -14,51 +14,51 @@
 </div>
 
 <!-- KPI Cards -->
-<div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Total Playbooks</span>
-            <div class="stat-icon" style="color: var(--nf-navy); background: var(--nf-light-blue);">
+<div class="metrics-grid stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
+    <div class="metric-card stat-card">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Total Playbooks</span>
+            <div class="metric-icon-box stat-icon" style="color: var(--nf-navy); background: rgba(27, 47, 107, 0.08);">
                 <i data-lucide="book-open"></i>
             </div>
         </div>
-        <div class="stat-value">{{ stats.total }}</div>
-        <div class="stat-description">Configured diagnostic playbooks</div>
+        <div class="metric-number stat-value">{{ stats.total }}</div>
+        <div class="metric-footer stat-description">Configured diagnostic playbooks</div>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Active in Voice AI</span>
-            <div class="stat-icon" style="color: #10B981; background: rgba(16, 185, 129, 0.12);">
+    <div class="metric-card stat-card emerald-accent">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Active in Voice AI</span>
+            <div class="metric-icon-box stat-icon" style="color: #10B981; background: rgba(16, 185, 129, 0.12);">
                 <i data-lucide="check-circle-2"></i>
             </div>
         </div>
-        <div class="stat-value" style="color: #10B981;">{{ stats.active }}</div>
-        <div class="stat-description">Available for autonomous caller deflection</div>
+        <div class="metric-number stat-value" style="color: #10B981;">{{ stats.active }}</div>
+        <div class="metric-footer stat-description">Available for autonomous caller deflection</div>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Categories</span>
-            <div class="stat-icon" style="color: #8B5CF6; background: rgba(139, 92, 246, 0.12);">
+    <div class="metric-card stat-card amber-accent">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Categories</span>
+            <div class="metric-icon-box stat-icon" style="color: #8B5CF6; background: rgba(139, 92, 246, 0.12);">
                 <i data-lucide="folder-tree"></i>
             </div>
         </div>
-        <div class="stat-value" style="color: #8B5CF6;">{{ stats.categories_count }}</div>
-        <div class="stat-description">Operational IT domains</div>
+        <div class="metric-number stat-value" style="color: #8B5CF6;">{{ stats.categories_count }}</div>
+        <div class="metric-footer stat-description">Operational IT domains</div>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Inactive / Disabled</span>
-            <div class="stat-icon" style="color: var(--muted-foreground); background: var(--secondary);">
+    <div class="metric-card stat-card">
+        <div class="metric-header stat-header">
+            <span class="metric-title stat-title">Inactive / Disabled</span>
+            <div class="metric-icon-box stat-icon" style="color: var(--muted-foreground); background: var(--secondary);">
                 <i data-lucide="pause-circle"></i>
             </div>
         </div>
-        <div class="stat-value" style="color: {% if stats.inactive > 0 %}#F59E0B{% else %}var(--muted-foreground){% endif %};">
+        <div class="metric-number stat-value" style="color: {% if stats.inactive > 0 %}#F59E0B{% else %}var(--muted-foreground){% endif %};">
             {{ stats.inactive }}
         </div>
-        <div class="stat-description">Excluded from AI voice matching</div>
+        <div class="metric-footer stat-description">Excluded from AI voice matching</div>
     </div>
 </div>
 
@@ -145,24 +145,24 @@
         </div>
     </div>
     <div class="card-body" style="padding: 0;">
-        <div class="table-container" style="overflow-x: auto;">
-            <table class="table" style="width: 100%; border-collapse: collapse;">
+        <div class="table-wrapper" style="border: none; border-radius: 0;">
+            <table class="data-table">
                 <thead>
-                    <tr style="border-bottom: 1px solid var(--border); background: var(--secondary); text-align: left;">
-                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Playbook ID & Title</th>
-                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Category</th>
-                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Voice Triggers (EN / AR)</th>
-                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; text-align: center;">Status</th>
-                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Updated</th>
-                        <th style="padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; text-align: right;">Actions</th>
+                    <tr>
+                        <th style="min-width: 220px;">Playbook ID & Title</th>
+                        <th style="min-width: 140px;">Category</th>
+                        <th style="min-width: 260px;">Voice Triggers (EN / AR)</th>
+                        <th style="min-width: 100px; text-align: center;">Status</th>
+                        <th style="min-width: 140px;">Updated</th>
+                        <th style="min-width: 240px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if rows %}
                         {% for row in rows %}
-                        <tr style="border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+                        <tr>
                             <!-- ID & Title -->
-                            <td style="padding: 0.85rem 1rem;">
+                            <td>
                                 <div style="font-weight: 600; color: var(--foreground); display: flex; align-items: center; gap: 0.4rem;">
                                     <span>{{ row.title }}</span>
                                 </div>
@@ -172,14 +172,14 @@
                             </td>
 
                             <!-- Category -->
-                            <td style="padding: 0.85rem 1rem;">
+                            <td>
                                 <span class="badge badge-secondary" style="font-size: 0.72rem;">
                                     {{ row.category }}
                                 </span>
                             </td>
 
                             <!-- Keywords -->
-                            <td style="padding: 0.85rem 1rem; max-width: 320px;">
+                            <td style="max-width: 320px;">
                                 <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.25rem;">
                                     {% for kw in row.keywords_en_list[:3] %}
                                         <span class="badge" style="font-size: 0.68rem; background: rgba(59, 130, 246, 0.1); color: #2563EB; border: 1px solid rgba(59, 130, 246, 0.25);">
@@ -207,7 +207,7 @@
                             </td>
 
                             <!-- Status -->
-                            <td style="padding: 0.85rem 1rem; text-align: center;">
+                            <td style="text-align: center;">
                                 {% if row.active == 1 %}
                                     <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem;">
                                         Active
@@ -220,62 +220,69 @@
                             </td>
 
                             <!-- Updated -->
-                            <td style="padding: 0.85rem 1rem; color: var(--muted-foreground); font-size: 0.78rem;">
+                            <td style="color: var(--muted-foreground); font-size: 0.78rem;">
                                 <div>{{ row.updated_at_human }}</div>
                                 <div style="font-size: 0.7rem; opacity: 0.8;">By: {{ row.created_by }}</div>
                             </td>
 
                             <!-- Actions -->
-                            <td style="padding: 0.85rem 1rem; text-align: right;">
-                                <div style="display: inline-flex; gap: 0.35rem; align-items: center;">
+                            <td style="text-align: right;">
+                                <div style="display: inline-flex; gap: 0.35rem; align-items: center; justify-content: flex-end;">
                                     <!-- View Button -->
                                     <button 
                                         type="button" 
-                                        class="btn btn-ghost btn-sm" 
+                                        class="btn btn-secondary btn-xs" 
                                         onclick='viewArticle({{ row|tojson }})'
                                         title="View Full Markdown Playbook"
-                                        style="padding: 0.3rem 0.5rem;"
                                     >
-                                        <i data-lucide="eye"></i>
+                                        <i data-lucide="eye"></i> View
                                     </button>
 
                                     {% if user.role == 'admin' %}
                                     <!-- Edit Button -->
                                     <button 
                                         type="button" 
-                                        class="btn btn-ghost btn-sm" 
+                                        class="btn btn-outline btn-xs" 
                                         onclick='editArticle({{ row|tojson }})'
                                         title="Edit Playbook"
-                                        style="padding: 0.3rem 0.5rem;"
                                     >
-                                        <i data-lucide="edit-3"></i>
+                                        <i data-lucide="edit-3"></i> Edit
                                     </button>
 
                                     <!-- Toggle Active Button -->
-                                    <form method="post" action="/knowledge/toggle-status" style="display: inline;" onsubmit="return confirm('Toggle active state for {{ row.title }}?');">
+                                    <form method="post" action="/knowledge/toggle-status" style="display: inline; margin: 0;" onsubmit="return confirm('Toggle active state for {{ row.title }}?');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="article_id" value="{{ row.article_id }}">
+                                        {% if row.active == 1 %}
                                         <button 
                                             type="submit" 
-                                            class="btn btn-ghost btn-sm" 
-                                            title="{% if row.active == 1 %}Deactivate from AI Voice Engine{% else %}Activate in AI Voice Engine{% endif %}"
-                                            style="padding: 0.3rem 0.5rem; color: {% if row.active == 1 %}#F59E0B{% else %}#10B981{% endif %};"
+                                            class="btn btn-outline-danger btn-xs" 
+                                            title="Deactivate from AI Voice Engine"
                                         >
-                                            <i data-lucide="{% if row.active == 1 %}power-off{% else %}power{% endif %}"></i>
+                                            <i data-lucide="pause-circle"></i> Pause
                                         </button>
+                                        {% else %}
+                                        <button 
+                                            type="submit" 
+                                            class="btn btn-success-subtle btn-xs" 
+                                            title="Activate in AI Voice Engine"
+                                        >
+                                            <i data-lucide="play-circle"></i> Enable
+                                        </button>
+                                        {% endif %}
                                     </form>
 
                                     <!-- Delete Button -->
-                                    <form method="post" action="/knowledge/delete" style="display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete playbook \'{{ row.article_id }}\'? This cannot be undone.');">
+                                    <form method="post" action="/knowledge/delete" style="display: inline; margin: 0;" onsubmit="return confirm('Are you sure you want to permanently delete playbook \'{{ row.article_id }}\'? This cannot be undone.');">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="article_id" value="{{ row.article_id }}">
                                         <button 
                                             type="submit" 
-                                            class="btn btn-ghost btn-sm" 
+                                            class="btn btn-ghost-danger btn-xs btn-icon" 
+                                            style="width: 28px; height: 28px; padding: 0;"
                                             title="Delete Playbook"
-                                            style="padding: 0.3rem 0.5rem; color: var(--nf-crimson);"
                                         >
-                                            <i data-lucide="trash-2"></i>
+                                            <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                                         </button>
                                     </form>
                                     {% endif %}

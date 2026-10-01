@@ -65,6 +65,27 @@ async function refreshTelemetryStats() {
     }
 }
 
+const STATUS_LABELS = {
+    'language_selected': 'Language Chosen',
+    'in_progress': 'In Progress',
+    'verified': 'Caller Verified',
+    'troubleshooting': 'Troubleshooting',
+    'ai_deflected': 'AI Deflected',
+    'AI_Resolved': 'AI Deflected',
+    'transferred': 'Transferred to Agent',
+    'emergency_escalated': 'Sev-1 Escalation',
+    'ended': 'Completed',
+    'completed': 'Completed',
+    'failed_verification': 'Verification Failed',
+    'failed': 'Failed'
+};
+
+function humanStatus(status) {
+    if (!status) return 'In Progress';
+    if (STATUS_LABELS[status]) return STATUS_LABELS[status];
+    return status.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 async function refreshActiveCalls() {
     const container = document.getElementById('active-calls-tbody');
     if (!container) return; // Not on active calls page
@@ -88,7 +109,7 @@ async function refreshActiveCalls() {
                 <td><strong>${r.caller_id || '--'}</strong></td>
                 <td>${r.caller_name || 'Unknown'}</td>
                 <td>${r.employee_id || '--'}</td>
-                <td><span class="badge badge-success"><span class="pulse-dot"></span> ${r.status || 'in_progress'}</span></td>
+                <td><span class="badge badge-success"><span class="pulse-dot"></span> ${humanStatus(r.status)}</span></td>
                 <td>${r.duration_minutes || '0.1'}m</td>
                 <td>${r.started_at || ''}</td>
             </tr>`;
@@ -234,10 +255,16 @@ function getStatusBadgeHtml(status, tier) {
     if (status === 'verified') {
         return `<span class="badge badge-default">✓ Caller Verified</span>`;
     }
-    if (status && status.includes('fail')) {
-        return `<span class="badge badge-destructive">⚠ ${status}</span>`;
+    if (status === 'language_selected') {
+        return `<span class="badge badge-secondary">Language Chosen</span>`;
     }
-    return `<span class="badge badge-secondary">${status || 'Completed'}</span>`;
+    if (status === 'troubleshooting') {
+        return `<span class="badge badge-secondary">Troubleshooting</span>`;
+    }
+    if (status && status.includes('fail')) {
+        return `<span class="badge badge-destructive">⚠ ${humanStatus(status)}</span>`;
+    }
+    return `<span class="badge badge-secondary">${humanStatus(status)}</span>`;
 }
 
 // ============================================================================
@@ -279,7 +306,43 @@ function sortTableByColumn(table, colIndex, isAsc = true) {
 }
 
 // ============================================================================
-// 5. DOM Initialization
+// 5. User Profile Dropdown Menu
+// ============================================================================
+function toggleProfileDropdown(event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    const menu = document.getElementById('profileMenu');
+    const trigger = document.getElementById('profileDropdownTrigger');
+    if (!menu) return;
+    const isVisible = menu.classList.contains('show') || menu.style.display === 'block';
+    if (isVisible) {
+        menu.classList.remove('show');
+        menu.style.display = 'none';
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    } else {
+        menu.classList.add('show');
+        menu.style.display = 'block';
+        if (trigger) trigger.setAttribute('aria-expanded', 'true');
+    }
+}
+
+// Close profile dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById('profileDropdownWrapper');
+    if (wrapper && !wrapper.contains(e.target)) {
+        const menu = document.getElementById('profileMenu');
+        const trigger = document.getElementById('profileDropdownTrigger');
+        if (menu && (menu.classList.contains('show') || menu.style.display === 'block')) {
+            menu.classList.remove('show');
+            menu.style.display = 'none';
+            if (trigger) trigger.setAttribute('aria-expanded', 'false');
+        }
+    }
+});
+
+// ============================================================================
+// 6. DOM Initialization
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
@@ -296,8 +359,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Bind search input for calls table
     initDataTableSearch('calls-table', 'table-search-input');
 
-    // Close drawer on ESC key
+    // Close drawer or dropdown on ESC key
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeCallDrawer();
+        if (e.key === 'Escape') {
+            closeCallDrawer();
+            const menu = document.getElementById('profileMenu');
+            const trigger = document.getElementById('profileDropdownTrigger');
+            if (menu && (menu.classList.contains('show') || menu.style.display === 'block')) {
+                menu.classList.remove('show');
+                menu.style.display = 'none';
+                if (trigger) trigger.setAttribute('aria-expanded', 'false');
+            }
+        }
     });
 });
+
+

@@ -96,9 +96,9 @@
                             {% elif r.status == 'transferred' %}
                                 <span class="badge badge-warning">↗ Transferred</span>
                             {% elif r.status and 'fail' in r.status %}
-                                <span class="badge badge-destructive">⚠ {{ r.status }}</span>
+                                <span class="badge badge-destructive">⚠ {{ r.status|human_status }}</span>
                             {% else %}
-                                <span class="badge badge-secondary">{{ r.status or 'Completed' }}</span>
+                                <span class="badge badge-secondary">{{ r.status|human_status if r.status else 'Completed' }}</span>
                             {% endif %}
                         </td>
                         <td>
