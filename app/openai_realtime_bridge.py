@@ -75,7 +75,9 @@ AUTO_TICKET_CATEGORIES = {
 EMERGENCY_KEYWORDS = {
     "outage", "system down", "core banking", "ransomware", "hacked", "breach",
     "data center", "datacenter", "fire", "server down", "network down",
+    "network outage", "internet down", "internet outage", "total outage",
     "branch down", "payment gateway", "emergency", "طوارئ", "توقف النظام", "النظام متعطل",
+    "انقطاع الشبكة", "الشبكة متوقفة", "انقطاع الانترنت",
 }
 
 
@@ -435,6 +437,8 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - Always wait until the caller has completely finished speaking their entire thought before generating a response.
 - Do NOT jump in if the caller pauses briefly while searching for information, thinking, or checking their employee ID.
 - Listen carefully to the full sentence and allow natural pauses before responding.
+- BACKGROUND NOISE & VOICES: You MUST IGNORE all background voices, ambient conversation, TV/radio noise, side conversations, and any audio that is NOT the primary caller speaking directly to you. Do NOT respond to, acknowledge, or act on any background audio. Only react to the caller's direct, intentional speech addressed to you. If you are unsure whether a voice is the caller or background noise, stay silent and wait for the caller to clearly address you.
+- Once the caller finishes their sentence, respond IMMEDIATELY with a natural acknowledgment — do NOT leave dead air or stay silent for more than 1-2 seconds after their turn ends.
 
 2. STRICT SECURITY VERIFICATION GATE FOR TRANSFERS & TICKETS (MANDATORY):
 - Company security policy STRICTLY PROHIBITS transferring unverified callers to human IT support, queues, or supervisors under ANY circumstances.
@@ -463,20 +467,23 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - Do not subject pre-verified executives to routine diagnostic troubleshooting.
 
 5. EMERGENCY / SEV-1 CRITICAL INCIDENT PROTOCOL:
-- If the caller reports a major emergency or system outage (e.g. core banking down, branch offline, ransomware, payment gateway failure, fire, data center alert):
+- If the caller reports a major emergency or system outage (e.g. core banking down, branch offline, ransomware, payment gateway failure, fire, data center alert, network outage):
 - Do not perform slow troubleshooting or ask routine questions.
-- Say: "Understood. This is flagged as a critical incident. I am transferring you immediately to our on-call emergency engineering team and raising an emergency ticket."
-- Immediately call escalate_emergency with reason and incident_summary.
+- You MUST speak to the caller FIRST before any transfer happens:
+  - Say: "Understood. This is flagged as a critical incident. I am transferring you immediately to our on-call emergency engineering team and raising an emergency ticket."
+  - In Arabic: "تم استلام البلاغ. هذا مصنّف كحادثة حرجة. أحولك فوراً لفريق الطوارئ والمهندسين المناوبين وأرفع لك تذكرة طوارئ."
+- Then call escalate_emergency with reason and incident_summary. You must NEVER silently transfer without speaking to the caller first.
 
 6. EXPERT CORPORATE IT ENGINEER PERSONA & CONVERSATIONAL FILLERS:
 - You are Arif, a senior, highly skilled Tier-1 Corporate IT Support Engineer for National Finance. Think and speak like an elite Service Desk professional in a major corporate enterprise.
 - Your primary mission is FIRST-CONTACT RESOLUTION: diagnosing and solving technical issues directly on the call through structured troubleshooting.
 - NEVER ASK "Shall I create a ticket for you?" or offer a ticket when a caller first explains an issue! Premature ticketing is strictly prohibited.
 - NATURAL CONVERSATIONAL FILLERS & REASSURANCE:
-  - When the caller explains their technical problem, acknowledge immediately with natural conversational fillers and professional empathy:
+  - When the caller explains their technical problem, you MUST acknowledge IMMEDIATELY with natural conversational fillers and professional empathy. Do NOT stay silent or leave dead air after the caller finishes explaining:
     - English: "Umm, I got it. Let's troubleshoot that together right now. Let me check the diagnostic steps for your WiFi...", "Understood, let's get that sorted out for you right away. Let's try the first step...", "I see, let's take a look at that together..."
     - Arabic: "تمام، فهمت عليك تماماً. ولا تشيل هم بنحل المشكلة معك خطوة بخطوة. أولاً...", "أفهمك تماماً، خلني أشيك على خطوات حل مشكلة الواي فاي الحين...", "واضح جداً، خلنا نجرب خطوة أولى بسيطة مع بعض..."
   - This reassures the employee immediately that you understand and are taking ownership of the issue.
+  - CRITICAL: You must start speaking within 1-2 seconds after the caller finishes their sentence. Silence or long pauses are unacceptable and make the caller think the line is disconnected.
 
 7. MANDATORY 3 TO 4 STEPS TROUBLESHOOTING PROTOCOL:
 - When a caller reports ANY technical problem (Wi-Fi/Network, Outlook, Teams, VPN, Printer, Slow PC, MFA, etc.):
@@ -835,11 +842,12 @@ def build_session_config():
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": VAD_THRESHOLD,
-                        "prefix_padding_ms": 300,
+                        "prefix_padding_ms": 150,
                         "silence_duration_ms": VAD_SILENCE_MS,
                         "create_response": True,
                         "interrupt_response": True,  # Full-duplex barge-in enabled
                         "idle_timeout_ms": VAD_IDLE_TIMEOUT_MS,
+                        "eagerness": "medium",  # Balanced response timing — avoids triggering on background noise while keeping latency low
                     },
                 },
                 "output": {
@@ -1088,6 +1096,7 @@ async def handle_single_call(asterisk_ws):
         "dtmf_last_time": 0.0,
         "transcript_lines": [],
         "call_logged_closed": False,
+        "pending_transfer_after_announcement": False,
     }
 
     create_call(state["call_id"])
@@ -1878,6 +1887,10 @@ async def handle_single_call(asterisk_ws):
                     print(f"[EMERGENCY TICKET ERROR] {e}")
 
                 # 2. Redirect live call to Emergency Queue (7003)
+                # IMPORTANT: Do NOT set call_ending=True here. The voice announcement
+                # ("This has been flagged as critical...") must play FIRST via the queued
+                # response in handle_tool_call. call_ending is deferred to after the
+                # response.done event via pending_transfer_after_announcement.
                 channel = state.get("asterisk_channel")
                 if channel:
                     transfer_res = await asyncio.to_thread(
@@ -1891,9 +1904,10 @@ async def handle_single_call(asterisk_ws):
                         }
                     )
                     if transfer_res.get("success"):
-                        state["call_ending"] = True
+                        # Defer call_ending — let the voice announcement play first
+                        state["pending_transfer_after_announcement"] = True
                         update_call(state["call_id"], transferred=1, transfer_target=ASTERISK_QUEUE_EMERGENCY)
-                        return {"success": True, "escalated": True, "target": ASTERISK_QUEUE_EMERGENCY}
+                        return {"success": True, "escalated": True, "target": ASTERISK_QUEUE_EMERGENCY, "announce_first": True}
 
                 return {"success": True, "escalated": True, "target": ASTERISK_QUEUE_EMERGENCY}
 
@@ -2603,6 +2617,18 @@ async def handle_single_call(asterisk_ws):
                         state["call_ending"] = True
                         close_status = "verification_failed" if state.get("verification_attempts", 0) >= 3 else "completed"
                         wrap_up_call(status=close_status)
+                        try:
+                            await asterisk_ws.close()
+                        except Exception:
+                            pass
+                        return
+
+                    # After emergency/executive announcement plays, NOW finalize the transfer
+                    if state.get("pending_transfer_after_announcement"):
+                        state["pending_transfer_after_announcement"] = False
+                        await asyncio.sleep(1.5)  # Brief pause so caller hears the full announcement
+                        state["call_ending"] = True
+                        wrap_up_call(status="transferred")
                         try:
                             await asterisk_ws.close()
                         except Exception:

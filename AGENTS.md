@@ -243,7 +243,20 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
 - Documented in `ROADMAP.md` (Phase 11): Redis 7+ / Valkey planned for multi-node voice edge clustering, sub-second event-driven cache invalidation (Pub/Sub), distributed atomic rate limiting, and background task queuing (Celery/RQ).
 - **Lightweight Live Call Telemetry Pattern**: Enables real-time speech event streaming from the voice bridge to the FastAPI dashboard via Redis Pub/Sub and WebSockets / Server-Sent Events (SSE), eliminating database polling overhead for live calls.
 
-
+## 21. Voice Quality Hardening & Background Noise Rejection (VAD Tuning)
+- **Background Voice Rejection (`VAD_THRESHOLD 0.50 → 0.70`, `prefix_padding_ms 300 → 150`, `eagerness: medium`)**:
+  - Raised the OpenAI Realtime server VAD threshold from `0.50` to `0.70`, rejecting ambient background voices, TV/radio audio, and side conversations that previously triggered false AI responses.
+  - Reduced `prefix_padding_ms` from `300ms` to `150ms` to capture less pre-speech audio, further filtering out background noise snippets.
+  - Added `eagerness: "medium"` to balance responsiveness — avoids premature triggering on background sounds while maintaining low latency for the primary caller.
+  - System prompt Protocol 1 updated with explicit **BACKGROUND NOISE & VOICES** instruction: Arif must IGNORE all background audio and only react to the caller's direct, intentional speech.
+- **Response Latency Reduction (`VAD_SILENCE_MS 1000 → 600`)**:
+  - Lowered silence detection window from `1000ms` to `600ms`, eliminating the long dead-air pauses after the caller finishes speaking before Arif responds.
+  - System prompt Protocol 6 updated to mandate Arif starts speaking within 1-2 seconds after the caller finishes — silence or long pauses are explicitly flagged as unacceptable.
+- **Emergency Transfer Voice Announcement Fix (`escalate_emergency`)**:
+  - Fixed critical bug where `escalate_emergency` set `state["call_ending"] = True` immediately upon AMI transfer success, which suppressed the queued voice announcement ("This has been flagged as a critical incident...") because `send_queued_response_if_any()` checks `call_ending` first.
+  - Replaced with deferred `pending_transfer_after_announcement` flag: the voice announcement plays FIRST, then `response.done` event handler finalizes the transfer with a 1.5-second grace pause.
+  - System prompt Protocol 5 updated: Arif must NEVER silently transfer without speaking to the caller first. Added Arabic translation of the emergency announcement.
+  - Added `"network outage"`, `"internet down"`, `"internet outage"`, `"total outage"` and Arabic equivalents (`انقطاع الشبكة`, `الشبكة متوقفة`, `انقطاع الانترنت`) to `EMERGENCY_KEYWORDS`.
 
 
 
