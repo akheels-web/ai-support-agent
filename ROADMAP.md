@@ -93,6 +93,14 @@ This document outlines upcoming strategic enhancements and future feature phases
   5. **Asynchronous Background Task Broker**:
      - Serves as the message broker for Celery / RQ workers handling WhatsApp/SMS delivery (Phase 7), bulk Active Directory synchronizations (10,000+ users), and automated executive report distribution.
 
+### Phase 12: AI Agent Long-Term Memory (Contextual History) via PostgreSQL
+- **Objective**: Provide Arif with contextual awareness of a caller's previous interactions and unresolved tickets immediately upon call connection, creating a highly personalized and intelligent IT helpdesk experience.
+- **Architecture (No External Vector DB Required)**:
+  1. **Direct Querying via Relational Database**: Since all interactions are already logged in the `calls` table and tickets in Frappe, we will query PostgreSQL directly instead of relying on external memory tools. This guarantees 100% accuracy and eliminates hallucination risks associated with vector databases.
+  2. **Pre-Flight Context Fetch**: Upon successful caller verification (`lookup_caller_by_phone`), a lightweight background SQL query fetches the caller's last 3 recent call summaries and any active Frappe tickets.
+  3. **Prompt Injection**: The retrieved history is injected as a "Context Summary" block directly into the OpenAI Realtime API `session.update` system prompt.
+  4. **Proactive Assistance**: Arif uses this injected data to greet the user contextually: *"Hi [Name], I see you called yesterday about Outlook (Ticket HD-2026-0012). Did that get resolved, or are you calling about something else?"*
+
 ---
 
 ## 2. Completed Milestones
@@ -111,4 +119,7 @@ This document outlines upcoming strategic enhancements and future feature phases
 - [x] Digit-by-digit ticket number recital and repetition (`repeat_ticket_number`).
 - [x] Scheduled callback ticketing in Frappe Helpdesk (`request_callback`).
 - [x] Graceful Asterisk AMI transfer failure recovery (eliminating dead-air drops).
-
+- [x] Active Directory (AD/LDAP) Enterprise Sync with Arabic phonetic alias preservation and automated offboarding.
+- [x] In-Band DTMF Telephone Keypad fallback for noisy environment data entry.
+- [x] Bilingual Semantic Knowledge Base Retrieval with cross-process zero-downtime cache reflection.
+- [x] Cisco Webex Screen-Pop Integration via Asterisk AMI `Setvar` context injection.

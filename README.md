@@ -90,7 +90,12 @@ flowchart TD
 - **Caller Context Screen-Pop**: Passes caller metadata (`AI_CALLER_NAME`, `AI_EMPLOYEE_ID`, `AI_TIER`, `AI_TICKET_NUMBER`, `AI_REASON`) onto Asterisk channels via AMI `Setvar`, enabling screen-pop on human agents' Cisco Webex desktop apps and desk phones.
 - **Graceful Transfer Recovery**: Eliminates dead-air drops. If an agent transfer fails or queues time out, Arif sincerely apologizes, confirms the reference ticket number, and offers a scheduled callback.
 
-### 2.5 Executive Operations Dashboard (Shadcn/UI & Analytics)
+### 2.5 Active Directory (AD/LDAP) Enterprise Sync
+- **Non-Destructive LDAP Connector**: Secure bi-directional synchronization with corporate Windows Server AD (`app/ad_sync.py`), keeping the employee directory updated.
+- **Arabic Phonetic Alias Preservation**: Intelligently preserves custom spoken Arabic and English phonetic aliases (e.g., `منصور الحبسي | Mansoor`) manually set in the database, ensuring zero degradation in Arabic voice recognition after syncs.
+- **Automated Offboarding**: Instantly deactivates callers if their AD account is disabled, prompting the AI to route them to HR/IT Admin.
+
+### 2.6 Executive Operations Dashboard (Shadcn/UI & Analytics)
 - **Shadcn/UI Design System**: HSL color tokens supporting Corporate Light Mode (Default) and seamless Corporate Dark Mode toggle with persistent client-side storage.
 - **Visual Telemetry & Analytics**:
   - 24-hour Call Volume & Autonomous Deflection Trend (spline bezier curves).
@@ -116,6 +121,7 @@ ai-support-agent/
 │   ├── security_guard.py         # Atomic sliding-window rate limiters & locks
 │   ├── transfer.py               # Asterisk AMI multi-queue redirection & context injection
 │   ├── verify.py                 # Compound digit normalization & CLI user matching
+│   ├── ad_sync.py                # Active Directory LDAP enterprise sync connector
 │   └── openai_realtime_bridge.py # Full-duplex WebSocket bridge & 14 operational protocols
 ├── dashboard/
 │   ├── static/
@@ -254,7 +260,7 @@ python -m unittest tests/test_dashboard_routes.py
 | :--- | :--- | :--- |
 | [TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md](file:///e:/Github/callcenter/ai-support-agent/TWO_VM_PRODUCTION_DEPLOYMENT_GUIDE.md) | DevOps / Infrastructure Engineers | Production 2-VM installation, systemd daemons, PostgreSQL 16 clustering, Nginx reverse proxy, and disaster recovery. |
 | [CISCO_WEBEX_DOCUMENTATION.md](file:///e:/Github/callcenter/ai-support-agent/CISCO_WEBEX_DOCUMENTATION.md) | Telecom / Voice Engineers | Cisco Webex Calling & CUCM SIP trunk configuration, CUBE dial-peers, caller context screen-pop, and queue mapping. |
-| [ROADMAP.md](file:///e:/Github/callcenter/ai-support-agent/ROADMAP.md) | IT Leadership / Project Managers | Future phases: CMDB hardware asset integration (Phase 9), Unified P0+P1 VIP routing policy (Phase 10), and voice biometrics. |
+| [ROADMAP.md](file:///e:/Github/callcenter/ai-support-agent/ROADMAP.md) | IT Leadership / Project Managers | Future phases: CMDB hardware asset integration (Phase 9), Unified P0+P1 VIP routing policy (Phase 10), and AI Agent Long-Term Memory via PostgreSQL (Phase 12). |
 | [AGENTS.md](file:///e:/Github/callcenter/ai-support-agent/AGENTS.md) | AI Engineers / Core Developers | Technical architectural memory, operational protocols, telemetry schemas, and deterministic AI invariants. |
 
 ---
