@@ -31,8 +31,9 @@ This document outlines upcoming strategic enhancements and future feature phases
        - Default setting: `ENABLE_AD_SELF_SERVICE_UNLOCK=false`.
        - The feature remains completely disabled at the code level until National Finance IT Security & Compliance formally review the workflow, verify SMS gateway integration, and approve the activation flag in `.env`.
 
-### Phase 7: WhatsApp & Omnichannel Ticket Updates
+### Phase 7: WhatsApp, Email & Omnichannel Ticket Updates
 - Automatic WhatsApp / SMS notification sent to the caller upon ticket creation and SLA resolution with live tracking link in Frappe Helpdesk.
+- **Email Notifications Engine**: Integration of an SMTP/email engine (via `fastapi-mail` or `smtplib` linked to Office 365 / Exchange) to dispatch automated dashboard notifications for Sev-1 Emergency Escalations, daily PDF report generation, and new admin account provisioning.
 
 ### Phase 8: Enterprise Security Hardening & Zero-Trust Governance (Future)
 - **8.1 Multi-Factor Authentication (MFA / 2FA) for Operations Dashboard**:
