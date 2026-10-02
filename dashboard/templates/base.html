@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ title }} — National Finance AI Operations</title>
+    <title>{{ title }} — {{ organization_name }} {{ dashboard_title }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Design System & Dependencies -->
@@ -299,8 +299,8 @@
                         <img class="sidebar-logo" src="{{ nf_logo_url }}" alt="National Finance">
                     </div>
                     <div class="sidebar-brand-meta">
-                        <span class="sidebar-ops-badge"><span class="badge-dot"></span> AI OPERATIONS</span>
-                        <span class="sidebar-voice-tag">Voice IT Support</span>
+                        <span class="sidebar-ops-badge"><span class="badge-dot"></span> {{ dashboard_title | upper }}</span>
+                        <span class="sidebar-voice-tag">{{ dashboard_subtitle }}</span>
                     </div>
                 </a>
             </div>

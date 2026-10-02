@@ -40,6 +40,7 @@ from app.call_logger import (
 from app.verify import verify_user, lookup_caller_by_phone
 from app.transfer import transfer_call, check_queue_availability, get_active_channel_info
 from app.ticketing import get_ticketing_client
+import app.db as app_db
 
 CALLS_PER_NUMBER_LIMIT = int(os.getenv("CALLS_PER_NUMBER_LIMIT", "5"))
 CALLS_PER_NUMBER_WINDOW = int(os.getenv("CALLS_PER_NUMBER_WINDOW", "600"))
@@ -824,12 +825,40 @@ TOOLS = [
 ]
 
 
+
+_SYSTEM_PROMPT_CACHE = None
+_SYSTEM_PROMPT_CACHE_TIME = 0
+_SYSTEM_PROMPT_CACHE_TTL = 60.0
+
+def get_active_system_prompt():
+    global _SYSTEM_PROMPT_CACHE, _SYSTEM_PROMPT_CACHE_TIME
+    now = time.time()
+    if _SYSTEM_PROMPT_CACHE is not None and (now - _SYSTEM_PROMPT_CACHE_TIME < _SYSTEM_PROMPT_CACHE_TTL):
+        return _SYSTEM_PROMPT_CACHE
+
+    try:
+        conn = app_db.get_db()
+        row = conn.execute("SELECT value FROM settings WHERE key='system_prompt'").fetchone()
+        conn.close()
+        if row and row["value"]:
+            _SYSTEM_PROMPT_CACHE = row["value"]
+            _SYSTEM_PROMPT_CACHE_TIME = now
+            return _SYSTEM_PROMPT_CACHE
+    except Exception as e:
+        print(f"[PROMPT CACHE] DB Error: {e}")
+
+    # Fallback to hardcoded prompt if DB fails
+    _SYSTEM_PROMPT_CACHE = SYSTEM_PROMPT
+    _SYSTEM_PROMPT_CACHE_TIME = now
+    return _SYSTEM_PROMPT_CACHE
+
+
 def build_session_config():
     return {
         "type": "session.update",
         "session": {
             "type": "realtime",
-            "instructions": SYSTEM_PROMPT,
+            "instructions": get_active_system_prompt(),
             "output_modalities": ["audio"],
             "tools": TOOLS,
             "tool_choice": "auto",
