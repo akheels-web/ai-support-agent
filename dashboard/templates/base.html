@@ -334,10 +334,7 @@
                 {% endif %}
                 
                 {% if user.role == 'admin' %}
-                <a href="/health" class="nav-link {% if active_page == 'health' %}active{% endif %}">
-                    <i data-lucide="activity"></i>
-                    <span>System Health</span>
-                </a>
+
                 <a href="/security-events" class="nav-link {% if active_page == 'security' %}active{% endif %}">
                     <i data-lucide="shield-alert"></i>
                     <span>Security Events</span>
