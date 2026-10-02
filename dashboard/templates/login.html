@@ -52,6 +52,18 @@
             opacity: 0.85;
             object-fit: contain;
         }
+        .btn-loader {
+            display: none;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -70,7 +82,7 @@
             </div>
             {% endif %}
 
-            <form method="post" action="/login">
+            <form method="post" action="/login" onsubmit="showLoader()">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
                 <div class="form-group">
@@ -83,8 +95,10 @@
                     <input type="password" name="password" class="input" placeholder="Enter password" required>
                 </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.75rem; padding: 0.65rem;">
-                    <i data-lucide="log-in"></i> Sign In to Operations
+                <button type="submit" id="login-btn" class="btn btn-primary" style="width: 100%; margin-top: 0.75rem; padding: 0.65rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i data-lucide="log-in" id="login-icon"></i>
+                    <div class="btn-loader" id="login-loader"></div>
+                    <span id="login-text">Sign In to Operations</span>
                 </button>
             </form>
         </div>
@@ -99,6 +113,22 @@
         document.addEventListener('DOMContentLoaded', () => {
             if (window.lucide) lucide.createIcons();
         });
+
+        function showLoader() {
+            const btn = document.getElementById('login-btn');
+            const icon = document.getElementById('login-icon');
+            const loader = document.getElementById('login-loader');
+            const text = document.getElementById('login-text');
+            
+            if (icon) icon.style.display = 'none';
+            if (loader) loader.style.display = 'block';
+            if (text) text.innerText = 'Authenticating...';
+            
+            // Note: We don't disable the button immediately as some browsers stop form submission if the submit button is disabled synchronously.
+            setTimeout(() => {
+                if (btn) btn.disabled = true;
+            }, 10);
+        }
     </script>
 </body>
 </html>

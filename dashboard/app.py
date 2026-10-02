@@ -41,6 +41,8 @@ TCT_LOGO_LOCAL = "/brand-assets/tct-logo.png"
 COOKIE_NAME = "ai_dashboard_token"
 CSRF_COOKIE_NAME = "csrf_token"
 SESSION_TTL_SECONDS = 28800
+_STATS_CACHE = None
+_STATS_CACHE_TIME = 0
 
 app = FastAPI(title="National Finance AI IT Support Operations")
 
@@ -824,35 +826,42 @@ def api_dashboard_stats(request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    live_cutoff = int(time.time()) - 600
+    global _STATS_CACHE, _STATS_CACHE_TIME
+    now = time.time()
+    if _STATS_CACHE and (now - _STATS_CACHE_TIME < 5.0):
+        return _STATS_CACHE
+
+    live_cutoff = int(now) - 600
     conn = db()
-    total_calls = conn.execute("SELECT COUNT(*) c FROM calls").fetchone()["c"]
-    tickets = conn.execute("SELECT COUNT(*) c FROM calls WHERE ticket_created=1").fetchone()["c"]
-    verified = conn.execute("SELECT COUNT(*) c FROM calls WHERE verified_name IS NOT NULL AND verified_name != ''").fetchone()["c"]
-    failed = conn.execute(
-        """
-        SELECT COUNT(*) c FROM calls
-        WHERE status IN ('failed','openai_connection_failed','openai_response_failed','ticket_failed','verification_failed','verification_blocked','transfer_failed')
-        """
-    ).fetchone()["c"]
-    ongoing = conn.execute(
-        """
-        SELECT COUNT(*) c FROM calls
-        WHERE end_time IS NULL
-        AND start_time >= ?
-        AND status IN ('in_progress','language_selected','verified','troubleshooting')
-        """,
-        (live_cutoff,),
-    ).fetchone()["c"]
-    vip_calls = conn.execute("SELECT COUNT(*) c FROM calls WHERE is_vip=1 OR tier IN ('P0_EXECUTIVE','P1_VIP')").fetchone()["c"]
-    deflected = conn.execute("SELECT COUNT(*) c FROM calls WHERE ai_deflected=1 OR resolution_type='AI_Resolved'").fetchone()["c"]
-    emergency_calls = conn.execute("SELECT COUNT(*) c FROM calls WHERE tier='CRITICAL' OR status='emergency_escalated'").fetchone()["c"]
-    transferred = conn.execute("SELECT COUNT(*) c FROM calls WHERE transferred=1").fetchone()["c"]
+    query = """
+        SELECT
+            COUNT(*) as total_calls,
+            SUM(CASE WHEN ticket_created=1 THEN 1 ELSE 0 END) as tickets,
+            SUM(CASE WHEN verified_name IS NOT NULL AND verified_name != '' THEN 1 ELSE 0 END) as verified,
+            SUM(CASE WHEN status IN ('failed','openai_connection_failed','openai_response_failed','ticket_failed','verification_failed','verification_blocked','transfer_failed') THEN 1 ELSE 0 END) as failed,
+            SUM(CASE WHEN end_time IS NULL AND start_time >= ? AND status IN ('in_progress','language_selected','verified','troubleshooting') THEN 1 ELSE 0 END) as ongoing,
+            SUM(CASE WHEN is_vip=1 OR tier IN ('P0_EXECUTIVE','P1_VIP') THEN 1 ELSE 0 END) as vip_calls,
+            SUM(CASE WHEN ai_deflected=1 OR resolution_type='AI_Resolved' THEN 1 ELSE 0 END) as deflected,
+            SUM(CASE WHEN tier='CRITICAL' OR status='emergency_escalated' THEN 1 ELSE 0 END) as emergency_calls,
+            SUM(CASE WHEN transferred=1 THEN 1 ELSE 0 END) as transferred
+        FROM calls
+    """
+    row = conn.execute(query, (live_cutoff,)).fetchone()
     conn.close()
+
+    total_calls = row["total_calls"] or 0
+    tickets = row["tickets"] or 0
+    verified = row["verified"] or 0
+    failed = row["failed"] or 0
+    ongoing = row["ongoing"] or 0
+    vip_calls = row["vip_calls"] or 0
+    deflected = row["deflected"] or 0
+    emergency_calls = row["emergency_calls"] or 0
+    transferred = row["transferred"] or 0
 
     deflection_rate = round((deflected / total_calls * 100), 1) if total_calls > 0 else 0.0
 
-    return {
+    result = {
         "total_calls": total_calls,
         "deflected": deflected,
         "deflection_rate": deflection_rate,
@@ -864,6 +873,10 @@ def api_dashboard_stats(request: Request):
         "failed": failed,
         "transferred": transferred,
     }
+
+    _STATS_CACHE = result
+    _STATS_CACHE_TIME = now
+    return result
 
 
 @app.get("/api/dashboard/chart-data")
