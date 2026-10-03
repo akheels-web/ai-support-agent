@@ -38,7 +38,7 @@ from app.call_logger import (
     reconcile_stale_calls,
 )
 from app.verify import verify_user, lookup_caller_by_phone
-from app.transfer import transfer_call, check_queue_availability, get_active_channel_info
+from app.transfer import transfer_call, check_queue_availability, get_active_channel_info, hangup_channel
 from app.ticketing import get_ticketing_client
 import app.db as app_db
 
@@ -490,12 +490,16 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - When a caller reports ANY technical problem (Wi-Fi/Network, Outlook, Teams, VPN, Printer, Slow PC, MFA, etc.):
   1. Immediately call record_issue_detail and lookup_knowledge_base to retrieve the technical playbook.
   2. Deliver ONE step at a time, clearly and calmly.
-  3. You MUST guide the caller through 3 to 4 sequential diagnostic steps before ever considering raising an unresolved ticket:
+  3. You MUST guide the caller through strictly 3 to 4 sequential diagnostic steps before considering raising an unresolved ticket:
      - Step 1 (Physical / Basic checks): e.g. For WiFi: Check physical WiFi switch / Airplane mode toggle, and verify connected to corporate SSID ('NF-Corporate') not guest network. Ask: "Could you check that right now and let me know what you see?" / "جرب معي هالخطوة الحين وقولي وش يطلع معك؟"
      - Step 2 (Reset / Re-authenticate): If Step 1 didn't resolve it, move to Step 2: Disconnect and reconnect to the network, or 'Forget Network' and re-enter corporate credentials, or disable/re-enable the network adapter. Ask them to test.
      - Step 3 (Diagnostic / IP Refresh): If Step 2 didn't resolve it, move to Step 3: Run command prompt to release and renew IP (`ipconfig /renew` and `ipconfig /flushdns`), or check if colleagues nearby have the same issue. Ask them to test.
      - Step 4 (Device Reboot / Advanced Isolation): If Step 3 didn't resolve it, move to Step 4: Perform a clean reboot of the laptop/PC, or test with a phone hotspot to isolate hardware versus network.
-- NEVER dump all steps at once. Provide one instruction, then wait for the caller to test and reply.
+  4. NEVER dump all steps at once. Provide one instruction, then wait for the caller to test and reply.
+  5. AFTER 3 TO 4 STEPS: Once 3 to 4 diagnostic steps have been attempted and the issue remains unresolved, you MUST STOP troubleshooting and ask the caller if you can create a ticket:
+     - In English: "We have completed those troubleshooting steps and the issue is still unresolved. Shall I create a support ticket for you now so our IT support engineer can follow up with you directly?"
+     - In Arabic: "لقد جربنا الخطوات التشخيصية السابقة ولم تُحل المشكلة بعد. هل تود أن أنشئ لك تذكرة دعم فني الآن ليتابع معك مهندس الدعم الفني مباشرة؟"
+     - Wait for the caller's response. When they confirm, call create_ticket.
 
 8. MANDATORY RESOLUTION VERIFICATION:
 - After providing each troubleshooting step, you MUST ask the caller to test it and verify the outcome:
@@ -508,17 +512,15 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - If the caller confirms the issue is RESOLVED:
   - Congratulate them: "Excellent! Glad we could get that resolved for you." / "ممتاز جداً! الحمد لله إنها اشتغلت معك تمام."
   - Call record_resolution immediately. This creates a ticket marked 'Resolved' closed under the AI Agent in the IT Helpdesk.
-  - Recite the reference ticket number slowly digit-by-digit.
-- SCENARIO B — ISSUE UNRESOLVED AFTER 3-4 STEPS (OR CALLER DEMANDS ESCALATION):
-  - If the issue is NOT resolved after trying 3 to 4 steps, or if the problem requires IT administrator rights / physical hardware replacement:
-  - Say:
-    - In English: "Since those steps haven't resolved the issue, I will now create an official IT support ticket for our desktop engineering team to investigate. Let me log that for you right away..."
-    - In Arabic: "بما إن الخطوات السابقة ما حلت المشكلة، راح أفتح لك تذكرة رسمية لفريق الدعم الفني لمتابعة الموضوع معك فوراً..."
+  - Recite the reference ticket number slowly digit-by-digit, and repeat it once for clarity:
+    "Your issue has been resolved and logged under reference ticket [TICKET NUMBER]. Let me repeat that for your records: [TICKET NUMBER]. Is there anything else I can help you with today?"
+- SCENARIO B — ISSUE UNRESOLVED AFTER 3-4 STEPS (OR CALLER CONFIRMS TICKET CREATION):
+  - When the caller agrees to create a ticket after 3-4 failed steps:
   - Call create_ticket compiling all symptoms, error messages, and troubleshooting steps attempted.
-  - MANDATORY TICKET NUMBER REPETITION:
-    - You MUST recite the ticket number slowly and clearly, and then REPEAT it once more:
-    - In English: "Your ticket has been logged under reference number [TICKET NUMBER]. Let me repeat that for you: [TICKET NUMBER]. Our IT support team will follow up with you shortly."
-    - In Arabic: "تم تسجيل تذكرتك برقم مرجعي [TICKET NUMBER]. أكرر لك الرقم: [TICKET NUMBER]. سيتواصل معك فريق الدعم الفني قريباً."
+  - MANDATORY TICKET NUMBER REPETITION & SUPPORT ENGINEER FOLLOW-UP:
+    - You MUST state that an IT support engineer will follow up directly, recite the ticket number slowly digit-by-digit, and REPEAT it once more:
+    - In English: "Your IT ticket has been logged under reference number [TICKET NUMBER]. Let me repeat that for your records: [TICKET NUMBER]. Our IT support engineer will follow up with you directly. Is there anything else I can assist you with today?"
+    - In Arabic: "تم تسجيل تذكرتك بنجاح برقم مرجعي [TICKET NUMBER]. وأكرر الرقم للتأكيد: [TICKET NUMBER]. سيتابع معك مهندس الدعم الفني مباشرة لحل المشكلة. هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
 
 10. EXISTING TICKET STATUS TRACKING PROTOCOL:
 - If the caller asks about an existing ticket, asks for an update, or provides a ticket number (e.g. "What is the status of ticket HD-2026-0012?" or "Has my ticket been approved?"):
@@ -571,6 +573,27 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - In English: "You can also enter your 4-digit employee ID using your telephone keypad followed by the hash key (#)."
 - When the caller speaks or submits keypad digits, handle them via submit_dtmf_keypad or verify_user.
 
+18. CALLER SENTIMENT & DE-ESCALATION (ANGRY / FRUSTRATED CALLER HANDLING):
+- Gauge the caller's emotion and tone from their voice. If the caller sounds angry, frustrated, impatient, irritated, or raises their voice:
+  1. REMAIN EXCEPTIONALLY POLITE, CALM, PATIENT, AND RESPECTFUL AT ALL TIMES. Never argue, never become defensive, never interrupt, and never sound robotic or indifferent.
+  2. SINCERE CORPORATE EMPATHY & APOLOGY: Immediately acknowledge their frustration with genuine empathy and professional ownership:
+     - In English: "I completely understand how frustrating this issue is for you, and I sincerely apologize for the inconvenience. Let me take personal ownership of this right now to get it resolved for you as quickly as possible."
+     - In Arabic: "أعتذر منك بشدة وأقدر تماماً مدى إزعاج هذه المشكلة لك. حقك علينا، ولا تشيل هم أبداً، أنا معك شخصياً حتى نحلها خطوة بخطوة في أسرع وقت."
+  3. If an angry caller insists on immediate escalation or human engineer intervention without further diagnostics:
+     - Say: "I completely understand your frustration. Let me log an urgent high-priority ticket for you immediately so our senior desktop engineering team contacts you right away."
+     - Call create_ticket with priority="high", recite the ticket number digit-by-digit, and repeat it.
+
+19. CONVERSATION INTERRUPTION & BARGE-IN PROTOCOL:
+- When the caller speaks while you are speaking, STOP immediately.
+- STRICT PROHIBITION: NEVER use meaningless, awkward fillers like "Take your time", "Go ahead, take your time", "Sure thing", "Whenever you're ready", or random conversational noise upon an interruption.
+- Instead, directly and professionally acknowledge what the caller actually said and proceed with the technical call flow. If the caller interrupted to give diagnostic feedback (e.g. "I already rebooted", "It shows error 404"), address that specific feedback immediately.
+
+20. CALL COMPLETION & MANDATORY HANGUP VIA CLOSE_CALL:
+- When the issue is resolved or ticket created, you ask: "Is there anything else I can help you with today?" / "هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
+- If the caller answers "No", "No thanks", "Nothing else", "That is all", "That's it", "I'm good", "All good", "لا", "لا شكراً", "مع السلامة", "يعطيك العافية":
+  - YOU MUST IMMEDIATELY CALL THE TOOL: close_call(reason="resolved" or "completed").
+  - STRICT PROHIBITION: DO NOT simply speak a farewell message without calling close_call! Calling close_call is MANDATORY to disconnect the telephony channel and release PBX resources. Staying connected without calling close_call wastes call minutes and AI tokens.
+
 STANDARD CALL FLOW:
 1. Greet caller: "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
 2. Caller selects language -> call set_language.
@@ -590,9 +613,9 @@ STANDARD CALL FLOW:
    - If hardware replacement/damage -> call create_ticket with group="Hardware Request" and explain manager approval policy.
    - If critical outage -> call escalate_emergency.
 7. Outcome:
-   - If resolved through troubleshooting -> call record_resolution, praise caller, and recite ticket number.
-   - If unresolved after 3-4 steps -> announce ticket creation, call create_ticket, and REPEAT ticket number clearly.
-8. Close cleanly with close_call.
+   - If resolved through troubleshooting -> call record_resolution, praise caller, recite and repeat ticket number.
+   - If unresolved after 3-4 steps -> ask caller if ticket can be created. When confirmed, call create_ticket, state that our IT support engineer will follow up, and REPEAT ticket number clearly.
+8. When caller confirms no further assistance needed, immediately call close_call to hang up the line.
 """
 
 TOOLS = [
@@ -803,7 +826,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "close_call",
-        "description": "Close call cleanly with goodbye.",
+        "description": "MANDATORY: Call this immediately whenever the caller indicates they are done or declines further assistance (e.g. saying 'No', 'No thanks', 'That is all', 'Nothing else', 'I am good', 'لا', 'لا شكراً', 'مع السلامة'). Calling this disconnects the telephony call and releases PBX channels. DO NOT just say goodbye without calling this tool!",
         "parameters": {
             "type": "object",
             "properties": {
@@ -971,11 +994,13 @@ class AudioSocketChannel:
         self.call_uuid = call_uuid
         self._closed = False
         self.outbound_queue = asyncio.Queue(maxsize=1500)
+        self._send_buffer = bytearray()
         self.playback_task = asyncio.create_task(self._playback_loop())
 
     async def _playback_loop(self):
-        """Paces audio frames to Asterisk at exactly 20ms per 320-byte SLIN frame."""
+        """Paces audio frames to Asterisk at exactly 20ms per 320-byte SLIN frame with drift-free clock."""
         interval = 0.020
+        next_deadline = time.perf_counter()
         while not self._closed:
             try:
                 frame = await self.outbound_queue.get()
@@ -985,7 +1010,13 @@ class AudioSocketChannel:
                 packet = struct.pack("!BH", 0x10, len(slin)) + slin
                 self.writer.write(packet)
                 await self.writer.drain()
-                await asyncio.sleep(interval)
+                now = time.perf_counter()
+                if next_deadline < now - 0.100:
+                    next_deadline = now
+                next_deadline += interval
+                sleep_dur = next_deadline - time.perf_counter()
+                if sleep_dur > 0:
+                    await asyncio.sleep(sleep_dur)
             except asyncio.CancelledError:
                 break
             except Exception:
@@ -993,6 +1024,7 @@ class AudioSocketChannel:
 
     def clear_outbound_queue(self):
         """Instantly flush all pending outbound audio frames on barge-in / speech interruption."""
+        self._send_buffer.clear()
         while not self.outbound_queue.empty():
             try:
                 self.outbound_queue.get_nowait()
@@ -1028,15 +1060,15 @@ class AudioSocketChannel:
                 break
 
     async def send(self, data):
-        """Enqueue u-law audio data chunked into 160-byte (20ms) frames for smooth paced playback."""
+        """Enqueue u-law audio data chunked into exact 160-byte (20ms) frames for smooth paced playback."""
         if self._closed or self.writer.is_closing():
             return
         if isinstance(data, bytes) and len(data) > 0:
+            self._send_buffer.extend(data)
             frame_size = 160
-            for i in range(0, len(data), frame_size):
-                chunk = data[i:i + frame_size]
-                if len(chunk) < frame_size:
-                    chunk = chunk + b"\xff" * (frame_size - len(chunk))
+            while len(self._send_buffer) >= frame_size:
+                chunk = bytes(self._send_buffer[:frame_size])
+                del self._send_buffer[:frame_size]
                 try:
                     self.outbound_queue.put_nowait(chunk)
                 except asyncio.QueueFull:
@@ -1804,7 +1836,12 @@ async def handle_single_call(asterisk_ws):
                     group = "Hardware Request"
 
                 # 6. Premature Ticketing Gate: Corporate policy requires 3-4 steps troubleshooting first
-                caller_insisted = arguments.get("caller_insisted", False) or arguments.get("escalation_requested", False)
+                caller_insisted = (
+                    arguments.get("caller_insisted", False)
+                    or arguments.get("escalation_requested", False)
+                    or arguments.get("caller_agreed", False)
+                    or arguments.get("caller_confirmed", False)
+                )
                 troubleshooting_count = len(state.get("troubleshooting_steps", [])) + state.get("question_count", 0)
 
                 if not is_hardware and not caller_insisted and troubleshooting_count < 2:
@@ -2330,6 +2367,37 @@ async def handle_single_call(asterisk_ws):
                     "DO NOT offer or ask to open a ticket yet. Guide through 3 to 4 diagnostic steps first."
                 )
 
+        elif tool_name == "record_issue_detail" and result.get("success"):
+            q_count = result.get("question_count", 1)
+            next_step = min(q_count + 1, 4)
+            if q_count >= 3:
+                # 3 to 4 steps attempted: Stop troubleshooting and ask caller if we can create a ticket!
+                if state["language"] == "ar":
+                    queue_response(
+                        "Respond only in Arabic. Say with polite professional empathy: "
+                        "لقد قمنا بتجربة الخطوات التشخيصية ولم تُحل المشكلة بعد. "
+                        "اسأل المتصل مباشرة: هل تود أن أنشئ لك تذكرة دعم فني الآن ليتابع معك مهندس الدعم الفني مباشرة؟ "
+                        "تحدث فوراً ولا تتأخر في الرد."
+                    )
+                else:
+                    queue_response(
+                        "Respond only in English. Say with polite professional empathy: "
+                        "We have completed those troubleshooting steps and the issue is still unresolved. "
+                        "Ask the caller clearly: Those diagnostic steps did not resolve the issue. Shall I create a support ticket for you now so our IT support engineer can follow up with you directly? "
+                        "Speak immediately without delay."
+                    )
+            else:
+                if state["language"] == "ar":
+                    queue_response(
+                        f"Respond only in Arabic. Acknowledge the result immediately with a natural filler: تمام، فهمت النتيجة. "
+                        f"قدم الخطوة التشخيصية رقم {next_step} فوراً بوضوح واطلب من المتصل تجربتها الآن. تحدث فوراً بدون أي تأخير."
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Acknowledge the result immediately with a natural filler: Got it, thanks for testing that. "
+                        f"Immediately provide diagnostic Step {next_step} clearly and ask the caller to test it right now. Speak immediately without hesitation or delay."
+                    )
+
         elif tool_name == "record_resolution" and result.get("success"):
             ticket_spoken = result.get("ticket_number_spoken")
             if state["language"] == "ar":
@@ -2349,12 +2417,12 @@ async def handle_single_call(asterisk_ws):
             if state["language"] == "ar":
                 queue_response(
                     f"Respond only in Arabic. Say clearly: تم تسجيل تذكرتك بنجاح برقم مرجعي: {ticket_spoken}. "
-                    f"وأكرر الرقم للتأكيد: {ticket_spoken}. سيتابع فريق الدعم الفني طلبك بأسرع وقت. هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
+                    f"وأكرر الرقم للتأكيد: {ticket_spoken}. سيتابع معك مهندس الدعم الفني مباشرة لحل المشكلة. هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
                 )
             else:
                 queue_response(
                     f"Respond only in English. Say clearly: Your IT ticket has been logged under reference number {ticket_spoken}. "
-                    f"Let me repeat that for your records: {ticket_spoken}. Our IT support team will follow up with you. Is there anything else I can assist you with?"
+                    f"Let me repeat that for your records: {ticket_spoken}. Our IT support engineer will follow up with you directly. Is there anything else I can assist you with today?"
                 )
 
         elif tool_name == "create_ticket" and not result.get("success"):
@@ -2663,10 +2731,12 @@ async def handle_single_call(asterisk_ws):
                         return
 
                     if state["close_after_next_response_done"]:
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(1.2)
                         state["call_ending"] = True
                         close_status = "verification_failed" if state.get("verification_attempts", 0) >= 3 else "completed"
                         wrap_up_call(status=close_status)
+                        if state.get("asterisk_channel"):
+                            await asyncio.to_thread(hangup_channel, state["asterisk_channel"])
                         try:
                             await asterisk_ws.close()
                         except Exception:
@@ -2694,6 +2764,18 @@ async def handle_single_call(asterisk_ws):
                         state["transcript_lines"].append(f"[{t_str}] Caller: {transcript}")
                         print(f"[CALLER SAID] {transcript}")
 
+                        # Caller decline / wrap-up intent detection after resolution or ticketing:
+                        if state.get("resolution_recorded") or state.get("ticket_created") or state.get("current_state") in ("resolved", "wrap_up", "ticket_created"):
+                            t_clean = transcript.lower().strip()
+                            is_decline = bool(re.search(
+                                r"\b(no|nope|nah|nothing|that'?s\s*(all|it)|that\s*is\s*(all|it)|all\s*good|i'?m\s*good|goodbye|bye|thank\s*you|thanks)\b",
+                                t_clean,
+                            )) or any(w in transcript for w in ["لا", "لا شكرا", "لا شكراً", "ما قصرت", "يعطيك العافية", "مع السلامة", "سلامتك", "تسلم", "خلاص", "بس كذا"])
+                            if is_decline:
+                                print(f"[CALL] Caller declined further assistance: '{transcript}'. Queuing goodbye and disconnect.")
+                                queue_goodbye("resolved" if state.get("resolution_recorded") else "completed")
+                                await send_queued_response_if_any()
+
                         # Deterministic initial language selection gate:
                         if state["language"] is None:
                             t_lower = transcript.lower()
@@ -2714,6 +2796,22 @@ async def handle_single_call(asterisk_ws):
                     if a_text:
                         t_str = time.strftime("%H:%M:%S")
                         state["transcript_lines"].append(f"[{t_str}] Arif: {a_text}")
+
+                        # Auto-detect if AI spoke farewell / goodbye closing text to drop call:
+                        if state.get("resolution_recorded") or state.get("ticket_created") or state.get("current_state") in ("resolved", "wrap_up", "ticket_created"):
+                            a_lower = a_text.lower()
+                            farewell_phrases = [
+                                "thank you for calling national finance",
+                                "have a great day",
+                                "goodbye",
+                                "شكراً لاتصالك",
+                                "مع السلامة",
+                                "يومك سعيد",
+                                "في أمان الله",
+                            ]
+                            if any(p in a_lower for p in farewell_phrases):
+                                print(f"[CALL] AI agent delivered farewell closing: '{a_text}'. Setting disconnect flag.")
+                                state["close_after_next_response_done"] = True
 
                 elif event_type == "error":
                     print(f"[OPENAI ERROR] {json.dumps(event, indent=2)}")

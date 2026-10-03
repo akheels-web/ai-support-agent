@@ -301,4 +301,25 @@ def get_active_channel_info(call_uuid=None):
             sock.close()
     except Exception:
         pass
-    return None
+    return None
+
+
+def hangup_channel(channel, cause="16"):
+    """Hangs up an active Asterisk channel via AMI."""
+    if not channel or not ASTERISK_AMI_USER or not ASTERISK_AMI_SECRET:
+        return False
+    try:
+        sock = _ami_connect()
+        try:
+            _ami_send(sock, {
+                "Action": "Hangup",
+                "Channel": channel,
+                "Cause": str(cause),
+            })
+            _ami_send(sock, {"Action": "Logoff"})
+            return True
+        finally:
+            sock.close()
+    except Exception:
+        return False
+
