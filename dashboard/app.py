@@ -6,6 +6,7 @@ import io
 import re
 import hmac
 import time
+from datetime import datetime
 import sqlite3
 import hashlib
 import secrets
@@ -648,12 +649,13 @@ def init_db():
             ("admin", hash_password(INITIAL_ADMIN_PASSWORD), int(time.time())),
         )
 
+    from app.openai_realtime_bridge import SYSTEM_PROMPT, DEFAULT_GREETING
     default_settings = {
         "organization_name": "National Finance Oman",
         "dashboard_title": "AI IT Support Operations",
         "dashboard_subtitle": "Voice AI Support Telemetry",
-        "ai_greeting": "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue.",
-        "system_prompt": "You are Arif, an AI IT Support voice agent for National Finance IT Support team.",
+        "ai_greeting": DEFAULT_GREETING,
+        "system_prompt": SYSTEM_PROMPT.strip(),
         "max_concurrent_calls": "10",
         "recording_retention_days": "30",
         "frappe_enabled": "true",
@@ -661,8 +663,12 @@ def init_db():
     }
 
     for key, value in default_settings.items():
-        exists = conn.execute("SELECT key FROM settings WHERE key=?", (key,)).fetchone()
+        exists = conn.execute("SELECT key, value FROM settings WHERE key=?", (key,)).fetchone()
         if not exists:
+            save_setting(conn, key, value)
+        elif key == "system_prompt" and (not exists.get("value") or len(str(exists["value"]).strip()) < 300 or "You are Arif, an AI IT Support voice agent for National Finance IT Support team." == str(exists["value"]).strip()):
+            save_setting(conn, key, value)
+        elif key == "ai_greeting" and ("Hi, I am Arif" in str(exists.get("value") or "")):
             save_setting(conn, key, value)
 
     conn.commit()
@@ -2163,7 +2169,29 @@ async def api_ad_sync_now(request: Request):
 @app.get("/prompts", response_class=HTMLResponse)
 def prompts_page(request: Request):
     user = require_roles(request, ["admin"])
+    from app.openai_realtime_bridge import SYSTEM_PROMPT, DEFAULT_GREETING
     conn = db()
+
+    current_greeting = get_setting("ai_greeting", "")
+    if not current_greeting or "Hi, I am Arif" in current_greeting:
+        current_greeting = DEFAULT_GREETING
+        save_setting(conn, "ai_greeting", current_greeting)
+
+    current_prompt = get_setting("system_prompt", "")
+    if not current_prompt or len(current_prompt.strip()) < 300 or "You are Arif, an AI IT Support voice agent" in current_prompt:
+        current_prompt = SYSTEM_PROMPT.strip()
+        save_setting(conn, "system_prompt", current_prompt)
+
+    # Ensure an active version exists in prompt_versions
+    has_active = conn.execute("SELECT id FROM prompt_versions WHERE active=1").fetchone()
+    if not has_active:
+        conn.execute("UPDATE prompt_versions SET active=0")
+        conn.execute(
+            "INSERT INTO prompt_versions(name, greeting, system_prompt, active, created_by, created_at) VALUES (?, ?, ?, 1, 'system', ?)",
+            ("National Finance IT Support Core v3.0", current_greeting, current_prompt, int(time.time())),
+        )
+        conn.commit()
+
     raw_rows = conn.execute("SELECT * FROM prompt_versions ORDER BY id DESC").fetchall()
     conn.close()
 
@@ -2178,15 +2206,6 @@ def prompts_page(request: Request):
             "created_by": r["created_by"],
             "created_at_human": human_time(r["created_at"]),
         })
-
-    from app.openai_realtime_bridge import SYSTEM_PROMPT, DEFAULT_GREETING
-    current_greeting = get_setting("ai_greeting", "")
-    if not current_greeting:
-        current_greeting = DEFAULT_GREETING
-
-    current_prompt = get_setting("system_prompt", "")
-    if not current_prompt:
-        current_prompt = SYSTEM_PROMPT.strip()
 
     saved = request.query_params.get("saved")
     activated = request.query_params.get("activated")

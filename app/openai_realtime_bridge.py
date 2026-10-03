@@ -890,7 +890,7 @@ def get_active_system_prompt():
         conn = app_db.get_db()
         row = conn.execute("SELECT value FROM settings WHERE key='system_prompt'").fetchone()
         conn.close()
-        if row and row["value"]:
+        if row and row["value"] and len(str(row["value"]).strip()) > 300:
             _SYSTEM_PROMPT_CACHE = row["value"]
             _SYSTEM_PROMPT_CACHE_TIME = now
             return _SYSTEM_PROMPT_CACHE

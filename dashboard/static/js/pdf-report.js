@@ -11,14 +11,9 @@ async function exportExecutivePdfReport() {
         btn.disabled = true;
     }
 
-    let reportContainer = null;
-    const originalScrollY = window.scrollY;
-    const originalScrollX = window.scrollX;
+    let overlay = null;
 
     try {
-        // Scroll to top for html2canvas coordinate alignment
-        window.scrollTo(0, 0);
-
         // 1. Fetch current telemetry summary
         let stats = {
             total_calls: 0,
@@ -39,26 +34,6 @@ async function exportExecutivePdfReport() {
             console.warn('Could not fetch /api/dashboard/stats:', e);
         }
 
-        // 2. Build printable executive document container using rock-solid HTML tables
-        // (Avoiding display:grid which html2canvas fails to render in html2pdf)
-        reportContainer = document.createElement('div');
-        reportContainer.id = 'executive-pdf-document';
-        reportContainer.style.cssText = `
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 794px;
-            background: #ffffff !important;
-            color: #1F2937 !important;
-            font-family: Arial, Helvetica, sans-serif !important;
-            padding: 32px 36px;
-            box-sizing: border-box;
-            z-index: 999999;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            visibility: visible !important;
-            opacity: 1 !important;
-        `;
-
         const now = new Date().toLocaleString('en-US', {
             dateStyle: 'medium',
             timeStyle: 'short'
@@ -70,10 +45,10 @@ async function exportExecutivePdfReport() {
         let volImg = '';
         let defImg = '';
         try {
-            if (volCanvas) volImg = volCanvas.toDataURL('image/png');
-            if (defCanvas) defImg = defCanvas.toDataURL('image/png');
+            if (volCanvas && volCanvas.width > 0) volImg = volCanvas.toDataURL('image/png');
+            if (defCanvas && defCanvas.width > 0) defImg = defCanvas.toDataURL('image/png');
         } catch (chartErr) {
-            console.warn('Chart toDataURL error:', chartErr);
+            console.warn('Chart toDataURL notice:', chartErr);
         }
 
         const chartSectionHtml = (volImg && defImg) ? `
@@ -109,6 +84,60 @@ async function exportExecutivePdfReport() {
                     </tr>
                 </table>
             </div>
+        `;
+
+        // 2. Build visible overlay so user can see generation and html2canvas has natural render tree
+        overlay = document.createElement('div');
+        overlay.id = 'executive-pdf-modal-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.8);
+            z-index: 999999;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 15px;
+            box-sizing: border-box;
+            backdrop-filter: blur(3px);
+        `;
+
+        const banner = document.createElement('div');
+        banner.style.cssText = `
+            width: 790px;
+            background: #1B2F6B;
+            color: #ffffff;
+            padding: 10px 16px;
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            box-sizing: border-box;
+        `;
+        banner.innerHTML = `
+            <span><strong>National Finance AI Support</strong> — Generating Executive PDF Shift Summary...</span>
+            <button id="pdf-fallback-print" style="background:#ffffff; color:#1B2F6B; border:none; padding:4px 10px; border-radius:4px; font-weight:700; cursor:pointer; font-size:11px;">
+                Print / Save via Browser
+            </button>
+        `;
+
+        const reportContainer = document.createElement('div');
+        reportContainer.id = 'executive-pdf-document';
+        reportContainer.style.cssText = `
+            width: 790px;
+            background: #ffffff !important;
+            color: #1F2937 !important;
+            font-family: Arial, Helvetica, sans-serif !important;
+            padding: 36px 40px;
+            box-sizing: border-box;
+            border-radius: 0 0 6px 6px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+            position: relative;
         `;
 
         reportContainer.innerHTML = `
@@ -176,39 +205,49 @@ async function exportExecutivePdfReport() {
             </table>
         `;
 
-        document.body.appendChild(reportContainer);
+        overlay.appendChild(banner);
+        overlay.appendChild(reportContainer);
+        document.body.appendChild(overlay);
 
-        // Wait a tick for DOM layout and canvas data bindings
-        await new Promise(resolve => setTimeout(resolve, 350));
+        // Bind fallback button
+        document.getElementById('pdf-fallback-print').addEventListener('click', () => {
+            window.print();
+        });
+
+        // Wait a tick for DOM layout and rendering
+        await new Promise(resolve => setTimeout(resolve, 400));
 
         if (window.html2pdf) {
             const opt = {
-                margin: [8, 8, 8, 8],
+                margin: [10, 10, 10, 10],
                 filename: `National_Finance_AI_Support_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: {
                     scale: 2,
                     useCORS: true,
                     logging: false,
-                    scrollY: 0,
-                    scrollX: 0,
-                    windowWidth: 794
+                    backgroundColor: '#ffffff'
                 },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
             await window.html2pdf().set(opt).from(reportContainer).save();
+            // Automatically close overlay after successful save
+            setTimeout(() => {
+                if (overlay && overlay.parentNode) {
+                    overlay.parentNode.removeChild(overlay);
+                }
+            }, 800);
         } else {
             console.warn('html2pdf library not available, fallback to window.print()');
             window.print();
         }
     } catch (err) {
-        console.error('PDF Generation failed:', err);
-        alert('PDF Generation failed: ' + (err.message || err));
-    } finally {
-        if (reportContainer && reportContainer.parentNode) {
-            reportContainer.parentNode.removeChild(reportContainer);
+        console.error('PDF Generation error:', err);
+        alert('PDF Generation notice: ' + (err.message || err));
+        if (overlay && overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
         }
-        window.scrollTo(originalScrollX, originalScrollY);
+    } finally {
         if (btn) {
             btn.innerHTML = originalText;
             btn.disabled = false;
