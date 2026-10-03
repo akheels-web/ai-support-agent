@@ -80,7 +80,9 @@ class FrappeProvider(BaseTicketingProvider):
         if not email:
             raise ValueError("Email is required to get or create contact")
 
-        # 1. Search for existing HD Customer or Contact
+        customer_display_name = name or email.split("@")[0]
+
+        # 1. Search for existing HD Customer or Contact by email or customer_name
         contact_doctype = "HD Customer" if self.ticket_doctype == "HD Ticket" else "Contact"
         try:
             filters = json.dumps([["email_id", "=", email]])
@@ -88,11 +90,17 @@ class FrappeProvider(BaseTicketingProvider):
             data = resp.json().get("data", [])
             if data:
                 return data[0]
+
+            if contact_doctype == "HD Customer" and customer_display_name:
+                filters_name = json.dumps([["customer_name", "=", customer_display_name]])
+                resp_name = self._request("GET", f"/api/resource/{contact_doctype}?filters={filters_name}&fields=[\"*\"]")
+                data_name = resp_name.json().get("data", [])
+                if data_name:
+                    return data_name[0]
         except Exception as exc:
-            logger.warning(f"Could not query {contact_doctype} by email ({exc}). Proceeding to create.")
+            logger.warning(f"Could not query {contact_doctype} ({exc}). Proceeding to create.")
 
         # 2. Create if not found
-        customer_display_name = name or email.split("@")[0]
         if contact_doctype == "HD Customer":
             payload = {
                 "customer_name": customer_display_name,

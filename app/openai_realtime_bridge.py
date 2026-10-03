@@ -876,7 +876,6 @@ def build_session_config():
                         "create_response": True,
                         "interrupt_response": True,  # Full-duplex barge-in enabled
                         "idle_timeout_ms": VAD_IDLE_TIMEOUT_MS,
-                        "eagerness": "medium",  # Balanced response timing — avoids triggering on background noise while keeping latency low
                     },
                 },
                 "output": {
@@ -914,8 +913,29 @@ async def connect_openai():
         max_size=None,
     )
 
+    # 1. Receive initial session.created from OpenAI
+    try:
+        init_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+        init_evt = json.loads(init_raw)
+        print(f"[OPENAI] Initial event received: {init_evt.get('type')}")
+    except Exception as e:
+        print(f"[OPENAI] Notice on initial connect: {e}")
+
+    # 2. Send session configuration
     await ws.send(json.dumps(build_session_config()))
 
+    # 3. Await session.updated confirmation
+    try:
+        upd_raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
+        upd_evt = json.loads(upd_raw)
+        if upd_evt.get("type") == "session.updated":
+            print("[OPENAI] Session successfully configured and ready")
+        elif upd_evt.get("type") == "error":
+            print(f"[OPENAI ERROR on session.update] {upd_raw}")
+    except Exception as e:
+        print(f"[OPENAI] Notice on session.update: {e}")
+
+    # 4. Trigger initial bilingual greeting audio
     await send_response(
         ws,
         (
@@ -2605,13 +2625,14 @@ async def handle_single_call(asterisk_ws):
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # Caller interrupted while AI is speaking (barge-in)
-                    state["active_response"] = False
                     if hasattr(asterisk_ws, "clear_outbound_queue"):
                         asterisk_ws.clear_outbound_queue()
-                    try:
-                        await openai_ws.send(json.dumps({"type": "response.cancel"}))
-                    except Exception:
-                        pass
+                    if state.get("active_response"):
+                        state["active_response"] = False
+                        try:
+                            await openai_ws.send(json.dumps({"type": "response.cancel"}))
+                        except Exception:
+                            pass
 
                 elif event_type == "response.output_audio.delta":
                     if state["call_ending"]:
