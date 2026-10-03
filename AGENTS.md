@@ -7,7 +7,10 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
 ## 2. Telephony & Media Flow
 - Asterisk routes audio to WebSocket at `127.0.0.1:8765` (`app/openai_realtime_bridge.py`).
 - Audio format: `audio/pcmu` (8kHz G.711 u-law).
-- Full-duplex conversational audio with server VAD barge-in (`interrupt_response: True`).
+- **Drift-Free Monotonic Pacing**: `AudioSocketChannel._playback_loop` uses precision deadline scheduling (`0.020s` interval with drift correction) and bytearray slicing in `send()`, preventing audio jitter, buffer underruns, and micro-hiccups.
+- **Calibrated VAD Turn-Taking**: `VAD_SILENCE_MS=1000` enforces a 1-second pause after caller finishes speaking, eliminating premature interruptions while caller thinks or performs diagnostic actions.
+- **Clean Barge-In**: Server VAD barge-in (`interrupt_response: True`) instantly flushes `_send_buffer` and `outbound_queue`. Prompt rules strictly prohibit awkward conversational fillers (*"Take your time"*, *"Whenever you're ready"*).
+- **Automated Line Termination**: Integrated `hangup_channel(channel)` in `app/transfer.py` via Asterisk AMI `Action: Hangup` combined with AudioSocket `0x00` frame to guarantee immediate call drop when call ends.
 - Multi-queue Asterisk AMI redirection:
   - `7001`: Standard IT L1 Support Queue
   - `7002`: Executive & VIP Concierge Queue (CEO, CFO, C-Suite)
@@ -29,9 +32,15 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - `normalize_digits`: Converts spoken English/Arabic numbers to digits.
 - `knowledge_base/*.md`: Ingested into memory on startup and queried dynamically via `lookup_knowledge_base`.
 - Deterministic AI Guardrails in `app/openai_realtime_bridge.py`:
-  - **Verification Gate**: Caller must be verified before ticket creation.
+  - **Verification Gate**: Caller must be verified before ticket creation or queue transfer (max 3 failed attempts before automated disconnect).
   - **Quality Gate**: Description must be >= 10 characters and technical (blocks "hi", "test", "issue").
   - **Scope Gate**: Rejects non-IT inquiries (loans, vehicle finance, interest rates, credit cards) without ticket generation.
+  - **3 to 4 Steps Diagnostic Protocol**: Limits diagnostic guidance strictly to 3–4 sequential steps (Physical checks $\rightarrow$ Reset $\rightarrow$ Diagnostic/IP $\rightarrow$ Reboot/Isolation).
+  - **Zero-Latency Step Guidance**: `handle_tool_call` immediately queues explicit prompt instructions on `record_issue_detail`, eliminating 10–17s delays between steps.
+  - **Ticket Confirmation Gate**: After 3–4 failed steps, the AI stops diagnostics and explicitly asks caller consent before creating an unresolved ticket (*"Shall I create a support ticket for you now so our IT support engineer can follow up with you directly?"*).
+  - **Support Engineer Recital Rule**: States that an IT support engineer will follow up directly, recites ticket reference slowly digit-by-digit, and repeats it once.
+  - **Automated Disconnect on Wrap-Up**: Auto-detects caller decline (*"No"*, *"That's all"*, *"Nothing else"*, *"لا شكراً"*) or AI farewell phrases, triggering `close_call` and AMI hangup immediately to prevent token waste.
+  - **Caller Sentiment & De-Escalation Protocol**: Detects angry/frustrated callers, responds with genuine empathy and professional ownership, and provides expedited priority escalation.
   - **Duplicate Prevention**: Rejects secondary ticket creation in the same call session.
   - **Anti-Hallucination Constraints**: Strict prompt rules forbidding false ticket generation and direct password claim assertions.
 

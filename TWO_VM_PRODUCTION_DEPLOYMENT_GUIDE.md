@@ -453,10 +453,10 @@ AD_P0_GROUPS="C-Suite,Executives,CEO,CFO"
 AD_P1_GROUPS="Directors,Heads,VIP"
 
 # -----------------------------------------------------------------------------
-# Voice Activity Detection (VAD) Tuned for Branch / Office Environment
+# Voice Activity Detection (VAD) Tuned for Branch / Office Environment (1s silence wait)
 # -----------------------------------------------------------------------------
-VAD_THRESHOLD=0.65
-VAD_SILENCE_MS=750
+VAD_THRESHOLD=0.60
+VAD_SILENCE_MS=1000
 VAD_IDLE_TIMEOUT_MS=30000
 
 # -----------------------------------------------------------------------------

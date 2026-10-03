@@ -63,10 +63,11 @@ flowchart TD
 ## 2. Core Capabilities
 
 ### 2.1 Conversational Voice AI Engine
-- **Full-Duplex Audio with Barge-In**: Real-time G.711 $\mu$-law audio streaming at 8kHz via Asterisk `AudioSocket`. Server-side Voice Activity Detection (VAD) allows callers to naturally interrupt ("barge-in") the AI at any time.
-- **Strict Bilingual Fluency (Arabic & English)**: Natural greeting and language selection. Eliminates mixed-language phrasing and enforces clean dialect handling.
-- **Advanced Compound Digit Normalization**: Converts spoken English and Omani/Gulf Arabic compound numbers, teen numbers (`احداعش`, `اثنعش`), tens, hundreds, and thousands into normalized digits for IDs and ticket numbers.
-- **Digit-by-Digit Recital & Repetition**: Slowly recites ticket numbers spaced digit-by-digit (`H D 2 0 2 6 0 0 1 2`). Includes a dedicated `repeat_ticket_number` tool for callers who need to write it down.
+- **Full-Duplex Audio with Drift-Free Pacing**: Real-time G.711 $\mu$-law audio streaming at 8kHz via Asterisk `AudioSocket`. Employs a drift-free monotonic deadline clock (`20.0ms` interval) and bytearray accumulation buffer in `AudioSocketChannel`, completely eliminating audio jitter, buffer starvation, and micro-hiccups.
+- **Strict Bilingual Fluency (Arabic & English)**: Deterministic initial greeting (`"Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."`). Eliminates mixed-language phrasing and enforces clean Gulf White Arabic dialect handling.
+- **Patient Turn-Taking & Natural 1-Second Silence (VAD)**: Calibrated server-side Voice Activity Detection (`VAD_SILENCE_MS=1000`) prevents cutting callers off while thinking, searching for credentials, or taking diagnostic actions.
+- **Professional Barge-In without Awkward Fillers**: Callers can interrupt the AI at any time. Outbound audio queues are instantly cleared, and the AI is strictly forbidden from using awkward conversational noise (*"Take your time"*, *"Whenever you're ready"*), proceeding immediately to address the caller's test result or question.
+- **Compound Digit Normalization & Recital**: Spoken numbers and Omani/Gulf Arabic compound numbers are normalized to integers. Reference tickets are recited slowly digit-by-digit (`H D 2 0 2 6 0 0 1 2`) and repeated for clarity.
 
 ### 2.2 Caller Identity & Executive Fast-Track
 - **Caller-ID (CLI) Instant Pre-Identification**: Incoming phone numbers are matched against corporate directory records on call connection.
@@ -74,13 +75,17 @@ flowchart TD
 - **Priority Tiering (`P1_VIP`)**: Directors and Department Heads receive priority greetings, expedited resolution paths, and `High` priority ticket SLAs.
 
 ### 2.3 IT Helpdesk Automation & Workflow Governance
-- **Playbook-Grounded Diagnostics**: Retrieves corporate troubleshooting steps (`knowledge_base/`) for account lockouts, VPN connection issues, Outlook, Teams, and network adapters.
-- **Mandatory Outcome Verification**: After delivering each instruction, Arif explicitly asks: *"Did that resolve the issue for you?"* / *"هل تم حل المشكلة معك الآن؟"*.
-  - **Outcome A (Resolved)**: Immediately calls `record_resolution` to create a `Resolved` ticket in the helpdesk, logging First-Contact Resolution (FCR) deflection telemetry.
-  - **Outcome B (Unresolved)**: Compiles all attempted steps, symptoms, and error messages into an `Open` ticket, recites the ticket number, and offers transfer or callback.
-- **Live Ticket Status Tracking (`check_ticket_status`)**: Callers can track existing tickets by reciting the reference number. Arif reports live status, department manager approval state, and resolution notes.
-- **Hardware Request & Department Manager Approval**: Equipment requests (laptops, monitors, docks, accessories) are flagged with `group="Hardware Request"` and status `Pending Approval`. Callers are informed that Department Manager approval is required before IT dispatch.
-- **Scheduled Callbacks (`request_callback`)**: If call transfer lines are busy or callers prefer not to wait on hold, Arif schedules a callback ticket capturing preferred times and contact numbers.
+- **Mandatory 3 to 4 Steps Sequential Troubleshooting**: Guides employees through strictly 3 to 4 diagnostic steps (Physical checks $\rightarrow$ Reset/Re-authenticate $\rightarrow$ IP/Network refresh $\rightarrow$ Device reboot/isolation). Eliminates infinite diagnostic loops.
+- **Zero-Latency Step-by-Step Flow**: Proactive tool-response queueing on `record_issue_detail` delivers immediate guidance to the Realtime model, eliminating hesitation and multi-second delays between diagnostic steps.
+- **Mandatory Outcome Verification & Consent Gate**:
+  - After each step, Arif asks: *"Did that resolve the issue for you?"* / *"هل تم حل المشكلة معك الآن؟"*.
+  - **Outcome A (Resolved)**: Calls `record_resolution` to create and close a `Resolved` ticket under the AI Agent, logging First-Contact Resolution (FCR) deflection.
+  - **Outcome B (Unresolved after 3-4 steps)**: Arif halts diagnostics and explicitly asks for caller consent: *"Those 3-4 diagnostic steps did not resolve the issue. Shall I create a support ticket for you now so our IT support engineer can follow up with you directly?"*
+  - **Support Engineer Follow-Up & Ticket Recital**: Once confirmed, creates the ticket, explicitly states that an **IT support engineer** will follow up directly, recites the ticket number digit-by-digit, and repeats it.
+- **Live Ticket Status Tracking (`check_ticket_status`)**: Callers track existing tickets by reciting reference numbers. Arif reports live status, manager approval state, and resolution notes.
+- **Hardware Request & Department Manager Approval**: Equipment requests are flagged with `group="Hardware Request"` and status `Pending Approval`. Callers are informed that Department Manager approval is required before IT dispatch.
+- **Scheduled Callbacks (`request_callback`)**: If human queues are busy, Arif logs a callback ticket capturing preferred times and contact numbers.
+- **Automated Disconnect on Call Conclusion (`close_call`)**: When the caller's issue is resolved or ticket logged and they confirm no further help is needed (*"No"*, *"That's all"*, *"Nothing else"*, *"لا شكراً"*), the AI triggers `close_call`. Code-level intent detection and Asterisk AMI `hangup_channel` immediately drop the line to prevent token waste and hold time.
 
 ### 2.4 Enterprise Telephony & Cisco Webex Integration
 - **Multi-Queue AMI Redirection**: Bridges callers to specialized queues:
@@ -103,6 +108,12 @@ flowchart TD
   - Queue Distribution Bar Charts (L1 vs VIP vs Sev-1 Emergency).
 - **Interactive Data Tables & Inspection Drawer**: Real-time client-side search, column sorting, status badges, and a slide-out Call Inspection Drawer displaying caller profiles, diagnostic transcripts, and recording audio scrubbers.
 - **Executive PDF Shift Reports ("pdfcn")**: One-click corporate-branded PDF export with KPI summary tiles, vector chart snapshots, and operational incident logs.
+
+### 2.7 Caller Sentiment & Emotional De-Escalation Protocol
+- **Tone & Vocal Agitation Awareness**: The AI continuously evaluates the caller's emotional state. If a caller sounds angry, frustrated, impatient, or raises their voice:
+  - **Polite & Calm Demeanor**: The AI remains exceptionally polite, patient, and courteous, avoiding defensive or robotic phrasing.
+  - **Sincere Corporate Empathy**: Acknowledges their frustration immediately (*"I completely understand how frustrating this issue is for you, and I sincerely apologize for the inconvenience. Let me take personal ownership of this right now to get it resolved for you as quickly as possible."* / Arabic equivalent).
+  - **Urgent Priority Escalation**: If an agitated caller demands immediate human intervention without diagnostics, Arif bypasses routine questions and creates an expedited `High` priority ticket for senior engineering follow-up.
 
 ---
 

@@ -61,15 +61,15 @@ For each scenario, the guide specifies:
 #### Turn-by-Turn Dialogue:
 ```
 [PBX Connects Call]
-Arif:   "Hi, I am Arif from National Finance IT Support team. Please say Arabic or English to continue."
+Arif:   "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
 
 Tester: "English please."
 
-Arif:   "English confirmed. May I please have your full name?"
+Arif:   "Thank you for choosing English. May I please have your full name?"
 
 Tester: "Mohammed Akheel."
 
-Arif:   "Thank you, Mohammed. Could you please provide your 4-digit employee ID?"
+Arif:   "Could you please provide your 4-digit employee ID?"
 
 Tester: "One zero zero two."
 
@@ -77,30 +77,31 @@ Arif:   "Thank you Mohammed Akheel, you are verified. How can I help you today?"
 
 Tester: "My Microsoft Outlook keeps freezing and crashing whenever I start my computer."
 
-Arif:   "I can help with that. Let's try starting Outlook in Safe Mode. Please press Windows key plus R, type 'outlook.exe /safe', and press Enter. Did that resolve the issue for you?"
+Arif:   "Umm, I understand how frustrating that is. Let's troubleshoot that together right now. Let's try starting Outlook in Safe Mode. Please press Windows key plus R, type 'outlook.exe /safe', and press Enter. Did that resolve the issue for you?"
 
 Tester: "Yes, it opened immediately without freezing! Thank you."
 
-Arif:   "Excellent! I have logged this issue as resolved with reference ticket H D 2 0 2 6 0 0 1 2. Is there anything else I can assist you with today?"
+Arif:   "Excellent! I'm glad we could get that resolved for you today. I have logged and closed this ticket under reference number H D 2 0 2 6 0 0 1 2. Let me repeat that for your records: H D 2 0 2 6 0 0 1 2. Is there anything else I can help you with today?"
 
 Tester: "No, that was all. Goodbye."
 
-Arif:   "Thank you for calling National Finance IT Support. Have a great day. Goodbye!"
-[Call Clears]
+Arif:   "Thank you for calling National Finance IT Support. Goodbye."
+[Line Automatically Disconnects via close_call and AMI Hangup]
 ```
 
 #### Verification & Expected Outputs:
-1. **Telephony / Audio:** Full-duplex conversational audio with zero dead air; ticket recited slowly digit-by-digit (`H - D - 2 - 0 - 2 - 6 - 0 - 0 - 1 - 2`).
-2. **Frappe Helpdesk (`http://<vm2-ip>:8000`):**
+1. **Telephony / Audio:** Full-duplex conversational audio with zero dead air; ticket recited slowly digit-by-digit (`H - D - 2 - 0 - 2 - 6 - 0 - 0 - 1 - 2`) and repeated for confirmation.
+2. **Automated Call Hangup:** As soon as the tester says "No, that was all", Arif executes `close_call`, speaks the brief farewell, and Asterisk AMI `hangup_channel` immediately drops the call, releasing the channel with zero token waste.
+3. **Frappe Helpdesk (`http://<vm2-ip>:8000`):**
    - New ticket created: `HD-2026-0012`
    - Status: `Resolved`
    - Subject: `Resolved: Outlook crash / freezing during startup`
    - Custom Field `custom_fcr`: `1` (First Contact Resolution achieved)
-3. **Executive Dashboard (`https://<vm1-ip>:8090`):**
+4. **Executive Dashboard (`https://<vm1-ip>:8090`):**
    - `Total Calls` counter increments by 1.
    - `AI Deflected Calls` counter increments by 1.
    - `FCR Deflection Rate` chart updates dynamically.
-   - Transcript bubbles visible in the Call Inspection Drawer with both turns logged.
+   - Transcript bubbles visible in the Call Inspection Drawer with all turns logged.
 
 ---
 
@@ -113,11 +114,11 @@ Arif:   "Thank you for calling National Finance IT Support. Have a great day. Go
 #### Turn-by-Turn Dialogue:
 ```
 [الاتصال يرن ويجيب عارف]
-عارف:   "مرحباً بك، أنا عارف من فريق الدعم الفني لشركة الوطنية للتمويل. يرجى قول العربية أو الإنجليزية للمتابعة."
+عارف:   "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
 
 المختبر: "العربية لو سمحت."
 
-عارف:   "تم اختيار اللغة العربية. تفضل بذكر اسمك الكريم الثلاثي؟"
+عارف:   "شكراً لك. تفضل بالاسم الكامل لو سمحت؟"
 
 المختبر: "هيثم الصباحي."
 
@@ -125,17 +126,32 @@ Arif:   "Thank you for calling National Finance IT Support. Have a great day. Go
 
 المختبر: "ألف وثلاثة." (Compound Arabic: 1003)
 
-عارف:   "تم التحقق من هويتك بنجاح أستاذ هيثم الصباحي. كيف أستطيع مساعدتك اليوم؟"
+عارف:   "تم التحقق من بياناتك بنجاح. كيف أقدر أساعدك اليوم في الدعم الفني؟"
 
-المختبر: "شبكة الواي فاي للشركة تفصل باستمرار ولا تقبل كلمة المرور."
+المختبر: "شبكة الواي فاي للشركة تفصل باستمرار ولا تقبل الاتصال."
 
-عارف:   "بناءً على دليل الدعم الفني، يرجى تعطيل شبكة الواي فاي من جهازك ثم إعادة تفعيلها وحذف شبكة NF-Corporate ثم إعادة الاتصال بها. هل تم حل المشكلة معك الآن؟"
+عارف:   "تمام، فهمت عليك تماماً، ولا تشيل هم بنحل المشكلة معك خطوة بخطوة. كخطوة أولى: تأكد أنك متصل بشبكة NF-Corporate وليست شبكة الزوار، وتأكد من زر تفعيل الواي فاي. هل تم حل المشكلة معك الآن؟"
 
-المختبر: "لا، جربت هذه الخطوة ولم تنجح وما زالت ترفض الاتصال."
+المختبر: "جربت ومزالت المشكلة مستمرة."
 
-عارف:   "حسناً، تم تسجيل تذكرة دعم فني جديدة برقم مرجعي: H D 2 0 2 6 0 0 1 3. سأقوم بتحويلك الآن مباشرة إلى أحد مهندسي الدعم الفني في قائمة الانتظار للمتابعة معك."
-[Asterisk PBX executes AMI Redirect to Extension 7001]
-[Human Support Agent phone rings with screen-pop caller data]
+عارف:   "تمام، وصلت الفكرة. نجرب الخطوة الثانية: قم بحذف شبكة NF-Corporate عبر Forget Network ثم أعد إدخال بياناتك الوظيفية. هل اشتغلت معك الحين؟"
+
+المختبر: "ما زالت تفصل وترفض كلمة المرور."
+
+عارف:   "وصلت الفكرة. نجرب الخطوة الثالثة: افتح موجه الأوامر cmd واكتب الأمر ipconfig /renew ثم اضغط Enter. جرب معي الحين وقولي وش يطلع معك؟"
+
+المختبر: "سويت الخطوة وما زالت نفس المشكلة."
+
+عارف:   "لقد قمنا بتجربة الخطوات التشخيصية السابقة ولم تُحل المشكلة بعد. هل تود أن أنشئ لك تذكرة دعم فني الآن ليتابع معك مهندس الدعم الفني مباشرة؟"
+
+المختبر: "نعم، افتح لي تذكرة لو سمحت."
+
+عارف:   "تم تسجيل تذكرتك بنجاح برقم مرجعي: H D 2 0 2 6 0 0 1 3. وأكرر الرقم للتأكيد: H D 2 0 2 6 0 0 1 3. سيتابع معك مهندس الدعم الفني مباشرة لحل المشكلة. هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
+
+المختبر: "لا شكراً، مع السلامة."
+
+عارف:   "شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
+[يتم إنهاء المكالمة وإغلاق الخط تلقائياً]
 ```
 
 #### Verification & Expected Outputs:
@@ -482,6 +498,139 @@ Arif:   "Based on our troubleshooting guide for Pulse Secure VPN: please right-c
 
 #### Verification & Expected Outputs:
 - New article loaded dynamically via `_KB_CACHE` (15s TTL). **Zero downtime, zero service restarts.**
+
+---
+
+### Scenario 15: Mandatory 3 to 4 Diagnostic Steps, Ticket Consent & IT Engineer Follow-Up Recital
+*Tests strict sequential 3-4 steps troubleshooting, zero hesitation on Step 2, caller consent check prior to ticket creation, and mandatory IT support engineer follow-up announcement with ticket repetition.*
+
+- **Caller Persona:** Ruqaiya Al Balushi (ID: `1008`, Phone: `+96890000008`, VIP Tier: `P1_VIP`)
+- **Target Issue:** Microsoft Teams microphone and audio device failure
+
+#### Turn-by-Turn Dialogue:
+```
+[PBX Connects Call]
+Arif:   "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
+
+Tester: "English."
+
+Arif:   "Thank you for choosing English. May I please have your full name?"
+
+Tester: "Ruqaiya Al Balushi."
+
+Arif:   "Could you please provide your 4-digit employee ID?"
+
+Tester: "One zero zero eight."
+
+Arif:   "Thank you Ruqaiya Al Balushi, you are verified for priority support. How can I assist you today?"
+
+Tester: "My microphone in Microsoft Teams is not working during calls."
+
+Arif:   "Umm, I understand how frustrating that is. Let's troubleshoot that together right now. Step 1: In Microsoft Teams, click Settings, go to Devices, and make sure your corporate headset is selected as the primary Audio device rather than PC Mic. Did that resolve the issue for you?"
+
+Tester: "I checked it, headset is selected but still no sound."
+
+Arif:   "Got it, thanks for checking that. Let's move to Step 2: Open Windows Sound Settings, verify your microphone privacy permissions are turned on for Microsoft Teams, and test the microphone input level. Could you test that now?"
+
+Tester: "Permissions are on, but when I speak the bar does not move."
+
+Arif:   "Understood. Let's try Step 3: Unplug your headset USB cable, plug it into a different USB port on your laptop, and toggle Windows audio device off and back on. Did that resolve the issue for you?"
+
+Tester: "No, tried a different port and it is still not picking up my voice."
+
+Arif:   "Those 3-4 diagnostic steps did not resolve the issue. Shall I create a support ticket for you now so our IT support engineer can follow up with you directly?"
+
+Tester: "Yes please, create the ticket."
+
+Arif:   "Your IT ticket has been logged under reference number H D 2 0 2 6 0 0 1 5. Let me repeat that for your records: H D 2 0 2 6 0 0 1 5. Our IT support engineer will follow up with you directly. Is there anything else I can assist you with today?"
+
+Tester: "That is all, thank you."
+
+Arif:   "Thank you for calling National Finance IT Support. Goodbye."
+[Line Automatically Disconnects via close_call and AMI Hangup]
+```
+
+#### Verification & Expected Outputs:
+1. **Zero Turn Latency:** Immediate transition from Step 1 to Step 2 without awkward 10-17s dead air.
+2. **Explicit Consent Gate:** AI did not force ticket creation without asking; explicitly requested caller confirmation after 3-4 steps.
+3. **Support Engineer Recital:** Explicitly stated that an **IT support engineer** will follow up directly, recited ticket number digit-by-digit, and repeated it once for clarity.
+4. **Automated Line Disconnect:** Line drops cleanly when tester says "That is all, thank you".
+
+---
+
+### Scenario 16: Angry / Frustrated Caller De-escalation Protocol (Corporate Empathy & Expedited Escalation)
+*Tests tone awareness, polite corporate de-escalation, sincere apology, and urgent priority escalation for frustrated callers.*
+
+- **Caller Persona:** Mohammed Akheel (ID: `1002`, Phone: `+919000000001`, Standard)
+- **Target Issue:** VPN repeatedly disconnecting during urgent executive presentation (Caller is agitated and speaking in an upset tone)
+
+#### Turn-by-Turn Dialogue:
+```
+[Caller Verified]
+Tester: (Angry tone) "I am extremely furious! My VPN keeps disconnecting every 5 minutes and I have a critical presentation with the board in 10 minutes! This is totally unacceptable!"
+
+Arif:   "I completely understand how frustrating this issue is for you, and I sincerely apologize for the inconvenience. Let me take personal ownership of this right now to get it resolved for you as quickly as possible. Would you like me to guide you through a quick 30-second network reset, or should I immediately log an urgent high-priority ticket for our desktop engineering team to call you right now?"
+
+Tester: (Impatient) "No more troubleshooting! Get an engineer on my phone right away!"
+
+Arif:   "I understand your frustration completely. I have logged an urgent high-priority ticket for you under reference number H D 2 0 2 6 0 0 1 6. Let me repeat that for your records: H D 2 0 2 6 0 0 1 6. Our senior desktop engineering team will contact you immediately as a top priority. Is there anything else I can assist you with right now?"
+
+Tester: "No, that's it."
+
+Arif:   "Thank you for calling National Finance IT Support. Goodbye."
+[Line Automatically Disconnects via close_call and AMI Hangup]
+```
+
+#### Verification & Expected Outputs:
+1. **Demeanor & Empathy:** Zero defensiveness; sincere apology acknowledging urgency and frustration.
+2. **Priority Escalation:** Ticket created in Frappe Helpdesk with `priority: 3 high` and flagged with customer urgency notes.
+3. **Immediate Disconnect:** Call releases smoothly when tester indicates they are done.
+
+---
+
+### Scenario 17: Conversational Interruption & Barge-In without Awkward Fillers
+*Tests full-duplex server VAD barge-in responsiveness and verifies complete elimination of awkward conversational fillers like "Take your time" or "Whenever you're ready".*
+
+- **Caller Persona:** Haitham Al Sabahi (ID: `1003`, Phone: `+96890000003`, Standard)
+- **Target Issue:** Password expiry and domain login lock
+
+#### Turn-by-Turn Dialogue:
+```
+[Caller Verified]
+Arif:   "Let's troubleshoot your login issue. First, please ensure your Caps Lock key is turned off, and verify that..."
+
+Tester: [Interrupts mid-sentence] "Wait, I already checked Caps Lock and rebooted twice! It explicitly says 'Your domain password has expired'."
+
+Arif:   [Instantly stops speaking on interruption, zero filler phrase]
+Arif:   "Understood. Since your domain password has expired, you can reset it self-service by pressing Ctrl+Alt+Delete and selecting 'Change a password', or using the National Finance self-service portal at sspr.nationalfinance.om. Did that resolve the issue for you?"
+```
+
+#### Verification & Expected Outputs:
+1. **Audio Socket Pacing:** Audio immediately halts on caller speech detection with `clear_outbound_queue()`.
+2. **Anti-Filler Guardrail:** Arif does **NOT** say *"Take your time"*, *"Whenever you're ready"*, or *"Sure thing"*. Directly addresses the expired password fact without delay.
+
+---
+
+### Scenario 18: Telephony Call Disconnect on Wrap-Up / Declining Further Assistance
+*Tests mandatory call teardown when caller declines further help, verifying zero token waste and zero idle channel hold.*
+
+- **Caller Persona:** Mohammed Akheel (ID: `1002`)
+- **Target Issue:** General IT inquiry or resolved ticket
+
+#### Turn-by-Turn Dialogue:
+```
+Arif:   "...Is there anything else I can help you with today?"
+
+Tester: "No, that's all. Thank you." (or "Nothing else", "I'm good", "لا شكراً مع السلامة")
+
+Arif:   "Thank you for calling National Finance IT Support. Goodbye."
+[PBX AudioSocket sends 0x00 Hangup frame and AMI executes Action: Hangup on SIP channel]
+```
+
+#### Verification & Expected Outputs:
+1. **Channel Status:** Asterisk CLI confirms `Channel SIP/... has been hung up`.
+2. **Dashboard Status:** Active Calls table updates to 0 within seconds.
+3. **Billing & Tokens:** Realtime WebSocket closes immediately, halting OpenAI token consumption.
 
 ---
 
