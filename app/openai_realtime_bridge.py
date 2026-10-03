@@ -851,7 +851,34 @@ TOOLS = [
 
 _SYSTEM_PROMPT_CACHE = None
 _SYSTEM_PROMPT_CACHE_TIME = 0
-_SYSTEM_PROMPT_CACHE_TTL = 60.0
+_SYSTEM_PROMPT_CACHE_TTL = 5.0
+
+_GREETING_CACHE = None
+_GREETING_CACHE_TIME = 0
+_GREETING_CACHE_TTL = 5.0
+DEFAULT_GREETING = "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
+
+def get_active_greeting():
+    global _GREETING_CACHE, _GREETING_CACHE_TIME
+    now = time.time()
+    if _GREETING_CACHE is not None and (now - _GREETING_CACHE_TIME < _GREETING_CACHE_TTL):
+        return _GREETING_CACHE
+
+    try:
+        conn = app_db.get_db()
+        row = conn.execute("SELECT value FROM settings WHERE key='ai_greeting'").fetchone()
+        conn.close()
+        if row and row["value"]:
+            _GREETING_CACHE = row["value"].strip()
+            _GREETING_CACHE_TIME = now
+            return _GREETING_CACHE
+    except Exception as e:
+        print(f"[GREETING CACHE] DB Error: {e}")
+
+    _GREETING_CACHE = DEFAULT_GREETING
+    _GREETING_CACHE_TIME = now
+    return _GREETING_CACHE
+
 
 def get_active_system_prompt():
     global _SYSTEM_PROMPT_CACHE, _SYSTEM_PROMPT_CACHE_TIME
@@ -870,7 +897,7 @@ def get_active_system_prompt():
     except Exception as e:
         print(f"[PROMPT CACHE] DB Error: {e}")
 
-    # Fallback to hardcoded prompt if DB fails
+    # Fallback to hardcoded prompt if DB fails or empty
     _SYSTEM_PROMPT_CACHE = SYSTEM_PROMPT
     _SYSTEM_PROMPT_CACHE_TIME = now
     return _SYSTEM_PROMPT_CACHE
@@ -958,13 +985,11 @@ async def connect_openai():
     except Exception as e:
         print(f"[OPENAI] Notice on session.update: {e}")
 
-    # 4. Trigger initial bilingual greeting audio
+    # 4. Trigger initial bilingual greeting audio (dynamically synced from settings)
+    initial_greeting = get_active_greeting()
     await send_response(
         ws,
-        (
-            "Say exactly this and nothing else: "
-            "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
-        ),
+        f"Say exactly this and nothing else: {initial_greeting}",
     )
 
     return ws

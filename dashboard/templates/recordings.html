@@ -23,10 +23,10 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Recording File</th>
+                        <th>Recording Name</th>
                         <th>Caller ID</th>
                         <th>Size</th>
-                        <th style="min-width: 280px;">Audio Playback</th>
+                        <th style="min-width: 320px;">Audio Playback & Download</th>
                         <th style="min-width: 320px;">Quality Assurance Review</th>
                     </tr>
                 </thead>
@@ -34,16 +34,22 @@
                     {% for f in files %}
                     <tr>
                         <td>
-                            <div style="font-weight:600;">{{ f.name }}</div>
+                            <div style="font-weight:700; color:var(--nf-navy); font-size:0.875rem;">{{ f.display_name }}</div>
                             <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">{{ f.created_at_human }}</div>
                         </td>
                         <td><strong>{{ f.caller }}</strong></td>
                         <td><code>{{ f.size_mb }} MB</code></td>
                         <td>
-                            <audio controls style="width: 100%; height: 38px;">
-                                <source src="/recordings/play?file={{ f.name_encoded }}" type="audio/wav">
-                                Audio unsupported
-                            </audio>
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <audio controls style="width: 100%; height: 36px; min-width: 180px;">
+                                    <source src="/recordings/play?file={{ f.name_encoded }}" type="audio/wav">
+                                    Audio unsupported
+                                </audio>
+                                <a href="/recordings/play?file={{ f.name_encoded }}&download=1" download="{{ f.download_filename }}" class="btn btn-outline btn-sm" title="Save {{ f.download_filename }}" style="display:inline-flex; align-items:center; gap:0.25rem; white-space:nowrap; padding: 0.35rem 0.6rem;">
+                                    <i data-lucide="download" style="width:14px; height:14px;"></i>
+                                    <span>Save</span>
+                                </a>
+                            </div>
                         </td>
                         <td>
                             <form method="post" action="/quality/review" style="display:flex; flex-direction:column; gap:0.5rem;">

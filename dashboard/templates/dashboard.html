@@ -143,50 +143,17 @@
     </div>
 </div>
 
-<!-- Secondary Analytics & Architecture Status -->
-<div class="charts-grid-2" style="grid-template-columns: 1.5fr 1fr;">
-    <div class="card">
-        <div class="card-header">
-            <div class="card-header-title">
-                <h3 class="card-title">Telephony Queue Distribution</h3>
-                <p class="card-description">Multi-queue routing telemetry across support tiers</p>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="chart-container" style="min-height: 240px;">
-                <canvas id="queueDistChart"></canvas>
-            </div>
+<!-- Telephony Queue Distribution -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <div class="card-header-title">
+            <h3 class="card-title">Telephony Queue Distribution</h3>
+            <p class="card-description">Multi-queue routing telemetry across support tiers</p>
         </div>
     </div>
-
-    <div class="card">
-        <div class="card-header">
-            <div class="card-header-title">
-                <h3 class="card-title">Operational Architecture</h3>
-                <p class="card-description">High-availability deployment telemetry</p>
-            </div>
-        </div>
-        <div class="card-body" style="font-size: 0.8125rem; display:flex; flex-direction:column; gap:0.85rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
-                <span style="color:hsl(var(--muted-foreground));">Voice Media Engine:</span>
-                <span class="badge badge-success">G.711 u-law / Full-Duplex</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
-                <span style="color:hsl(var(--muted-foreground));">Database Core:</span>
-                <span class="badge badge-default">Enterprise Connection Pool</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
-                <span style="color:hsl(var(--muted-foreground));">IT Helpdesk Integration:</span>
-                <span class="badge badge-default">REST API Synchronized</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid hsl(var(--border)); padding-bottom:0.5rem;">
-                <span style="color:hsl(var(--muted-foreground));">Manager Approval Workflow:</span>
-                <span class="badge badge-warning">Hardware Requests Enforced</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="color:hsl(var(--muted-foreground));">AI Anti-Hallucination:</span>
-                <span class="badge badge-success">Deterministic Verification Gate</span>
-            </div>
+    <div class="card-body">
+        <div class="chart-container" style="min-height: 240px;">
+            <canvas id="queueDistChart"></canvas>
         </div>
     </div>
 </div>

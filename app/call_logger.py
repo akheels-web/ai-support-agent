@@ -1,5 +1,7 @@
 import os
+import re
 import time
+from datetime import datetime
 from pathlib import Path
 import app.db as db
 
@@ -128,7 +130,7 @@ def close_call(call_id, status="completed", summary=None, transcript=None):
     conn = db.get_db()
     try:
         row = conn.execute(
-            "SELECT start_time FROM calls WHERE call_id=?",
+            "SELECT start_time, verified_name, employee_id, caller_number FROM calls WHERE call_id=?",
             (call_id,)
         ).fetchone()
 
@@ -137,6 +139,35 @@ def close_call(call_id, status="completed", summary=None, transcript=None):
 
         if row and row.get("start_time"):
             duration_seconds = end_time - int(row["start_time"])
+
+        # Format and save recording by name: username_time_day_year.wav
+        if recording_file and Path(recording_file).exists():
+            try:
+                rec_path = Path(recording_file)
+                raw_user = None
+                if row:
+                    raw_user = row.get("verified_name") or row.get("employee_id") or row.get("caller_number")
+                if not raw_user:
+                    raw_user = caller_number or "caller"
+
+                clean_user = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', str(raw_user)).strip('_')
+                if not clean_user:
+                    clean_user = "caller"
+
+                st = int(row["start_time"]) if (row and row.get("start_time")) else end_time
+                dt = datetime.fromtimestamp(st)
+                time_str = dt.strftime("%H-%M-%S")
+                day_str = dt.strftime("%A")
+                year_str = dt.strftime("%Y")
+                new_filename = f"{clean_user}_{time_str}_{day_str}_{year_str}.wav"
+                new_path = rec_path.parent / new_filename
+
+                if new_path != rec_path:
+                    time.sleep(0.2)
+                    rec_path.rename(new_path)
+                    recording_file = str(new_path)
+            except Exception as ren_err:
+                print(f"[RECORDING RENAME] Notice: {ren_err}")
 
         conn.execute(
             """

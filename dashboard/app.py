@@ -489,23 +489,72 @@ def recording_files():
     if not base.exists():
         return []
 
+    # Pre-fetch call metadata to map recordings to verified names and caller identities
+    call_lookup = {}
+    try:
+        conn = db()
+        rows = conn.execute("SELECT call_id, caller_number, employee_id, verified_name, recording_file, start_time FROM calls").fetchall()
+        conn.close()
+        for r in rows:
+            if r.get("recording_file"):
+                rec_basename = Path(r["recording_file"]).name
+                call_lookup[rec_basename] = r
+            if r.get("call_id"):
+                call_lookup[r["call_id"]] = r
+    except Exception:
+        pass
+
     files = []
     for file in sorted(base.glob("*.wav"), reverse=True):
         stat = file.stat()
-        caller = "Unknown"
         stem = file.stem
-        if "_" in stem:
-            parts = stem.split("_")
-            if len(parts) >= 3:
-                caller = parts[2]
+        caller = "Unknown"
+        username = None
+
+        # Check call lookup
+        matched_call = call_lookup.get(file.name)
+        if not matched_call:
+            for key, val in call_lookup.items():
+                if len(str(key)) > 8 and str(key) in stem:
+                    matched_call = val
+                    break
+
+        if matched_call:
+            username = matched_call.get("verified_name") or matched_call.get("employee_id") or matched_call.get("caller_number")
+            caller = matched_call.get("caller_number") or matched_call.get("employee_id") or "Unknown"
+
+        parts = stem.split("_")
+        if not username:
+            if len(parts) >= 4 and len(parts[-1]) == 4 and parts[-1].isdigit():
+                username = "_".join(parts[:-3])
+            elif "_" in stem:
+                if len(parts) >= 3:
+                    caller = parts[2]
+            else:
+                dash_parts = stem.split("-")
+                if len(dash_parts) >= 4:
+                    caller = dash_parts[-2]
+
+        if not username:
+            username = caller if caller != "Unknown" else "caller"
+
+        # Format display name: username_time_day_year (WITHOUT file extension)
+        clean_user = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', str(username)).strip('_')
+        dt = datetime.fromtimestamp(stat.st_mtime)
+        time_str = dt.strftime("%H-%M-%S")
+        day_str = dt.strftime("%A")
+        year_str = dt.strftime("%Y")
+
+        if stem.startswith(f"{clean_user}_") and stem.endswith(f"_{year_str}"):
+            display_name = stem
         else:
-            parts = stem.split("-")
-            if len(parts) >= 4:
-                caller = parts[-2]
+            display_name = f"{clean_user}_{time_str}_{day_str}_{year_str}"
 
         files.append(
             {
                 "name": file.name,
+                "display_name": display_name,
+                "download_filename": f"{display_name}.wav",
                 "name_encoded": quote(file.name),
                 "path": str(file),
                 "caller": caller,
@@ -1215,13 +1264,31 @@ def recordings(request: Request):
 
 
 @app.get("/recordings/play")
-def play_recording(request: Request, file: str):
+def play_recording(request: Request, file: str, download: Optional[int] = 0):
     user = require_roles(request, ["admin", "quality_reviewer"])
     safe_name = Path(file).name
     full_path = Path(RECORDING_DIR) / safe_name
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="Recording not found")
     audit(user["username"], "play_recording", "recording", safe_name)
+
+    if download or request.query_params.get("download") == "1":
+        # Resolve clean download filename: username_time_day_year.wav
+        stem = Path(safe_name).stem
+        dt = datetime.fromtimestamp(full_path.stat().st_mtime)
+        year_str = dt.strftime("%Y")
+        dl_filename = f"{stem}.wav"
+        if not (stem.endswith(f"_{year_str}")):
+            time_str = dt.strftime("%H-%M-%S")
+            day_str = dt.strftime("%A")
+            dl_filename = f"{stem}_{time_str}_{day_str}_{year_str}.wav"
+        return FileResponse(
+            path=str(full_path),
+            media_type="audio/wav",
+            filename=dl_filename,
+            content_disposition_type="attachment"
+        )
+
     return FileResponse(path=str(full_path), media_type="audio/wav", filename=safe_name)
 
 
@@ -2111,8 +2178,18 @@ def prompts_page(request: Request):
             "created_at_human": human_time(r["created_at"]),
         })
 
+    from app.openai_realtime_bridge import SYSTEM_PROMPT, DEFAULT_GREETING
     current_greeting = get_setting("ai_greeting", "")
+    if not current_greeting:
+        current_greeting = DEFAULT_GREETING
+
     current_prompt = get_setting("system_prompt", "")
+    if not current_prompt:
+        current_prompt = SYSTEM_PROMPT.strip()
+
+    saved = request.query_params.get("saved")
+    activated = request.query_params.get("activated")
+    reset_applied = request.query_params.get("reset")
 
     return render_template(
         request, "prompts.html",
@@ -2123,6 +2200,9 @@ def prompts_page(request: Request):
             "rows": rows,
             "current_greeting": current_greeting,
             "current_prompt": current_prompt,
+            "saved": saved,
+            "activated": activated,
+            "reset_applied": reset_applied,
         }
     )
 
@@ -2133,19 +2213,35 @@ def add_prompt_version(
     name: str = Form(...),
     greeting: str = Form(...),
     system_prompt: str = Form(...),
+    deploy_now: str = Form("1"),
     csrf_token: str = Form(...),
 ):
     validate_csrf(request, csrf_token)
     user = require_roles(request, ["admin"])
+    is_deploy = (str(deploy_now).strip() == "1")
+
     conn = db()
-    conn.execute(
-        "INSERT INTO prompt_versions(name, greeting, system_prompt, active, created_by, created_at) VALUES (?, ?, ?, 0, ?, ?)",
-        (name, greeting, system_prompt, user["username"], int(time.time())),
-    )
-    conn.commit()
-    conn.close()
-    audit(user["username"], "add_prompt_version", "prompt", name)
-    return RedirectResponse("/prompts", status_code=302)
+    if is_deploy:
+        conn.execute("UPDATE prompt_versions SET active=0")
+        conn.execute(
+            "INSERT INTO prompt_versions(name, greeting, system_prompt, active, created_by, created_at) VALUES (?, ?, ?, 1, ?, ?)",
+            (name, greeting.strip(), system_prompt.strip(), user["username"], int(time.time())),
+        )
+        save_setting(conn, "ai_greeting", greeting.strip())
+        save_setting(conn, "system_prompt", system_prompt.strip())
+        conn.commit()
+        conn.close()
+        audit(user["username"], "deploy_prompt_version", "prompt", f"{name} (Active Live)")
+    else:
+        conn.execute(
+            "INSERT INTO prompt_versions(name, greeting, system_prompt, active, created_by, created_at) VALUES (?, ?, ?, 0, ?, ?)",
+            (name, greeting.strip(), system_prompt.strip(), user["username"], int(time.time())),
+        )
+        conn.commit()
+        conn.close()
+        audit(user["username"], "add_prompt_draft", "prompt", name)
+
+    return RedirectResponse("/prompts?saved=1", status_code=302)
 
 
 @app.post("/prompts/activate")
@@ -2164,6 +2260,27 @@ def activate_prompt(request: Request, prompt_id: int = Form(...), csrf_token: st
     save_setting(conn, "system_prompt", row["system_prompt"])
     conn.commit()
     conn.close()
+    audit(user["username"], "activate_prompt_version", "prompt", f"Version {prompt_id}: {row['name']}")
+    return RedirectResponse("/prompts?activated=1", status_code=302)
+
+
+@app.post("/prompts/reset")
+def reset_prompt_defaults(request: Request, csrf_token: str = Form(...)):
+    validate_csrf(request, csrf_token)
+    user = require_roles(request, ["admin"])
+    from app.openai_realtime_bridge import SYSTEM_PROMPT, DEFAULT_GREETING
+    conn = db()
+    conn.execute("UPDATE prompt_versions SET active=0")
+    conn.execute(
+        "INSERT INTO prompt_versions(name, greeting, system_prompt, active, created_by, created_at) VALUES (?, ?, ?, 1, ?, ?)",
+        ("Factory Default (Production Sync)", DEFAULT_GREETING, SYSTEM_PROMPT.strip(), user["username"], int(time.time())),
+    )
+    save_setting(conn, "ai_greeting", DEFAULT_GREETING)
+    save_setting(conn, "system_prompt", SYSTEM_PROMPT.strip())
+    conn.commit()
+    conn.close()
+    audit(user["username"], "reset_prompt_defaults", "prompt", "Factory Default")
+    return RedirectResponse("/prompts?reset=1", status_code=302)
 # -----------------------------------------------------------------------------
 # Knowledge Base Management & Playbook Repository
 # -----------------------------------------------------------------------------

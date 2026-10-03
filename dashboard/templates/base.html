@@ -45,9 +45,10 @@
     }
     .sidebar-brand-meta {
         display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        padding: 0 0.15rem !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 0.25rem !important;
+        padding: 0.35rem 0.2rem 0 !important;
     }
     .sidebar-ops-badge {
         display: inline-flex !important;
@@ -55,13 +56,17 @@
         gap: 0.35rem !important;
         font-size: 0.6875rem !important;
         font-weight: 700 !important;
-        letter-spacing: 0.05em !important;
+        letter-spacing: 0.04em !important;
         text-transform: uppercase !important;
         color: #1B2F6B !important;
         background: rgba(27, 47, 107, 0.08) !important;
-        padding: 0.15rem 0.45rem !important;
+        padding: 0.15rem 0.5rem !important;
         border-radius: 4px !important;
         text-decoration: none !important;
+        max-width: 100% !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
     }
     .dark .sidebar-ops-badge {
         color: #93C5FD !important;
@@ -73,13 +78,16 @@
         border-radius: 50% !important;
         background: #10B981 !important;
         box-shadow: 0 0 6px rgba(16, 185, 129, 0.6) !important;
+        flex-shrink: 0 !important;
     }
     .sidebar-voice-tag {
         font-size: 0.6875rem !important;
-        font-weight: 600 !important;
+        font-weight: 500 !important;
         color: #64748B !important;
         letter-spacing: 0.01em !important;
         text-decoration: none !important;
+        padding-left: 0.2rem !important;
+        white-space: nowrap !important;
     }
 
     /* Profile Dropdown Component */
