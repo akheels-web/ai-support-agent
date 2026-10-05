@@ -706,3 +706,55 @@ Expected output:
    ```bash
    cd /opt/ai-support-agent && git add knowledge_base/ data/users.csv && git commit -m "Auto-backup $(date +%F)" && git push origin main
    ```
+
+---
+
+## 8. Storage, Log Retention (2 Days) & Memory Optimization Policy
+
+### 8.1 2-Day Log Retention Configuration
+To prevent disk exhaustion and optimize memory/cache, log retention is locked to **2 days** across both VMs:
+
+* **Systemd Journald (`/etc/systemd/journald.conf.d/10-log-retention.conf`)**:
+  ```ini
+  [Journal]
+  SystemMaxUse=500M
+  SystemMaxFileSize=50M
+  MaxRetentionSec=2day
+  MaxFileSec=1day
+  ```
+* **Logrotate Service (`logrotate.timer`)**:
+  - Runs daily via systemd timer.
+  - Rotates Nginx (`/var/log/nginx/*.log`), Asterisk (`/var/log/asterisk/*.log`), PostgreSQL (`/var/log/postgresql/*.log`), and application logs with `daily`, `rotate 2`, `compress`, and `delaycompress`.
+
+### 8.2 Docker Container Logs & Automated Pruning (VM 2)
+* **Container Log Caps (`/etc/docker/daemon.json`)**:
+  ```json
+  {
+    "log-driver": "json-file",
+    "log-opts": {
+      "max-size": "20m",
+      "max-file": "2"
+    },
+    "live-restore": true
+  }
+  ```
+  Prevents container logs from exceeding 40MB per container.
+* **Automated Docker Prune Maintenance (`docker-prune.timer`)**:
+  - Runs daily at 03:15 AM via systemd timer.
+  - Automatically executes `/usr/local/bin/docker-prune.sh` to prune stopped containers, dangling images, build caches, and unused networks older than 48 hours (`until=48h`).
+  - Safely protects database volumes (`frappe-helpdesk_mariadb-data`). Logs activity to `/var/log/docker-prune.log`.
+
+### 8.3 Kernel & Memory Performance Tuning (`/etc/sysctl.d/99-nationalfinance-optimizations.conf`)
+Applied across both production VMs:
+```ini
+vm.swappiness = 10
+vm.vfs_cache_pressure = 50
+vm.dirty_background_ratio = 5
+vm.dirty_ratio = 10
+net.core.somaxconn = 4096
+net.ipv4.tcp_max_syn_backlog = 4096
+```
+* **`vm.swappiness = 10`**: Prevents premature memory swapping to disk, protecting real-time voice latency.
+* **`vm.vfs_cache_pressure = 50`**: Retains directory/inode cache in RAM for fast I/O on Asterisk call audio and Helpdesk Python modules.
+* **`net.core.somaxconn = 4096`**: Prevents dropped connections under peak call volume.
+
