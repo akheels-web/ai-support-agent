@@ -282,7 +282,8 @@ def test_ad_connection(custom_config: Optional[Dict[str, Any]] = None) -> Dict[s
         )
 
         # Open socket and bind
-        if not conn.open():
+        conn.open()
+        if conn.closed:
             return {
                 "success": False,
                 "error_code": "SOCKET_OPEN_FAILED",
@@ -413,7 +414,8 @@ def sync_active_directory(
         receive_timeout=15,
     )
 
-    if not conn.open():
+    conn.open()
+    if conn.closed:
         raise RuntimeError(f"Could not establish network connection to Active Directory ({clean_host}:{cfg['port']})")
 
     if cfg["use_starttls"]:
