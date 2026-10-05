@@ -74,7 +74,7 @@ def resolve_queue_target(queue_type: str = "standard", extension: str = None) ->
     queue_type = (queue_type or "standard").strip().lower()
     if queue_type in ("executive", "ceo", "cfo", "p0_executive", "vip", "p1_vip", "l2"):
         return QUEUE_EXECUTIVE
-    elif queue_type in ("emergency", "critical", "outage"):
+    elif queue_type in ("emergency", "critical", "p1", "outage"):
         return QUEUE_EMERGENCY
     return QUEUE_STANDARD
 
@@ -83,7 +83,7 @@ def resolve_queue_name(queue_type: str = "standard") -> str:
     queue_type = (queue_type or "standard").strip().lower()
     if queue_type in ("executive", "ceo", "cfo", "p0_executive", "vip", "p1_vip", "l2", QUEUE_EXECUTIVE, "920", "7002"):
         return QUEUE_NAME_EXECUTIVE
-    elif queue_type in ("emergency", "critical", "outage", QUEUE_EMERGENCY, "7003"):
+    elif queue_type in ("emergency", "critical", "p1", "outage", QUEUE_EMERGENCY, "7003"):
         return QUEUE_NAME_EMERGENCY
     return QUEUE_NAME_STANDARD
 
