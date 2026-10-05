@@ -2166,65 +2166,9 @@ async def api_ad_sync_now(request: Request):
 # Prompt Version History
 # -----------------------------------------------------------------------------
 
-@app.get("/prompts", response_class=HTMLResponse)
+@app.get("/prompts")
 def prompts_page(request: Request):
-    user = require_roles(request, ["admin"])
-    from app.openai_realtime_bridge import SYSTEM_PROMPT, DEFAULT_GREETING
-    conn = db()
-
-    current_greeting = get_setting("ai_greeting", "")
-    if not current_greeting or "Hi, I am Arif" in current_greeting:
-        current_greeting = DEFAULT_GREETING
-        save_setting(conn, "ai_greeting", current_greeting)
-
-    current_prompt = get_setting("system_prompt", "")
-    if not current_prompt or len(current_prompt.strip()) < 300 or "You are Arif, an AI IT Support voice agent" in current_prompt:
-        current_prompt = SYSTEM_PROMPT.strip()
-        save_setting(conn, "system_prompt", current_prompt)
-
-    # Ensure an active version exists in prompt_versions
-    has_active = conn.execute("SELECT id FROM prompt_versions WHERE active=1").fetchone()
-    if not has_active:
-        conn.execute("UPDATE prompt_versions SET active=0")
-        conn.execute(
-            "INSERT INTO prompt_versions(name, greeting, system_prompt, active, created_by, created_at) VALUES (?, ?, ?, 1, 'system', ?)",
-            ("National Finance IT Support Core v3.0", current_greeting, current_prompt, int(time.time())),
-        )
-        conn.commit()
-
-    raw_rows = conn.execute("SELECT * FROM prompt_versions ORDER BY id DESC").fetchall()
-    conn.close()
-
-    rows = []
-    for r in raw_rows:
-        rows.append({
-            "id": r["id"],
-            "name": r["name"],
-            "greeting": r["greeting"],
-            "system_prompt": r["system_prompt"],
-            "active": r["active"],
-            "created_by": r["created_by"],
-            "created_at_human": human_time(r["created_at"]),
-        })
-
-    saved = request.query_params.get("saved")
-    activated = request.query_params.get("activated")
-    reset_applied = request.query_params.get("reset")
-
-    return render_template(
-        request, "prompts.html",
-        {
-            "title": "AI Prompts",
-            "active_page": "prompts",
-            "user": user,
-            "rows": rows,
-            "current_greeting": current_greeting,
-            "current_prompt": current_prompt,
-            "saved": saved,
-            "activated": activated,
-            "reset_applied": reset_applied,
-        }
-    )
+    return RedirectResponse("/settings", status_code=302)
 
 
 @app.post("/prompts/add")

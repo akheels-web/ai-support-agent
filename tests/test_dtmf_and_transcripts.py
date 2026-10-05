@@ -24,6 +24,12 @@ class TestDtmfAndTranscripts(unittest.TestCase):
         test_db = Path(os.environ["DB_PATH"])
         if test_db.exists():
             test_db.unlink()
+        try:
+            with db.get_db() as conn:
+                conn.execute("DELETE FROM calls WHERE call_id LIKE 'test_%'")
+                conn.commit()
+        except Exception:
+            pass
 
     def test_transcript_column_and_persistence(self):
         call_id = f"test_{int(time.time() * 1000)}"
