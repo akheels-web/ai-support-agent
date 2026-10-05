@@ -574,15 +574,30 @@ def sync_active_directory(
             "timestamp": now,
         }
 
-        db_conn.execute("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ad_last_sync_time', ?, ?)", (str(now), now))
-        db_conn.execute("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ad_last_sync_status', 'success', now)")
-        db_conn.execute("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ad_last_sync_stats', ?, ?)", (json.dumps(sync_stats), now))
+        for k, v in [
+            ("ad_last_sync_time", str(now)),
+            ("ad_last_sync_status", "success"),
+            ("ad_last_sync_stats", json.dumps(sync_stats)),
+        ]:
+            db_conn.execute(
+                """
+                INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+                """,
+                (k, v, now),
+            )
         db_conn.commit()
 
     except Exception as exc:
         db_conn.rollback()
         try:
-            db_conn.execute("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('ad_last_sync_status', 'failed', ?)", (now,))
+            db_conn.execute(
+                """
+                INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+                """,
+                ("ad_last_sync_status", "failed", now),
+            )
             db_conn.commit()
         except Exception:
             pass
