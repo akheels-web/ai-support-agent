@@ -52,12 +52,18 @@ flowchart TD
 
 ---
 
-## 3. Network Ports & Firewall Rules
+## 3. Network Ports, DNS & Firewall Rules
 
-Assuming private network IPs:
-- **VM 1 (Voice Edge)**: `192.168.10.11`
-- **VM 2 (Core Helpdesk)**: `192.168.10.12`
-- **Active Directory DC**: `192.168.10.20` (or your internal DC IP)
+### 3.0 Internal Corporate DNS Configuration
+The internal DNS entries for the environment are:
+- **Operations Dashboard**: `nfitdashboard.nfc.co.om` → points to **VM 1** (`10.1.120.165`)
+- **Helpdesk Ticketing System**: `nfticketing.nfc.co.om` → points to **VM 2** (`10.1.120.166`)
+
+Network IPs:
+- **VM 1 (Voice Edge & Dashboard)**: `10.1.120.165`
+- **VM 2 (Core Helpdesk & Database)**: `10.1.120.166`
+- **Active Directory DC**: `130.5.1.202` (Base DN: `DC=nfc,DC=co,DC=om`)
+
 
 ### 3.1 Firewall on VM 1 (`192.168.10.11`)
 
@@ -401,7 +407,7 @@ OPENAI_REALTIME_MODEL="gpt-realtime"
 # Ticketing System: Pointing to VM 2 Frappe Helpdesk
 # -----------------------------------------------------------------------------
 TICKETING_SYSTEM="frappe"
-FRAPPE_URL="http://192.168.10.12:8000"
+FRAPPE_URL="http://nfticketing.nfc.co.om"  # Or http://10.1.120.166:8000
 FRAPPE_API_KEY="API_KEY_GENERATED_ON_VM2"
 FRAPPE_API_SECRET="API_SECRET_GENERATED_ON_VM2"
 FRAPPE_TICKET_DOCTYPE="HD Ticket"
