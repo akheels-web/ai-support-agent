@@ -124,7 +124,7 @@ async function initDashboardCharts() {
             deflectionDoughnutChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['AI First-Contact Resolved', 'Queue 7001 (L1 Support)', 'Queue 7002 (VIP Concierge)', 'Queue 7003 (Emergency Sev-1)', 'Ticket Logged'],
+                    labels: ['AI First-Contact Resolved', 'NF L1 IT Support (919)', 'L2 IT Support VIP (920)', 'Emergency Sev-1 (920)', 'Ticket Logged'],
                     datasets: [{
                         data: chartData.deflection_breakdown || [0, 0, 0, 0, 0],
                         backgroundColor: ['#10B981', '#2B4A9F', '#F59E0B', '#C8102E', '#6B7280'],
@@ -165,7 +165,7 @@ async function initDashboardCharts() {
             queueDistChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['L1 IT Queue 7001', 'VIP Concierge 7002', 'Emergency Sev-1 7003'],
+                    labels: ['NF L1 IT Support (919)', 'L2 IT Support VIP (920)', 'Emergency Sev-1 (920)'],
                     datasets: [{
                         label: 'Interactions Routed',
                         data: chartData.queue_distribution || [0, 0, 0],

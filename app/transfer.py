@@ -17,10 +17,10 @@ ASTERISK_AMI_TLS_VERIFY = os.getenv("ASTERISK_AMI_TLS_VERIFY", "true").lower() i
 TRANSFER_CONTEXT = os.getenv("ASTERISK_TRANSFER_CONTEXT", "from-internal")
 TRANSFER_PRIORITY = os.getenv("ASTERISK_TRANSFER_PRIORITY", "1")
 
-# Multi-queue targets (Extensions)
-QUEUE_STANDARD = os.getenv("ASTERISK_QUEUE_STANDARD", os.getenv("ASTERISK_AGENT_EXTENSION", "7001"))
-QUEUE_EXECUTIVE = os.getenv("ASTERISK_QUEUE_EXECUTIVE", "7002")
-QUEUE_EMERGENCY = os.getenv("ASTERISK_QUEUE_EMERGENCY", "7003")
+# Multi-queue targets (Webex Calling: NF L1 IT Support -> 919, L2 IT Support VIP -> 920)
+QUEUE_STANDARD = os.getenv("ASTERISK_QUEUE_STANDARD", os.getenv("ASTERISK_AGENT_EXTENSION", "919"))
+QUEUE_EXECUTIVE = os.getenv("ASTERISK_QUEUE_EXECUTIVE", "920")
+QUEUE_EMERGENCY = os.getenv("ASTERISK_QUEUE_EMERGENCY", "920")
 
 # Multi-queue names (Asterisk queues.conf)
 QUEUE_NAME_STANDARD = os.getenv("ASTERISK_QUEUE_NAME_STANDARD", "it-support")
@@ -72,18 +72,18 @@ def resolve_queue_target(queue_type: str = "standard", extension: str = None) ->
         return extension
 
     queue_type = (queue_type or "standard").strip().lower()
-    if queue_type in ("executive", "ceo", "cfo", "p0_executive"):
+    if queue_type in ("executive", "ceo", "cfo", "p0_executive", "vip", "p1_vip", "l2"):
         return QUEUE_EXECUTIVE
-    elif queue_type in ("emergency", "critical", "p1", "outage"):
+    elif queue_type in ("emergency", "critical", "outage"):
         return QUEUE_EMERGENCY
     return QUEUE_STANDARD
 
 
 def resolve_queue_name(queue_type: str = "standard") -> str:
     queue_type = (queue_type or "standard").strip().lower()
-    if queue_type in ("executive", "ceo", "cfo", "p0_executive", QUEUE_EXECUTIVE):
+    if queue_type in ("executive", "ceo", "cfo", "p0_executive", "vip", "p1_vip", "l2", QUEUE_EXECUTIVE, "920", "7002"):
         return QUEUE_NAME_EXECUTIVE
-    elif queue_type in ("emergency", "critical", "p1", "outage", QUEUE_EMERGENCY):
+    elif queue_type in ("emergency", "critical", "outage", QUEUE_EMERGENCY, "7003"):
         return QUEUE_NAME_EMERGENCY
     return QUEUE_NAME_STANDARD
 

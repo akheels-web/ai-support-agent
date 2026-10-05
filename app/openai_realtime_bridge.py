@@ -745,7 +745,7 @@ TOOLS = [
                 "queue_type": {
                     "type": "string",
                     "enum": ["standard", "executive", "emergency"],
-                    "description": "Routing target: standard (7001), executive (7002), or emergency (7003)"
+                    "description": "Routing target: standard (NF L1 IT Support - Ext 919), executive (L2 IT Support VIP - Ext 920), or emergency (Ext 920)"
                 },
             },
             "required": ["reason"],
@@ -1222,7 +1222,7 @@ async def handle_single_call(asterisk_ws):
         if ticket:
             summary_parts.append(f"Ticket: {ticket}")
         if state.get("transferred"):
-            summary_parts.append(f"Transferred: Queue {state.get('transfer_target', '7001')}")
+            summary_parts.append(f"Transferred: Queue {state.get('transfer_target', ASTERISK_QUEUE_STANDARD)}")
         return " | ".join(summary_parts)
 
     def ensure_ticket_logged(close_status="completed"):
@@ -2186,7 +2186,7 @@ async def handle_single_call(asterisk_ws):
                         ),
                     }
 
-                if state.get("is_executive") or state.get("tier") == "P0_EXECUTIVE":
+                if state.get("is_executive") or state.get("is_vip") or state.get("tier") in ("P0_EXECUTIVE", "P1_VIP"):
                     queue_type = "executive"
 
                 channel = state.get("asterisk_channel")
@@ -2223,7 +2223,12 @@ async def handle_single_call(asterisk_ws):
                         "fallback_action": "offer_callback",
                     }
 
-                target_extension = ASTERISK_QUEUE_EXECUTIVE if queue_type == "executive" else ASTERISK_QUEUE_STANDARD
+                if queue_type in ("executive", "vip"):
+                    target_extension = ASTERISK_QUEUE_EXECUTIVE
+                elif queue_type == "emergency":
+                    target_extension = ASTERISK_QUEUE_EMERGENCY
+                else:
+                    target_extension = ASTERISK_QUEUE_STANDARD
                 print(f"[TRANSFER] Transferring {channel} to {queue_type} ({target_extension}). Reason={reason}")
 
                 verified_user = state.get("verified_user") or {}

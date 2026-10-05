@@ -18,12 +18,24 @@ class TestQueueAvailability(unittest.TestCase):
     def test_queue_name_resolution(self):
         self.assertEqual(resolve_queue_name("standard"), QUEUE_NAME_STANDARD)
         self.assertEqual(resolve_queue_name("7001"), QUEUE_NAME_STANDARD)
+        self.assertEqual(resolve_queue_name("919"), QUEUE_NAME_STANDARD)
         self.assertEqual(resolve_queue_name("executive"), QUEUE_NAME_EXECUTIVE)
+        self.assertEqual(resolve_queue_name("vip"), QUEUE_NAME_EXECUTIVE)
         self.assertEqual(resolve_queue_name("ceo"), QUEUE_NAME_EXECUTIVE)
         self.assertEqual(resolve_queue_name("7002"), QUEUE_NAME_EXECUTIVE)
+        self.assertEqual(resolve_queue_name("920"), QUEUE_NAME_EXECUTIVE)
         self.assertEqual(resolve_queue_name("emergency"), QUEUE_NAME_EMERGENCY)
         self.assertEqual(resolve_queue_name("critical"), QUEUE_NAME_EMERGENCY)
         self.assertEqual(resolve_queue_name("7003"), QUEUE_NAME_EMERGENCY)
+
+    def test_queue_target_resolution(self):
+        self.assertEqual(resolve_queue_target("standard"), QUEUE_STANDARD)
+        self.assertEqual(resolve_queue_target("executive"), QUEUE_EXECUTIVE)
+        self.assertEqual(resolve_queue_target("vip"), QUEUE_EXECUTIVE)
+        self.assertEqual(resolve_queue_target("p1_vip"), QUEUE_EXECUTIVE)
+        self.assertEqual(resolve_queue_target("p0_executive"), QUEUE_EXECUTIVE)
+        self.assertEqual(resolve_queue_target("emergency"), QUEUE_EMERGENCY)
+        self.assertEqual(resolve_queue_target("custom", extension="999"), "999")
 
     def test_emergency_always_available(self):
         # Emergency queues must fail open / always allow transfer

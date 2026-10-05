@@ -61,10 +61,10 @@ DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 DB_POOL_MIN = _int_env("DB_POOL_MIN", 2, min_value=1, max_value=50)
 DB_POOL_MAX = _int_env("DB_POOL_MAX", 20, min_value=2, max_value=200)
 
-# Telephony & Escalation Queues
-ASTERISK_QUEUE_STANDARD = os.getenv("ASTERISK_QUEUE_STANDARD", os.getenv("ASTERISK_AGENT_EXTENSION", "7001"))
-ASTERISK_QUEUE_EXECUTIVE = os.getenv("ASTERISK_QUEUE_EXECUTIVE", "7002")
-ASTERISK_QUEUE_EMERGENCY = os.getenv("ASTERISK_QUEUE_EMERGENCY", "7003")
+# Telephony & Escalation Queues (Webex Calling: NF L1 IT Support -> 919, L2 IT Support VIP -> 920)
+ASTERISK_QUEUE_STANDARD = os.getenv("ASTERISK_QUEUE_STANDARD", os.getenv("ASTERISK_AGENT_EXTENSION", "919"))
+ASTERISK_QUEUE_EXECUTIVE = os.getenv("ASTERISK_QUEUE_EXECUTIVE", "920")
+ASTERISK_QUEUE_EMERGENCY = os.getenv("ASTERISK_QUEUE_EMERGENCY", "920")
 
 # Asterisk ARI Configuration
 ASTERISK_ARI_URL = os.getenv("ASTERISK_ARI_URL", "http://127.0.0.1:8088").rstrip("/")
