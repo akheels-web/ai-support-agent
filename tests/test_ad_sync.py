@@ -1,6 +1,12 @@
 import unittest
 import time
-from app.ad_sync import parse_user_account_control, get_effective_ad_config, test_ad_connection
+from app.ad_sync import (
+    parse_user_account_control,
+    get_effective_ad_config,
+    test_ad_connection,
+    normalize_bind_dn,
+    explain_ad_error,
+)
 import app.db as db
 from app.verify import verify_user, clear_cache
 
@@ -133,8 +139,41 @@ class TestActiveDirectorySync(unittest.TestCase):
         with db.get_db() as conn:
             conn.execute("DELETE FROM callers WHERE employee_id = ?", (emp_id,))
             conn.commit()
-        clear_cache()
+    def test_normalize_bind_dn(self):
+        """Test Active Directory bind DN normalization for user formats."""
+        base_dn = "DC=nfc,DC=co,DC=om"
+
+        # Trailing slash with bare username
+        self.assertEqual(normalize_bind_dn("ai.agent/", base_dn), "ai.agent@nfc.co.om")
+        # Bare username without slash
+        self.assertEqual(normalize_bind_dn("ai.agent", base_dn), "ai.agent@nfc.co.om")
+        # Whitespace handling
+        self.assertEqual(normalize_bind_dn("  ai.agent/  ", base_dn), "ai.agent@nfc.co.om")
+        # Already UPN format
+        self.assertEqual(normalize_bind_dn("ai.agent@nfc.co.om", base_dn), "ai.agent@nfc.co.om")
+        # NetBIOS domain\user
+        self.assertEqual(normalize_bind_dn("NFC\\ai.agent", base_dn), "NFC\\ai.agent")
+        # Full distinguished name
+        self.assertEqual(normalize_bind_dn("CN=ai.agent,DC=nfc,DC=co,DC=om", base_dn), "CN=ai.agent,DC=nfc,DC=co,DC=om")
+        # Empty input
+        self.assertEqual(normalize_bind_dn(""), "")
+        self.assertEqual(normalize_bind_dn(None), "")
+
+    def test_explain_ad_error(self):
+        """Test translation of AD LDAP error codes."""
+        # data 773: Password must change
+        msg_773 = "80090308: LdapErr: DSID-0C0904AE, comment: AcceptSecurityContext error, data 773, v3839"
+        explained_773 = explain_ad_error(msg_773)
+        self.assertIn("data 773", explained_773)
+        self.assertIn("User must change password at next logon", explained_773)
+
+        # data 52e: Bad credentials
+        msg_52e = "80090308: LdapErr: DSID-0C0904AE, comment: AcceptSecurityContext error, data 52e, v3839"
+        explained_52e = explain_ad_error(msg_52e)
+        self.assertIn("data 52e", explained_52e)
+        self.assertIn("Invalid Credentials", explained_52e)
 
 
 if __name__ == "__main__":
     unittest.main()
+

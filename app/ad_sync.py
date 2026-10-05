@@ -97,6 +97,77 @@ def parse_user_account_control(uac_value: Optional[int]) -> Dict[str, Any]:
 
 
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# Active Directory Helpers: Bind Normalization & Error Code Translator
+# -----------------------------------------------------------------------------
+
+def normalize_bind_dn(bind_dn: Optional[str], base_dn: str = "") -> str:
+    """
+    Normalizes Active Directory bind username or DN.
+    Handles inputs like:
+      - 'ai.agent/' -> 'ai.agent@nfc.co.om' (when base_dn is DC=nfc,DC=co,DC=om)
+      - 'ai.agent'  -> 'ai.agent@nfc.co.om'
+      - 'nfc\\ai.agent' -> remains 'nfc\\ai.agent'
+      - 'ai.agent@nfc.co.om' -> remains 'ai.agent@nfc.co.om'
+      - 'CN=ai.agent,DC=nfc,DC=co,DC=om' -> remains DN
+    """
+    if not bind_dn:
+        return ""
+    clean = str(bind_dn).strip().rstrip("/")
+    if not clean:
+        return ""
+    if "@" in clean or "\\" in clean or "=" in clean:
+        return clean
+
+    # If simple username without domain, derive UPN suffix from base_dn
+    if base_dn:
+        dc_parts = re.findall(r"DC=([^,]+)", base_dn, re.IGNORECASE)
+        if dc_parts:
+            domain = ".".join(dc_parts)
+            return f"{clean}@{domain}"
+
+    return clean
+
+
+def explain_ad_error(raw_message: str) -> str:
+    """
+    Translates cryptic Active Directory LDAP / AcceptSecurityContext error codes into actionable advice.
+    """
+    if not raw_message:
+        return ""
+
+    match = re.search(r"data\s+([0-9a-fA-F]+)", raw_message)
+    if match:
+        code = match.group(1).lower()
+        if code == "773":
+            return (
+                "AD Account Policy Restriction (data 773): 'User must change password at next logon' is ENABLED "
+                "on this service account in Active Directory. Active Directory blocks non-interactive LDAP binds until this requirement is removed. "
+                "Action Required: In Active Directory Users and Computers (ADUC) on the Domain Controller, "
+                "open service account properties -> Account tab -> UNCHECK 'User must change password at next logon' "
+                "and CHECK 'Password never expires'."
+            )
+        elif code == "52e":
+            return (
+                "Invalid Credentials or Format (data 52e): The username or password was rejected by the Domain Controller. "
+                "Ensure the account name uses UPN format (e.g. ai.agent@nfc.co.om) or NetBIOS (NFC\\ai.agent), "
+                "and verify the service account password."
+            )
+        elif code == "532":
+            return "Password Expired (data 532): The password for this Active Directory service account has expired."
+        elif code == "533":
+            return "Account Disabled (data 533): The service account is disabled in Active Directory."
+        elif code == "701":
+            return "Account Expired (data 701): The service account has expired in Active Directory."
+        elif code == "775":
+            return "Account Locked Out (data 775): The service account has been locked out due to multiple failed logon attempts."
+        elif code == "525":
+            return "User Not Found (data 525): The specified user account does not exist in Active Directory."
+
+    return raw_message
+
+
+# -----------------------------------------------------------------------------
 # Configuration Resolver
 # -----------------------------------------------------------------------------
 
@@ -117,8 +188,12 @@ def get_effective_ad_config(override: Optional[Dict[str, Any]] = None) -> Dict[s
         conn.close()
 
     def _val(key: str, env_val: Any, default_val: Any) -> Any:
-        if override and key in override and override[key] is not None:
-            return override[key]
+        short_key = key.replace("ad_", "")
+        if override:
+            if key in override and override[key] is not None:
+                return override[key]
+            if short_key in override and override[short_key] is not None:
+                return override[short_key]
         if key in db_settings and db_settings[key] != "":
             val = db_settings[key]
             if isinstance(default_val, bool):
@@ -131,6 +206,10 @@ def get_effective_ad_config(override: Optional[Dict[str, Any]] = None) -> Dict[s
             return val
         return env_val if env_val is not None else default_val
 
+    raw_bind = _val("ad_bind_dn", config.AD_BIND_DN, "")
+    base_dn_val = _val("ad_base_dn", config.AD_BASE_DN, "DC=nationalfinance,DC=local")
+    normalized_bind = normalize_bind_dn(raw_bind, base_dn_val)
+
     return {
         "enabled": _val("ad_enabled", config.AD_ENABLED, False),
         "server": _val("ad_server", config.AD_SERVER, "ldaps://127.0.0.1"),
@@ -139,9 +218,10 @@ def get_effective_ad_config(override: Optional[Dict[str, Any]] = None) -> Dict[s
         "use_starttls": _val("ad_use_starttls", config.AD_USE_STARTTLS, False),
         "verify_cert": _val("ad_verify_cert", config.AD_VERIFY_CERT, False),
         "ca_cert_path": _val("ad_ca_cert_path", config.AD_CA_CERT_PATH, ""),
-        "bind_dn": _val("ad_bind_dn", config.AD_BIND_DN, ""),
+        "bind_dn": normalized_bind,
+        "raw_bind_dn": raw_bind,
         "password": _val("ad_password", config.AD_PASSWORD, ""),
-        "base_dn": _val("ad_base_dn", config.AD_BASE_DN, "DC=nationalfinance,DC=local"),
+        "base_dn": base_dn_val,
         "search_filter": _val("ad_search_filter", config.AD_SEARCH_FILTER, "(&(objectCategory=person)(objectClass=user))"),
         "page_size": _val("ad_page_size", config.AD_PAGE_SIZE, 500),
         "sync_interval_minutes": _val("ad_sync_interval_minutes", config.AD_SYNC_INTERVAL_MINUTES, 30),
@@ -214,10 +294,16 @@ def test_ad_connection(custom_config: Optional[Dict[str, Any]] = None) -> Dict[s
             conn.start_tls()
 
         if not conn.bind():
+            err_desc = conn.result.get("description") or "invalidCredentials"
+            err_msg = conn.result.get("message") or ""
+            full_raw = f"{err_desc} - {err_msg}".strip(" -")
+            ad_explanation = explain_ad_error(full_raw)
             return {
                 "success": False,
                 "error_code": "BIND_FAILED",
-                "message": f"Active Directory authentication failed for service account '{cfg['bind_dn']}': {conn.result.get('description')}",
+                "message": f"Active Directory authentication failed for service account '{cfg['bind_dn']}': {ad_explanation if ad_explanation != full_raw else full_raw}",
+                "ad_details": ad_explanation,
+                "raw_result": conn.result,
                 "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
             }
 
@@ -256,15 +342,17 @@ def test_ad_connection(custom_config: Optional[Dict[str, Any]] = None) -> Dict[s
         return {
             "success": False,
             "error_code": "CONNECTION_TIMEOUT",
-            "message": f"Network timeout connecting to Domain Controller at {clean_host}:{cfg['port']}. Verify firewall and port 636.",
+            "message": f"Network timeout connecting to Domain Controller at {clean_host}:{cfg['port']}. Verify firewall and port {cfg['port']}.",
             "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
             "details": str(exc),
         }
     except LDAPBindError as exc:
+        ad_explanation = explain_ad_error(str(exc))
         return {
             "success": False,
             "error_code": "INVALID_CREDENTIALS",
-            "message": f"Invalid service account credentials for '{cfg['bind_dn']}'.",
+            "message": f"Invalid service account credentials for '{cfg['bind_dn']}': {ad_explanation if ad_explanation != str(exc) else str(exc)}",
+            "ad_details": ad_explanation,
             "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
             "details": str(exc),
         }
@@ -332,7 +420,11 @@ def sync_active_directory(
         conn.start_tls()
 
     if not conn.bind():
-        raise RuntimeError(f"Failed to authenticate with Active Directory: {conn.result.get('description')}")
+        err_desc = conn.result.get("description") or "invalidCredentials"
+        err_msg = conn.result.get("message") or ""
+        full_raw = f"{err_desc} - {err_msg}".strip(" -")
+        ad_explanation = explain_ad_error(full_raw)
+        raise RuntimeError(f"Failed to authenticate with Active Directory for '{cfg['bind_dn']}': {ad_explanation if ad_explanation != full_raw else full_raw}")
 
     search_attributes = [
         "sAMAccountName", "employeeID", "employeeNumber",
