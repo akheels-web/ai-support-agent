@@ -37,6 +37,7 @@ class TestQueueAvailability(unittest.TestCase):
         self.assertEqual(resolve_queue_target("emergency"), QUEUE_EMERGENCY)
         self.assertEqual(resolve_queue_target("custom", extension="999"), "999")
 
+    @patch("app.transfer.ENFORCE_QUEUE_CAPACITY", True)
     def test_emergency_always_available(self):
         # Emergency queues must fail open / always allow transfer
         res = check_queue_availability("emergency")
@@ -46,12 +47,20 @@ class TestQueueAvailability(unittest.TestCase):
         res2 = check_queue_availability("critical")
         self.assertTrue(res2.get("available"))
 
+    @patch("app.transfer.ENFORCE_QUEUE_CAPACITY", False)
+    def test_capacity_enforcement_disabled_returns_true(self):
+        res = check_queue_availability("standard")
+        self.assertTrue(res.get("available"))
+        self.assertEqual(res.get("reason"), "capacity_enforcement_disabled")
+
+    @patch("app.transfer.ENFORCE_QUEUE_CAPACITY", True)
     @patch("app.transfer.ASTERISK_AMI_USER", "")
     def test_fallback_when_credentials_not_configured(self):
         res = check_queue_availability("standard")
         self.assertTrue(res.get("available"))
         self.assertEqual(res.get("reason"), "ami_not_configured_fallback")
 
+    @patch("app.transfer.ENFORCE_QUEUE_CAPACITY", True)
     @patch("app.transfer._ami_connect")
     @patch("app.transfer.ASTERISK_AMI_USER", "admin")
     @patch("app.transfer.ASTERISK_AMI_SECRET", "secret")
@@ -70,6 +79,7 @@ class TestQueueAvailability(unittest.TestCase):
         self.assertEqual(res["available_agents"], 2)
         self.assertEqual(res["reason"], "agents_available")
 
+    @patch("app.transfer.ENFORCE_QUEUE_CAPACITY", True)
     @patch("app.transfer._ami_connect")
     @patch("app.transfer.ASTERISK_AMI_USER", "admin")
     @patch("app.transfer.ASTERISK_AMI_SECRET", "secret")
