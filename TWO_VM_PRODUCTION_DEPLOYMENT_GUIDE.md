@@ -269,30 +269,75 @@ exten => 7000,1,Answer()
  same => n,Hangup()
 
 ; -----------------------------------------------------------------------------
-; Escalation Queues (AMI Redirect Targets with Priority Screen-Pop)
+; Escalation Routes -> Cisco Webex Calling Queues (919 & 920)
 ; -----------------------------------------------------------------------------
-; Standard L1 IT Support Queue
-exten => 7001,1,Answer()
- same => n,Set(JITTERBUFFER(adaptive)=default)
- same => n,Queue(it-support,t,,,300)
+; NF L1 IT Support (Extension 919) - Normal / Standard Users
+exten => 919,1,NoOp(AI Agent transferring to NF L1 IT Support Queue 919: ${AI_CALLER_NAME})
+ same => n,Set(CALLERID(name)=IT: ${AI_CALLER_NAME})
+ same => n,Set(CALLERID(num)=+96821130485)
+ same => n,Set(PJSIP_HEADER(add,X-Employee-ID)=${AI_EMPLOYEE_ID})
+ same => n,Set(PJSIP_HEADER(add,X-Ticket-Ref)=${AI_TICKET_NUMBER})
+ ; Attempt SIP REFER native deflection first
+ same => n,Transfer(sip:919@10.1.180.22)
+ same => n,NoOp(SIP Transfer result: ${TRANSFERSTATUS})
+ same => n,GotoIf($["${TRANSFERSTATUS}" = "SUCCESS"]?transfer_done)
+ ; Fallback to direct Dial (ringing tone instead of music on hold)
+ same => n,NoOp(SIP REFER was ${TRANSFERSTATUS}, attempting direct Dial fallback...)
+ same => n,Dial(PJSIP/919@siptrunk,15,tTr)
+ same => n,NoOp(Dial status: ${DIALSTATUS})
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?transfer_done)
  same => n,Hangup()
+ same => n(transfer_done),Hangup()
 
-; Executive & VIP Concierge Queue (CEO, CFO, C-Suite)
-exten => 7002,1,Answer()
- same => n,Set(JITTERBUFFER(adaptive)=default)
- same => n,Queue(it-vip-exec,t,,,60)
+; L2 IT Support (Extension 920) - VIP / Executive Users
+exten => 920,1,NoOp(AI Agent transferring to L2 IT Support VIP Queue 920: ${AI_CALLER_NAME})
+ same => n,Set(CALLERID(name)=VIP: ${AI_CALLER_NAME})
+ same => n,Set(CALLERID(num)=+96821130485)
+ same => n,Set(PJSIP_HEADER(add,X-Employee-ID)=${AI_EMPLOYEE_ID})
+ same => n,Set(PJSIP_HEADER(add,X-VIP-Priority)=${AI_TIER})
+ same => n,Set(PJSIP_HEADER(add,X-Ticket-Ref)=${AI_TICKET_NUMBER})
+ ; Attempt SIP REFER native deflection first
+ same => n,Transfer(sip:920@10.1.180.22)
+ same => n,NoOp(SIP Transfer result: ${TRANSFERSTATUS})
+ same => n,GotoIf($["${TRANSFERSTATUS}" = "SUCCESS"]?transfer_done)
+ ; Fallback to direct Dial (ringing tone instead of music on hold)
+ same => n,NoOp(SIP REFER was ${TRANSFERSTATUS}, attempting direct Dial fallback...)
+ same => n,Dial(PJSIP/920@siptrunk,15,tTr)
+ same => n,NoOp(Dial status: ${DIALSTATUS})
+ same => n,GotoIf($["${DIALSTATUS}" = "ANSWER"]?transfer_done)
  same => n,Hangup()
+ same => n(transfer_done),Hangup()
 
-; Sev-1 Emergency & Outage Incident Response Queue
-exten => 7003,1,Answer()
- same => n,Set(JITTERBUFFER(adaptive)=default)
- same => n,Queue(it-emergency,t,,,30)
- same => n,Hangup()
+; Backward compatibility aliases
+exten => 7001,1,Goto(from-trunk,919,1)
+exten => 7002,1,Goto(from-trunk,920,1)
+exten => 7003,1,Goto(from-trunk,920,1)
 
 [sub-hangup]
 exten => s,1,NoOp(Call ended - recording cleanup)
  same => n,Return()
 ```
+
+#### A.1 Cisco Voice Gateway (CUBE 10.1.180.22) Configuration Checklist
+For calls to reach Webex Calling queues `919` and `920`, the telecom/network team must ensure the following on the Cisco Voice Gateway (`10.1.180.22`):
+1. **Firewall Bidirectional UDP 5060**: Network firewall between VM1 (`10.1.120.165`) and Voice Gateway (`10.1.180.22`) must permit UDP port 5060.
+2. **Cisco CUBE IP Trust List**:
+   ```cisco
+   voice service voip
+    ip address trusted list
+     ipv4 10.1.120.165 255.255.255.255
+   ```
+3. **Cisco CUBE SIP REFER Support**:
+   ```cisco
+   voice service voip
+    sip
+     supplementary-service sip refer
+     refer-to active
+   ```
+4. **Cisco CUBE Dial-Peers for 919 and 920**:
+   - Inbound dial-peer from Asterisk (`10.1.120.165`).
+   - Outbound dial-peers routing `destination-pattern 919` and `920` to Webex Calling.
+
 
 #### B. `/etc/asterisk/queues.conf`:
 ```ini
