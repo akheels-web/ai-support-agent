@@ -53,12 +53,12 @@
             <div class="form-group">
                 <label class="form-label">AI Voice Model</label>
                 <select name="ai_voice" class="select">
-                    <option value="ash" {% if (settings.ai_voice or 'ash') == 'ash' %}selected{% endif %}>Ash (Warm, Natural & Conversational - Recommended)</option>
+                    <option value="alloy" {% if (settings.ai_voice or 'alloy') == 'alloy' %}selected{% endif %}>Alloy (Young, Energetic & Crisp - Production Default)</option>
+                    <option value="ash" {% if settings.ai_voice == 'ash' %}selected{% endif %}>Ash (Warm, Conversational & Mature)</option>
                     <option value="ballad" {% if settings.ai_voice == 'ballad' %}selected{% endif %}>Ballad (Expressive & Melodic)</option>
                     <option value="coral" {% if settings.ai_voice == 'coral' %}selected{% endif %}>Coral (Bright & Friendly)</option>
                     <option value="sage" {% if settings.ai_voice == 'sage' %}selected{% endif %}>Sage (Calm & Authoritative)</option>
                     <option value="verse" {% if settings.ai_voice == 'verse' %}selected{% endif %}>Verse (Dynamic & Articulate)</option>
-                    <option value="alloy" {% if settings.ai_voice == 'alloy' %}selected{% endif %}>Alloy (Neutral & Balanced)</option>
                     <option value="echo" {% if settings.ai_voice == 'echo' %}selected{% endif %}>Echo (Clear & Direct)</option>
                     <option value="shimmer" {% if settings.ai_voice == 'shimmer' %}selected{% endif %}>Shimmer (Clear & Warm)</option>
                 </select>

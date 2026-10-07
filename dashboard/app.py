@@ -660,7 +660,7 @@ def init_db():
         "recording_retention_days": "30",
         "frappe_enabled": "true",
         "profile_icon_text": "NF",
-        "ai_voice": "ash",
+        "ai_voice": "alloy",
     }
 
     for key, value in default_settings.items():
