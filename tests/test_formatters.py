@@ -33,8 +33,8 @@ class TestTicketFormatters(unittest.TestCase):
         self.assertIn("Finance", desc)
         self.assertIn("+96890000003", desc)
 
-        self.assertIn("Issue & Severity", desc)
-        self.assertIn("Network & Connectivity", desc)
+        self.assertIn("Issue &amp; Severity", desc)
+        self.assertIn("Network &amp; Connectivity", desc)
         self.assertIn("High", desc)
 
         self.assertIn("Summary of Issue", desc)
