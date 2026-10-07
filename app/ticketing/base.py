@@ -18,6 +18,7 @@ class BaseTicketingProvider(ABC):
         caller_info: Optional[Dict[str, Any]] = None,
         custom_fields: Optional[Dict[str, Any]] = None,
         status: str = "Open",
+        comment: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a new ticket in the ticketing backend.
@@ -31,6 +32,7 @@ class BaseTicketingProvider(ABC):
             caller_info: Dict containing verified name, employee_id, phone, department, tier.
             custom_fields: Arbitrary backend-specific attributes (call_id, recording_file, etc.).
             status: Initial ticket status ('Open', 'Pending', 'Resolved', 'Closed').
+            comment: Optional initial comment/conversation log to append to the ticket.
 
         Returns:
             Dict containing:
@@ -40,6 +42,17 @@ class BaseTicketingProvider(ABC):
                 - raw: response dict from backend
         """
         pass
+
+    def add_comment(
+        self,
+        ticket_id: str,
+        content: str,
+        commented_by: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Add a comment or timeline entry to an existing ticket.
+        """
+        return {"success": False, "error": "Not implemented"}
 
     @abstractmethod
     def get_or_create_customer(

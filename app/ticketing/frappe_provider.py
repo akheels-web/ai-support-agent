@@ -125,17 +125,30 @@ class FrappeProvider(BaseTicketingProvider):
             return {"name": customer_display_name, "email_id": email, "first_name": customer_display_name}
 
     HARDWARE_KEYWORDS = {
-        "laptop", "desktop", "computer", "pc", "monitor", "screen", "keyboard",
+        "laptop", "desktop", "monitor", "screen", "keyboard",
         "mouse", "headset", "headphone", "dock", "docking", "charger", "adapter",
-        "printer", "toner", "scanner", "phone", "hardware", "device", "cables",
-        "replacement", "لوحة مفاتيح", "فأرة", "شاشة", "كمبيوتر", "شاحن", "طابعة"
+        "printer", "toner", "scanner", "cables", "webcam",
+        "لوحة مفاتيح", "فأرة", "شاشة", "كمبيوتر", "شاحن", "طابعة"
     }
 
     def _is_hardware_request(self, title: str, body: str, category: Optional[str]) -> bool:
         if category and "hardware" in category.lower():
             return True
+        # Strip phone numbers, call IDs, and metadata tags before checking
         combined = f"{title} {body}".lower()
-        return any(re.search(rf"\b{re.escape(kw)}\b", combined) for kw in self.HARDWARE_KEYWORDS)
+        combined = re.sub(r'phone:\s*[\+\d\s\-]+', '', combined)
+        combined = re.sub(r'call\s*id:\s*[\w\-]+', '', combined)
+        combined = re.sub(r'employee\s*id:\s*[\w\-]+', '', combined)
+
+        has_hw = any(re.search(rf"\b{re.escape(kw)}\b", combined) for kw in self.HARDWARE_KEYWORDS)
+        if has_hw:
+            # Must also indicate request, replacement, broken equipment, or order
+            has_action = any(re.search(rf"\b{re.escape(act)}\b", combined) for act in [
+                "broken", "damaged", "replacement", "replace", "new", "request", "issue", "faulty",
+                "repair", "defect", "order", "dispatch", "need", "طلب", "استبدال", "مكسور", "جديد"
+            ])
+            return has_action
+        return False
 
     def create_ticket(
         self,
@@ -147,6 +160,7 @@ class FrappeProvider(BaseTicketingProvider):
         caller_info: Optional[Dict[str, Any]] = None,
         custom_fields: Optional[Dict[str, Any]] = None,
         status: str = "Open",
+        comment: Optional[str] = None,
     ) -> Dict[str, Any]:
         if not customer_email:
             raise ValueError("customer_email is required")
@@ -185,17 +199,19 @@ class FrappeProvider(BaseTicketingProvider):
             approval_status = "Pending Manager Approval"
             category = category or "Hardware Request"
 
-            approval_header = (
-                "============================================================\n"
-                "[ACTION REQUIRED: DEPARTMENT MANAGER APPROVAL]\n"
-                "This hardware request was created via AI Support Agent (Arif).\n"
-                "In accordance with National Finance IT governance, physical\n"
-                "equipment dispatch requires Department Manager approval.\n"
-                f"Caller Department: {caller_info.get('department', 'General')}\n"
-                "Status: Pending Manager Approval\n"
-                "============================================================\n\n"
-            )
-            body = approval_header + body
+            # Only prepend plain-text ASCII banner if body is NOT structured HTML
+            if "<div" not in body and "<p" not in body and "<table" not in body:
+                approval_header = (
+                    "============================================================\n"
+                    "[ACTION REQUIRED: DEPARTMENT MANAGER APPROVAL]\n"
+                    "This hardware request was created via AI Support Agent (Arif).\n"
+                    "In accordance with National Finance IT governance, physical\n"
+                    "equipment dispatch requires Department Manager approval.\n"
+                    f"Caller Department: {caller_info.get('department', 'General')}\n"
+                    "Status: Pending Manager Approval\n"
+                    "============================================================\n\n"
+                )
+                body = approval_header + body
 
         # Map or normalize ticket_type to valid HD Ticket Type DocTypes:
         # Valid in Frappe Helpdesk: "Incident", "Service Request", "Question", "Bug", "Unspecified"
@@ -268,6 +284,14 @@ class FrappeProvider(BaseTicketingProvider):
             except Exception as upd_exc:
                 logger.warning(f"[FRAPPE] Could not update status to Resolved for {ticket_number}: {upd_exc}")
 
+        # Post initial call log comment/timeline entry if provided
+        if comment and ticket_id:
+            try:
+                self.add_comment(ticket_id=ticket_number, content=comment)
+                logger.info(f"[FRAPPE] Added call log comment to {self.ticket_doctype} {ticket_number}")
+            except Exception as comment_exc:
+                logger.warning(f"[FRAPPE] Could not add comment to {ticket_number}: {comment_exc}")
+
         logger.info(f"[FRAPPE] Created {self.ticket_doctype} {ticket_number} (status={ticket_status}, approval={approval_status})")
 
         return {
@@ -281,6 +305,46 @@ class FrappeProvider(BaseTicketingProvider):
             "approval_note": "Requires Department Manager approval in the IT Helpdesk before IT dispatch." if requires_approval else "",
             "raw": ticket_data,
         }
+
+    def add_comment(
+        self,
+        ticket_id: str,
+        content: str,
+        commented_by: Optional[str] = "Administrator",
+    ) -> Dict[str, Any]:
+        """
+        Add an activity comment / timeline entry to an HD Ticket or Issue in Frappe.
+        """
+        if not ticket_id or not content:
+            return {"success": False, "error": "ticket_id and content are required"}
+
+        # Try HD Ticket Comment first for Frappe Helpdesk
+        if self.ticket_doctype == "HD Ticket":
+            try:
+                payload = {
+                    "reference_ticket": str(ticket_id),
+                    "content": content,
+                }
+                resp = self._request("POST", "/api/resource/HD Ticket Comment", json=payload)
+                data = resp.json().get("data", {})
+                return {"success": True, "comment_id": data.get("name"), "data": data}
+            except Exception as exc:
+                logger.warning(f"[FRAPPE] HD Ticket Comment failed ({exc}). Falling back to Comment doctype.")
+
+        # Fallback to standard Frappe Comment doctype
+        try:
+            payload = {
+                "comment_type": "Comment",
+                "reference_doctype": self.ticket_doctype,
+                "reference_name": str(ticket_id),
+                "content": content,
+            }
+            resp = self._request("POST", "/api/resource/Comment", json=payload)
+            data = resp.json().get("data", {})
+            return {"success": True, "comment_id": data.get("name"), "data": data}
+        except Exception as exc:
+            logger.error(f"[FRAPPE] Failed to add comment to {ticket_id}: {exc}")
+            return {"success": False, "error": str(exc)}
 
     def lookup_assets(self, employee_id: str) -> List[Dict[str, Any]]:
         """

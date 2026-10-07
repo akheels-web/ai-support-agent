@@ -40,6 +40,7 @@ from app.call_logger import (
 from app.verify import verify_user, lookup_caller_by_phone
 from app.transfer import transfer_call, check_queue_availability, get_active_channel_info, hangup_channel
 from app.ticketing import get_ticketing_client
+from app.ticketing.formatters import format_ticket_description, format_ticket_comment
 import app.db as app_db
 
 CALLS_PER_NUMBER_LIMIT = int(os.getenv("CALLS_PER_NUMBER_LIMIT", "5"))
@@ -1230,17 +1231,42 @@ async def handle_single_call(asterisk_ws):
         - If resolved: status='Resolved', marked as deflected, closed under AI agent Arif.
         - If not resolved: status='Open', unassigned to team 'IT Support'.
         """
+        verified_user = state.get("verified_user") or {}
+        caller_name = verified_user.get("name") or state.get("caller_name") or f"Caller ({state.get('caller_phone', 'Direct')})"
+        caller_phone = verified_user.get("phone") or state.get("caller_phone", "")
+        employee_id = verified_user.get("employee_id") or state.get("employee_id", "")
+        department = verified_user.get("department", "General")
+        caller_email = verified_user.get("email") or f"caller_{state['call_id'][:8]}@nationalfinance.com"
+
+        outcome_label = (
+            "Resolved on Call (First-Contact Resolution)" if (state.get("resolution_recorded") or close_status == "resolved")
+            else f"Transferred to Queue {state.get('transfer_target', '919')}" if state.get("transferred")
+            else f"Concluded ({close_status})"
+        )
+
+        # 1. If ticket already exists, ensure the conversation transcript is posted as an HD Ticket Comment
         if state.get("ticket_created") or state.get("last_ticket_number"):
+            ticket_ref = str(state.get("last_ticket_number"))
+            if not state.get("call_log_comment_posted"):
+                state["call_log_comment_posted"] = True
+                try:
+                    ticket_comment = format_ticket_comment(
+                        call_id=state["call_id"],
+                        caller_phone=caller_phone,
+                        language=state.get("language", "English"),
+                        call_outcome=outcome_label,
+                        transfer_target=state.get("transfer_target"),
+                        transcript_lines=state.get("transcript_lines", []),
+                    )
+                    client = get_ticketing_client()
+                    client.add_comment(ticket_id=ticket_ref, content=ticket_comment)
+                    print(f"[AUTO-TICKET] Appended call conversation comment to ticket {ticket_ref}")
+                except Exception as c_exc:
+                    print(f"[AUTO-TICKET COMMENT ERROR] Could not append comment to {ticket_ref}: {c_exc!r}")
             return state.get("last_ticket_number")
 
+        # 2. No ticket was created during the call: Create clean ticket with description + comment
         try:
-            verified_user = state.get("verified_user") or {}
-            caller_name = verified_user.get("name") or state.get("caller_name") or f"Caller ({state.get('caller_phone', 'Direct')})"
-            caller_phone = verified_user.get("phone") or state.get("caller_phone", "")
-            employee_id = verified_user.get("employee_id") or state.get("employee_id", "")
-            department = verified_user.get("department", "General")
-            caller_email = verified_user.get("email") or f"caller_{state['call_id'][:8]}@nationalfinance.com"
-
             is_resolved = (
                 state.get("resolution_recorded")
                 or state.get("current_state") == "resolved"
@@ -1256,29 +1282,38 @@ async def handle_single_call(asterisk_ws):
             if len(ticket_title) > 80:
                 ticket_title = ticket_title[:77] + "..."
 
-            key_points = "\n".join([f"- {item['field']}: {item['value']}" for item in state.get("answers_received", [])[-10:]])
-            troubleshooting = "\n".join([f"- {step}" for step in state.get("troubleshooting_steps", [])[-10:]])
-            recent_transcript = "\n".join(state.get("transcript_lines", [])[-12:])
-
             resolution_note = (
                 "Issue resolved directly on call via AI Service Desk Agent Arif (First-Contact Resolution)."
                 if is_resolved else
-                "Call concluded without complete resolution on the voice channel. Status: Open (Unassigned) for IT Support Desk follow-up."
+                "Call concluded on voice channel. Status: Open (Unassigned) for IT Support Desk follow-up."
             )
 
-            ticket_body = (
-                f"Caller: {caller_name}\n"
-                f"Phone: {caller_phone if caller_phone else 'N/A'}\n"
-                f"Employee ID: {employee_id if employee_id else 'Unverified'}\n"
-                f"Department: {department}\n"
-                f"Call ID: {state['call_id']}\n"
-                f"Call Outcome: {close_status}\n\n"
-                f"Issue Summary:\n{summary_text}\n\n"
-                f"Key Details:\n{key_points if key_points else '- None'}\n\n"
-                f"Troubleshooting Steps Attempted:\n{troubleshooting if troubleshooting else '- None recorded on call'}\n\n"
-                f"Transcript Snippet:\n{recent_transcript if recent_transcript else '- No transcript available'}\n\n"
-                f"Agent: AI Voice Agent Arif\n"
-                f"Resolution / Action:\n{resolution_note}"
+            ticket_body = format_ticket_description(
+                caller_info={
+                    "name": caller_name,
+                    "phone": caller_phone,
+                    "employee_id": employee_id,
+                    "department": department,
+                    "tier": state.get("tier", "STANDARD"),
+                },
+                issue_category=issue_cat,
+                priority="Medium" if state.get("tier") == "STANDARD" else "High",
+                call_outcome=outcome_label,
+                summary_of_issue=summary_text,
+                key_details=state.get("answers_received", []),
+                troubleshooting_steps=state.get("troubleshooting_steps", []),
+                ai_resolution_note=resolution_note,
+                requires_approval=False,
+                is_emergency=False,
+            )
+
+            ticket_comment = format_ticket_comment(
+                call_id=state["call_id"],
+                caller_phone=caller_phone,
+                language=state.get("language", "English"),
+                call_outcome=outcome_label,
+                transfer_target=state.get("transfer_target"),
+                transcript_lines=state.get("transcript_lines", []),
             )
 
             client = get_ticketing_client()
@@ -1298,11 +1333,13 @@ async def handle_single_call(asterisk_ws):
                     "call_id": state["call_id"],
                 },
                 status=ticket_status,
+                comment=ticket_comment,
             )
             ticket_number = res.get("ticket_number")
             if ticket_number:
                 state["last_ticket_number"] = ticket_number
                 state["ticket_created"] = True
+                state["call_log_comment_posted"] = True
                 update_call(
                     state["call_id"],
                     ticket_number=ticket_number,
@@ -1749,17 +1786,30 @@ async def handle_single_call(asterisk_ws):
                 title = arguments.get("title", "IT Issue Resolved on Call")
                 resolution_summary = arguments.get("resolution_summary", "Issue resolved via AI diagnostics.")
 
-                customer_email = verified_user.get("email") or f"caller_{state['call_id']}@nationalfinance.com"
+                customer_email = verified_user.get("email") or f"caller_{state['call_id'][:8]}@nationalfinance.com"
 
-                client = get_ticketing_client()
-                ticket_body = (
-                    f"Caller: {verified_user.get('name', 'Direct Caller')}\n"
-                    f"Employee ID: {verified_user.get('employee_id', 'N/A')}\n"
-                    f"Department: {verified_user.get('department', 'N/A')}\n\n"
-                    f"Resolution Summary:\n{resolution_summary}\n\n"
-                    f"Status: Resolved on Call by AI Agent Arif (First-Contact Resolution)"
+                ticket_body = format_ticket_description(
+                    caller_info=verified_user,
+                    issue_category=state.get("issue_category", "Resolved on Call"),
+                    priority="Low",
+                    call_outcome="Resolved on Call (First-Contact Resolution)",
+                    summary_of_issue=state.get("issue_summary") or resolution_summary,
+                    key_details=state.get("answers_received", []),
+                    troubleshooting_steps=state.get("troubleshooting_steps", []),
+                    ai_resolution_note=f"First-contact resolution achieved on call. Resolution details: {resolution_summary}",
+                    requires_approval=False,
+                    is_emergency=False,
                 )
 
+                ticket_comment = format_ticket_comment(
+                    call_id=state["call_id"],
+                    caller_phone=verified_user.get("phone", state.get("caller_phone", "N/A")),
+                    language=state.get("language", "English"),
+                    call_outcome="Resolved on Call (First-Contact Resolution)",
+                    transcript_lines=state.get("transcript_lines", []),
+                )
+
+                client = get_ticketing_client()
                 result = await asyncio.to_thread(
                     client.create_ticket,
                     customer_email=customer_email,
@@ -1770,11 +1820,13 @@ async def handle_single_call(asterisk_ws):
                     caller_info=verified_user,
                     custom_fields={"call_id": state["call_id"]},
                     status="Resolved",
+                    comment=ticket_comment,
                 )
 
                 ticket_number = result.get("ticket_number")
                 state["resolution_recorded"] = True
                 state["last_ticket_number"] = ticket_number
+                state["call_log_comment_posted"] = True
 
                 update_call(
                     state["call_id"],
@@ -1847,16 +1899,18 @@ async def handle_single_call(asterisk_ws):
                     }
 
                 # 5. Hardware Detection & Manager Approval Flag
-                hardware_keywords = {
-                    "laptop", "desktop", "computer", "pc", "monitor", "screen", "keyboard",
+                hardware_items = {
+                    "laptop", "desktop", "monitor", "screen", "keyboard",
                     "mouse", "headset", "headphone", "dock", "docking", "charger", "adapter",
-                    "printer", "toner", "scanner", "phone", "hardware", "device", "cables",
-                    "replacement", "new laptop", "لوحة مفاتيح", "فأرة", "شاشة", "كمبيوتر", "شاحن", "طابعة"
+                    "printer", "toner", "scanner", "cables", "webcam",
+                    "لوحة مفاتيح", "فأرة", "شاشة", "كمبيوتر", "شاحن", "طابعة"
                 }
-                is_hardware = (
-                    group == "Hardware Request"
-                    or any(kw in combined_text for kw in hardware_keywords)
-                )
+                has_hw_item = any(kw in combined_text for kw in hardware_items)
+                has_hw_action = any(act in combined_text for act in [
+                    "request", "replacement", "replace", "new", "broken", "damaged", "faulty",
+                    "repair", "defect", "order", "dispatch", "need", "طلب", "استبدال", "مكسور", "جديد"
+                ])
+                is_hardware = (group == "Hardware Request") or (has_hw_item and has_hw_action)
                 if is_hardware:
                     group = "Hardware Request"
 
@@ -1879,25 +1933,32 @@ async def handle_single_call(asterisk_ws):
                         )
                     }
 
-                customer_email = verified_user.get("email") or f"caller_{state['call_id']}@nationalfinance.com"
+                customer_email = verified_user.get("email") or f"caller_{state['call_id'][:8]}@nationalfinance.com"
 
                 if state.get("is_vip") or state.get("tier") in ("P0_EXECUTIVE", "P1_VIP"):
                     priority = "3 high"
 
                 client = get_ticketing_client()
 
-                key_points = "\n".join([f"- {item['field']}: {item['value']}" for item in state["answers_received"][-10:]])
-                troubleshooting = "\n".join([f"- {step}" for step in state["troubleshooting_steps"][-10:]])
+                ticket_body = format_ticket_description(
+                    caller_info=verified_user,
+                    issue_category=group or state.get("issue_category", "IT Support"),
+                    priority=priority,
+                    call_outcome="Logged for IT Support Desk Follow-up",
+                    summary_of_issue=description,
+                    key_details=state.get("answers_received", []),
+                    troubleshooting_steps=state.get("troubleshooting_steps", []),
+                    ai_resolution_note="Diagnostic steps performed on call. Caller confirmed ticket logging. Ticket queued for IT Support assignment.",
+                    requires_approval=is_hardware,
+                    is_emergency=False,
+                )
 
-                ticket_body = (
-                    f"Caller: {verified_user.get('name', 'Caller')}\n"
-                    f"Employee ID: {verified_user.get('employee_id', 'N/A')}\n"
-                    f"Department: {verified_user.get('department', 'N/A')}\n"
-                    f"Tier: {state.get('tier', 'STANDARD')}\n\n"
-                    f"Issue Summary:\n{description}\n\n"
-                    f"Key Points Collected:\n{key_points if key_points else '- None'}\n\n"
-                    f"Troubleshooting / Questions:\n{troubleshooting if troubleshooting else '- None'}\n\n"
-                    f"Created by: AI Voice Agent Arif"
+                ticket_comment = format_ticket_comment(
+                    call_id=state["call_id"],
+                    caller_phone=verified_user.get("phone", state.get("caller_phone", "N/A")),
+                    language=state.get("language", "English"),
+                    call_outcome="Ticket Created",
+                    transcript_lines=state.get("transcript_lines", []),
                 )
 
                 try:
@@ -1914,12 +1975,14 @@ async def handle_single_call(asterisk_ws):
                             "requires_approval": is_hardware,
                         },
                         status="Open",
+                        comment=ticket_comment,
                     )
 
                     ticket_number = result.get("ticket_number")
                     if ticket_number:
                         state["last_ticket_number"] = ticket_number
                         state["ticket_created"] = True
+                        state["call_log_comment_posted"] = True
                         state["current_state"] = "wrap_up"
 
                         ticket_status = result.get("status", "Open")
@@ -1979,21 +2042,50 @@ async def handle_single_call(asterisk_ws):
 
                 # 1. Create emergency P1 ticket in Frappe immediately
                 verified_user = state.get("verified_user") or {}
-                customer_email = verified_user.get("email") or f"emergency_{state['call_id']}@nationalfinance.com"
+                customer_email = verified_user.get("email") or f"emergency_{state['call_id'][:8]}@nationalfinance.com"
                 client = get_ticketing_client()
 
+                ticket_body = format_ticket_description(
+                    caller_info=verified_user,
+                    issue_category="Critical Infrastructure Outage",
+                    priority="Urgent",
+                    call_outcome="Escalated to Emergency On-Call Engineering",
+                    summary_of_issue=incident_summary,
+                    impact="Critical Sev-1 / High Severity Incident",
+                    key_details=state.get("answers_received", []),
+                    troubleshooting_steps=state.get("troubleshooting_steps", []),
+                    ai_resolution_note=f"Emergency escalation triggered: {reason}. Routed immediately to emergency queue.",
+                    requires_approval=False,
+                    is_emergency=True,
+                )
+
+                ticket_comment = format_ticket_comment(
+                    call_id=state["call_id"],
+                    caller_phone=state.get("caller_number", "N/A"),
+                    language=state.get("language", "English"),
+                    call_outcome=f"Emergency Escalation ({reason})",
+                    transfer_target="Emergency Queue (920)",
+                    transcript_lines=state.get("transcript_lines", []),
+                )
+
                 try:
-                    await asyncio.to_thread(
+                    res_em = await asyncio.to_thread(
                         client.create_ticket,
                         customer_email=customer_email,
                         title=f"🚨 EMERGENCY / OUTAGE: {reason}",
-                        body=f"CRITICAL SEV-1 INCIDENT REPORTED VIA VOICE CALL:\n\n{incident_summary}\n\nCaller: {verified_user.get('name', 'Anonymous')}\nPhone: {state.get('caller_number')}",
+                        body=ticket_body,
                         priority="urgent",
                         category="Critical Incident",
                         caller_info=verified_user,
                         custom_fields={"call_id": state["call_id"]},
                         status="Open",
+                        comment=ticket_comment,
                     )
+                    t_num = res_em.get("ticket_number")
+                    if t_num:
+                        state["last_ticket_number"] = t_num
+                        state["ticket_created"] = True
+                        state["call_log_comment_posted"] = True
                 except Exception as e:
                     print(f"[EMERGENCY TICKET ERROR] {e}")
 
@@ -2042,20 +2134,29 @@ async def handle_single_call(asterisk_ws):
                 pref_time = arguments.get("preferred_time", "ASAP")
                 notes = arguments.get("notes") or state.get("issue_summary") or "Caller requested callback"
 
-                customer_email = verified_user.get("email") or f"callback_{state['call_id']}@nationalfinance.com"
+                customer_email = verified_user.get("email") or f"callback_{state['call_id'][:8]}@nationalfinance.com"
                 client = get_ticketing_client()
 
                 ticket_title = f"📞 Callback Request: {verified_user.get('name', 'Caller')} ({pref_time})"
-                ticket_body = (
-                    f"SCHEDULED CALLBACK REQUEST:\n\n"
-                    f"Caller: {verified_user.get('name', 'Unverified Caller')}\n"
-                    f"Employee ID: {verified_user.get('employee_id', state.get('employee_id', 'N/A'))}\n"
-                    f"Department: {verified_user.get('department', 'N/A')}\n"
-                    f"Tier: {state.get('tier', 'STANDARD')}\n"
-                    f"Callback Phone Number: {callback_phone}\n"
-                    f"Preferred Time: {pref_time}\n"
-                    f"Issue / Reason: {notes}\n\n"
-                    f"Status: Scheduled Callback Request via Voice Agent Arif"
+                ticket_body = format_ticket_description(
+                    caller_info=verified_user,
+                    issue_category="Scheduled Callback Request",
+                    priority="Medium" if state.get("tier") == "STANDARD" else "High",
+                    call_outcome=f"Callback Scheduled ({pref_time})",
+                    summary_of_issue=f"Caller requested phone callback. Contact Number: {callback_phone}. Preferred Time: {pref_time}. Notes: {notes}",
+                    key_details=state.get("answers_received", []),
+                    troubleshooting_steps=state.get("troubleshooting_steps", []),
+                    ai_resolution_note=f"Scheduled callback recorded for {pref_time}. IT Support engineer to call back at {callback_phone}.",
+                    requires_approval=False,
+                    is_emergency=False,
+                )
+
+                ticket_comment = format_ticket_comment(
+                    call_id=state["call_id"],
+                    caller_phone=callback_phone,
+                    language=state.get("language", "English"),
+                    call_outcome=f"Callback Scheduled ({pref_time})",
+                    transcript_lines=state.get("transcript_lines", []),
                 )
 
                 try:
@@ -2073,11 +2174,13 @@ async def handle_single_call(asterisk_ws):
                             "preferred_time": pref_time,
                         },
                         status="Open",
+                        comment=ticket_comment,
                     )
                     ticket_number = result.get("ticket_number")
                     if ticket_number:
                         state["last_ticket_number"] = ticket_number
                         state["ticket_created"] = True
+                        state["call_log_comment_posted"] = True
                         state["current_state"] = "wrap_up"
 
                         update_call(
