@@ -101,7 +101,32 @@ This document outlines upcoming strategic enhancements and future feature phases
   3. **Prompt Injection**: The retrieved history is injected as a "Context Summary" block directly into the OpenAI Realtime API `session.update` system prompt.
   4. **Proactive Assistance**: Arif uses this injected data to greet the user contextually: *"Hi [Name], I see you called yesterday about Outlook (Ticket HD-2026-0012). Did that get resolved, or are you calling about something else?"*
 
+### Phase 13: LiveKit WebRTC Realtime Stack & Multi-Channel Voice Expansion (Evaluated Architecture)
+- **Objective**: Extend AI Support Agent "Arif" beyond traditional PSTN/telephony desk phones into browser-based and mobile omni-channel environments using the open-source [LiveKit WebRTC Stack](https://github.com/livekit/livekit).
+- **Architectural Motivation**:
+  - The current production architecture uses Asterisk PBX + custom TCP AudioSocket streaming (`app/openai_realtime_bridge.py`), which is optimized for standard telecom desk phones over Cisco CUBE.
+  - LiveKit introduces a modern, distributed WebRTC SFU and the `livekit-agents` framework, opening up high-fidelity digital channels and modular AI orchestration.
+- **Key Capabilities & Strategic Benefits**:
+  1. **In-Browser Web Voice AI Widget ("Talk to Arif")**:
+     - Embed a zero-friction WebRTC voice button directly inside the **Frappe Helpdesk web portal** (`nfticketing.nfc.co.om`), IT Dashboard, or internal corporate intranet.
+     - Remote employees on laptops can communicate directly with Arif using high-fidelity Opus audio (48kHz studio quality) with echo cancellation—no desk phone or telephone extension required.
+     - The identical backend agent intelligence, Active Directory verification, and ticket creation workflows serve both web users and telephone callers.
+  2. **Simplified Audio Pipeline & Native Interruption Handling**:
+     - Replaces low-level socket byte framing, custom 8kHz u-law $\leftrightarrow$ 24kHz PCM16 resampling, and manual audio buffering with LiveKit's optimized, battle-tested C/Rust audio pipeline.
+     - Native Turn Detection, Silero Voice Activity Detection (VAD), and barge-in / speech-interruption management out of the box.
+  3. **Multi-Model Flexibility (Cost & Compliance Optimization)**:
+     - Allows hot-swapping between:
+       - **OpenAI Realtime API (`gpt-realtime`)** (current flagship mode).
+       - **Modular Pipeline**: Deepgram Nova-3 (STT) + Claude 3.5 / LLaMA 3.3 (LLM) + Cartesia / ElevenLabs (TTS).
+       - **On-Premise / Local Inference**: Ability to run self-hosted local speech and LLM models if National Finance mandates air-gapped data residency in future compliance audits.
+  4. **Unified Telephony Bridge via LiveKit SIP (`livekit/sip`)**:
+     - Ability to bridge incoming calls from Cisco CUBE directly into WebRTC rooms, creating a unified media plane where human supervisors, callers, and AI agents can participate in the same session.
+- **Deployment Strategy**:
+  - **Phase 1 (Active Production Launch)**: Maintain the current Asterisk PBX + Cisco CUBE SIP trunk (verified, stable, with native Music on Hold and 3.8ms latency).
+  - **Phase 13 (Post-Launch Expansion)**: Deploy `livekit-server` and `livekit-agents` alongside the existing infrastructure to power web/mobile voice widgets without disrupting existing telephony trunking.
+
 ---
+
 
 ## 2. Completed Milestones
 - [x] Full-duplex conversational audio with 40ms frame pacing and Asterisk DSP denoise.
