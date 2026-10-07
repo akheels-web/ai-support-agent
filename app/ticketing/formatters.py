@@ -20,14 +20,22 @@ def format_ticket_description(
     ai_resolution_note: Optional[str] = None,
     requires_approval: bool = False,
     is_emergency: bool = False,
+    call_id: Optional[str] = None,
+    language: str = "English",
+    transfer_target: Optional[str] = None,
+    duration: Optional[str] = None,
+    transcript_lines: Optional[List[str]] = None,
 ) -> str:
     """
-    Build a neat, uniform executive summary card for Frappe Helpdesk ticket description.
-    Focuses strictly on actionable information for the IT technician:
+    Build a comprehensive, neat executive summary and conversation record
+    for the Frappe Helpdesk ticket description.
+    Includes:
     - User Affected
     - Issue & Severity
     - Summary of Issue & Impact
     - What AI Agent (Arif) Has Done
+    - Call Audit & Telephony Record
+    - Complete Conversation Transcript (styled dialogue list)
     """
     caller_info = caller_info or {}
     caller_name = html.escape(caller_info.get("name") or caller_info.get("verified_name") or "Direct Caller")
@@ -59,7 +67,7 @@ def format_ticket_description(
         priority_badge = f'<span style="background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 11px;">{safe_priority}</span>'
 
     html_parts = [
-        '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #1e293b; max-width: 800px;">'
+        '<div style="font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; color: #1e293b; max-width: 850px;">'
     ]
 
     # Banner 1: Emergency Sev-1 Banner
@@ -156,7 +164,6 @@ def format_ticket_description(
         for step in troubleshooting_steps:
             safe_step = html.escape(str(step).strip())
             if safe_step and not safe_step.startswith("issue_description:"):
-                # Clean prefix if it looks like field: value
                 actions_items.append(f'<li>{safe_step}</li>')
 
     # 3. Resolution / Action note
@@ -169,7 +176,7 @@ def format_ticket_description(
         actions_items.append('<li style="font-weight: 600; color: #0284c7;">Call transferred to human IT support queue for specialized assistance.</li>')
 
     html_parts.append(
-        '<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px;">'
+        '<div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px;">'
         '<div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #16a34a; margin-bottom: 8px;">'
         '🤖 What AI Agent (Arif) Has Done'
         '</div>'
@@ -178,6 +185,68 @@ def format_ticket_description(
         '</ul>'
         '</div>'
     )
+
+    # Section 5: Call Audit & Telephony Record
+    if call_id or phone != "N/A":
+        safe_cid = html.escape(str(call_id or "N/A"))
+        safe_lang = html.escape(str(language or "English"))
+        safe_target = html.escape(str(transfer_target or "N/A")) if transfer_target else None
+        safe_dur = html.escape(str(duration or "N/A")) if duration else None
+
+        audit_rows = [
+            f'<div><strong>Call ID:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 11px;">{safe_cid}</code></div>',
+            f'<div><strong>Caller Phone:</strong> {phone}</div>',
+            f'<div><strong>Language:</strong> {safe_lang}</div>',
+            f'<div><strong>Outcome:</strong> {safe_outcome}</div>',
+        ]
+        if safe_target:
+            audit_rows.append(f'<div><strong>Transfer Queue:</strong> {safe_target}</div>')
+        if safe_dur:
+            audit_rows.append(f'<div><strong>Duration:</strong> {safe_dur}</div>')
+
+        html_parts.append(
+            '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px;">'
+            '<div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #0284c7; margin-bottom: 8px;">'
+            '📞 Call Audit & Telephony Record'
+            '</div>'
+            f'<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 12px; color: #475569;">{"".join(audit_rows)}</div>'
+            '</div>'
+        )
+
+    # Section 6: Conversation Transcript (Clean dialogue formatting)
+    if transcript_lines:
+        dialogue_html = []
+        for line in transcript_lines:
+            line_str = str(line).strip()
+            if not line_str:
+                continue
+
+            match = re.match(r"^(\[[0-9:]+\]\s*)?([A-Za-z0-9_\s\u0600-\u06FF]+):\s*(.*)$", line_str)
+            if match:
+                ts = html.escape(match.group(1) or "")
+                speaker = html.escape(match.group(2).strip())
+                msg = html.escape(match.group(3).strip())
+
+                if "arif" in speaker.lower():
+                    badge = f'<span style="color: #0284c7; font-weight: 700;">{ts}{speaker}:</span>'
+                else:
+                    badge = f'<span style="color: #10b981; font-weight: 700;">{ts}{speaker}:</span>'
+                dialogue_html.append(f'<div style="margin-bottom: 6px; line-height: 1.4;">{badge} <span>{msg}</span></div>')
+            else:
+                dialogue_html.append(f'<div style="margin-bottom: 6px; line-height: 1.4; color: #64748b;">{html.escape(line_str)}</div>')
+
+        transcript_content = "".join(dialogue_html) if dialogue_html else '<div style="color: #94a3b8; font-style: italic;">No transcript recorded on this call.</div>'
+
+        html_parts.append(
+            '<div>'
+            '<div style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #334155; margin-bottom: 6px;">'
+            '💬 Conversation Transcript'
+            '</div>'
+            f'<div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; font-size: 12px; max-height: 450px; overflow-y: auto;">'
+            f'{transcript_content}'
+            '</div>'
+            '</div>'
+        )
 
     html_parts.append('</div>')
     return "".join(html_parts)
@@ -194,9 +263,6 @@ def format_ticket_comment(
 ) -> str:
     """
     Build a clean, structured timeline comment for Frappe Helpdesk (HD Ticket Comment).
-    Includes:
-    - Call Audit Record (Call ID, Timestamp, Phone, Language, Outcome)
-    - Full Clean Conversation Dialogue Timeline
     """
     safe_call_id = html.escape(str(call_id or "N/A"))
     safe_phone = html.escape(str(caller_phone or "N/A"))
@@ -212,7 +278,6 @@ def format_ticket_comment(
             if not line_str:
                 continue
 
-            # Check if line matches "[timestamp] Speaker: message"
             match = re.match(r"^(\[[0-9:]+\]\s*)?([A-Za-z0-9_\s\u0600-\u06FF]+):\s*(.*)$", line_str)
             if match:
                 ts = html.escape(match.group(1) or "")
