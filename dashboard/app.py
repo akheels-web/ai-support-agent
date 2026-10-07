@@ -660,6 +660,7 @@ def init_db():
         "recording_retention_days": "30",
         "frappe_enabled": "true",
         "profile_icon_text": "NF",
+        "ai_voice": "ash",
     }
 
     for key, value in default_settings.items():
@@ -1485,7 +1486,7 @@ def settings_page(request: Request):
 
     keys = [
         "organization_name", "dashboard_title", "dashboard_subtitle",
-        "ai_greeting", "system_prompt", "frappe_enabled",
+        "ai_greeting", "system_prompt", "ai_voice", "frappe_enabled",
         "ad_enabled", "ad_server", "ad_port", "ad_use_ssl", "ad_bind_dn",
         "ad_password", "ad_base_dn", "ad_search_filter", "ad_sync_interval_minutes",
     ]
@@ -1514,7 +1515,7 @@ async def save_settings(request: Request):
 
     allowed_keys = {
         "organization_name", "dashboard_title", "dashboard_subtitle", "profile_icon_text",
-        "ai_greeting", "system_prompt", "frappe_enabled",
+        "ai_greeting", "system_prompt", "ai_voice", "frappe_enabled",
         "ad_enabled", "ad_server", "ad_port", "ad_use_ssl", "ad_bind_dn",
         "ad_password", "ad_base_dn", "ad_search_filter", "ad_sync_interval_minutes",
     }
