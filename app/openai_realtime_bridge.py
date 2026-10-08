@@ -445,7 +445,7 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - If background talking is heard while the primary caller is silent, DO NOT converse with or respond to background people. If you need confirmation, gently check in with the caller: "I'm with you, how can I help you today?" / "معك، تفضل كيف أقدر أساعدك؟"
 - Once the caller finishes their sentence, respond IMMEDIATELY with a natural acknowledgment — do NOT leave dead air.
 
-2. STRICT SECURITY VERIFICATION GATE FOR TRANSFERS & TICKETS (MANDATORY):
+2. STRICT SECURITY VERIFICATION GATE & LAST NAME ADDRESSING PROTOCOL:
 - Company security policy STRICTLY PROHIBITS transferring unverified callers to human IT support, queues, or supervisors under ANY circumstances.
 - NEVER call transfer_to_agent for unverified callers!
 - If an unverified caller asks to speak to an agent, be transferred, or speak with a supervisor:
@@ -454,6 +454,9 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - In Arabic: "أعتذر منك، لدواعي الأمان المتبعة في ناشيونال فاينانس لا يمكن تحويل أي مكالمة للدعم الفني إلا بعد التحقق من الهوية الوظيفية أولاً. يرجى تزويدي بالاسم الكامل والرقم الوظيفي أولاً لنتمكن من مساعدتك."
 - Callers have a strict MAXIMUM of 3 verification attempts. After 3 failed attempts, the call will be disconnected automatically.
 - Only callers who have been successfully verified via verify_user (returning verified: true) can be transferred or have tickets created.
+- STRICT RULE ON CALLER NAMES:
+  - NEVER recite the caller's full three-or-four-part name at ANY stage of the call (neither during name capture, nor after verification, nor when closing)!
+  - Always address the caller ONLY by their title and last name / surname (e.g. "Thank you, Ms. Al Zadjali. Could you please provide your employee ID?" / "أهلاً بك أستاذة الزدجالي").
 
 3. BILINGUAL & ARABIC EXCELLENCE PROTOCOL:
 - National Finance is based in the Sultanate of Oman. The majority of employees are Arabic speaking.
@@ -507,11 +510,22 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
      - In Arabic: "لقد جربنا الخطوات التشخيصية السابقة ولم تُحل المشكلة بعد. هل تود أن أنشئ لك تذكرة دعم فني الآن ليتابع معك مهندس الدعم الفني مباشرة؟"
      - Wait for the caller's response. When they confirm, call create_ticket.
 
-8. MANDATORY RESOLUTION VERIFICATION:
-- After providing each troubleshooting step, you MUST ask the caller to test it and verify the outcome:
-  - In English: "Did that resolve the issue for you?"
-  - In Arabic: "هل تم حل المشكلة معك الآن؟ / هل اشتغلت معك الحين؟"
-- Wait for the caller's confirmation before proceeding.
+8. ACTION CONFIRMATION VS. TECHNICAL RESOLUTION (MANDATORY STRICT PROTOCOL):
+- CRITICAL DISTINCTION — ACTIONS VS. RESOLUTION:
+  - When a caller says "Yes, I did", "Done", "I did that", "Good", "Okay", "Alright", "Sure", "I restarted", "I reconnected":
+    THEY ARE CONFIRMING THEY PERFORMED THE TROUBLESHOOTING STEP. THEY ARE NOT CONFIRMING THE ISSUE IS FIXED!
+  - STRICT PROHIBITION: NEVER call record_resolution or assume the issue is resolved when the caller merely confirms performing an action or says "Yes, I did" or "Good"!
+- AFTER DELIVERING A TROUBLESHOOTING STEP:
+  - DO NOT ask "Did that resolve the issue for you?" after Step 1.
+  - Instead, ask for the diagnostic outcome or test:
+    - In English: "Once you reconnect, please try opening a website and let me know if it loads." / "What error or status do you see on your screen now?"
+    - In Arabic: "بعد ما تسويها، جرب تفتح المتصفح وقولي وش يظهر معك؟" / "وش رسالة الخطأ أو الحالة اللي تظهر لك الحين؟"
+  - If the caller says "Yes, I did" or "Done" or "Good":
+    - Ask: "Great. Does your connection work now, or is it still showing disconnected?" / "ممتاز. هل اشتغل النت معك الحين أو ما زال قاطع؟"
+  - If the caller says the issue persists (e.g. "Still not working", "Same error", "No", "Not working"):
+    - IMMEDIATELY advance to Step 2, then Step 3, then Step 4. Do not quit or resolve prematurely.
+- STRICT RESOLUTION CRITERIA:
+  - You may ONLY call record_resolution when the caller EXPLICITLY states that the actual technical service or application is restored and working (e.g. "Yes, it is working now", "The internet is back", "I can browse now", "It's fixed", "اشتغل النت الحين", "نعم انحلت المشكلة").
 
 9. RESOLUTION VS. ESCALATION TICKETING PROTOCOL:
 - SCENARIO A — ISSUE RESOLVED:
@@ -601,7 +615,7 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 
 20. CALL COMPLETION & WARM PROFESSIONAL FAREWELL:
 - When the issue is resolved or ticket created, ask: "Is there anything else I can help you with today?" / "هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
-- If the caller answers that they are done, declines further help, or concludes politely (e.g. "No", "No thanks", "Nothing else", "Nothing much thanks", "That is all", "That's it", "I'm good", "All good", "Thank you", "Thanks", "لا", "لا شكراً", "مع السلامة", "يعطيك العافية"):
+- If the caller answers that they are done, declines further help, or concludes politely (e.g. "No", "No thanks", "Nothing else", "Nothing much thanks", "Nothing much", "That is all", "That's it", "I'm good", "All good", "Thank you", "Thanks", "لا", "لا شكراً", "مع السلامة", "يعطيك العافية", "تسلم"):
   1. ALWAYS speak a warm, polite closing farewell to the caller:
      - In English: "You're very welcome! Thank you for calling National Finance IT Support. Have a great day and goodbye!"
      - In Arabic: "العفو، أهلاً وسهلاً بك في أي وقت. شكراً لتواصلك مع الدعم الفني لناشيونال فاينانس، في أمان الله ومع السلامة."
@@ -614,15 +628,15 @@ STANDARD CALL FLOW:
    - If Arabic chosen: Speak 100% in natural Gulf White Arabic.
 3. If caller is not pre-identified:
    - Ask caller full name -> call capture_name.
-   - Ask employee ID (National Finance IDs can be 4 digits, 5 digits e.g. 10596, or alphanumeric e.g. NFC341; NEVER truncate) -> call capture_employee_id.
+   - Acknowledge using LAST NAME ONLY (e.g. "Thank you, Ms. Al Zadjali. Could you please provide your employee ID?") -> call capture_employee_id. STRICT RULE: NEVER recite the caller's full name!
    - Call verify_user.
    - Note: If caller provides both their name and employee ID together, call verify_user immediately.
 4. If unverified caller requests transfer to agent or supervisor:
    - Refuse politely and require identity verification first.
    - Callers have maximum 3 verification attempts. After 3 failed attempts, call drops automatically.
 5. If verified:
-   - Address the caller respectfully using their LAST NAME / SURNAME ONLY (e.g. "Thank you, Mr. Al Hadabi." / "Thank you, Mr. Al Balushi." / "أهلاً بك أستاذ الهدابي").
-   - NEVER recite their full three-or-four-part name.
+   - Address the caller respectfully using their LAST NAME / SURNAME ONLY (e.g. "Thank you, Ms. Al Zadjali." / "Thank you, Mr. Al Balushi." / "أهلاً بك أستاذة الزدجالي").
+   - NEVER recite their full three-or-four-part name at any time.
    - Ask concisely: "How can I assist you with your IT support today?" / "كيف أقدر أساعدك في الدعم الفني اليوم؟"
 6. Classify caller intent:
    - If inquiry on existing ticket -> call check_ticket_status.
@@ -630,7 +644,7 @@ STANDARD CALL FLOW:
    - If hardware replacement/damage -> call create_ticket with group="Hardware Request" and explain manager approval policy.
    - If critical outage -> call escalate_emergency.
 7. Outcome:
-   - If resolved through troubleshooting -> call record_resolution, praise caller, recite and repeat ticket number.
+   - If resolved through troubleshooting -> call record_resolution only when technical functionality is verified restored, praise caller, recite and repeat ticket number.
    - If unresolved after 3-4 steps -> ask caller if ticket can be created. When confirmed, call create_ticket, state that our IT support engineer will follow up, and REPEAT ticket number clearly.
 8. When caller confirms no further assistance needed, deliver a warm farewell and call close_call to conclude the call.
 """
@@ -909,6 +923,49 @@ def get_spoken_last_name(full_name: str) -> str:
         return parts[-1]
 
     return parts[-1]
+
+
+FEMALE_FIRST_NAMES = {
+    "fatma", "fatima", "afrah", "ruqaiya", "ruqaya", "maryam", "mariam", "sara", "sarah",
+    "aisha", "aysha", "asma", "asmaa", "muna", "mona", "reem", "amal", "huda", "zainab",
+    "khadija", "shaikha", "ahlam", "noura", "noora", "nura", "manal", "marwa", "maha",
+    "buthaina", "laila", "layla", "samira", "salma", "bushra", "siham", "safia", "lubna",
+    "kholood", "kholoud", "hanan", "hind", "iman", "eman", "halima", "fawzia", "nawal",
+    "فاطمة", "فاطمه", "أفراح", "افراح", "رقية", "رقيه", "مريم", "سارة", "ساره", "عائشة",
+    "عائشه", "أسماء", "اسماء", "منى", "ريم", "أمل", "امل", "هدى", "زينب", "خديجة", "خديجه",
+    "شيخة", "شيخه", "أحلام", "احلام", "نورة", "نوره", "منال", "مروة", "مروه", "مها", "بثينة",
+    "بثينه", "ليلى", "سميرة", "سميره", "سلمى", "بشرى", "سهام", "صفية", "صفيه", "لبنى", "خلود",
+    "حنان", "هند", "إيمان", "ايمان", "حليمة", "حليمه", "فوزية", "فوزيه", "نوال"
+}
+
+
+def is_female_name(full_name: str) -> bool:
+    if not full_name:
+        return False
+    parts = str(full_name).strip().split()
+    if not parts:
+        return False
+    first = parts[0].lower().strip(".-_")
+    return first in FEMALE_FIRST_NAMES
+
+
+def get_spoken_salutation(full_name: str, language: str = "en") -> str:
+    """
+    Returns respectful honorific title + last name (e.g. 'Ms. Al Zadjali' / 'Mr. Al Balushi',
+    or in Arabic 'أستاذة الزدجالي' / 'أستاذ البلوشي').
+    Strictly avoids reciting 3-4 part full names.
+    """
+    last_name = get_spoken_last_name(full_name)
+    if not last_name:
+        return ""
+    female = is_female_name(full_name)
+    lang = (language or "en").lower()
+    if lang == "ar":
+        title = "أستاذة" if female else "أستاذ"
+        return f"{title} {last_name}"
+    else:
+        title = "Ms." if female else "Mr."
+        return f"{title} {last_name}"
 
 
 _SYSTEM_PROMPT_CACHE = None
@@ -1624,9 +1681,9 @@ async def handle_single_call(asterisk_ws):
                 )
         else:
             raw_name = state.get("caller_name") or ""
-            last_name = get_spoken_last_name(raw_name)
-            say_ar = f" أستاذ {last_name}" if last_name else ""
-            say_en = f", Mr. {last_name}" if last_name else ""
+            salutation = get_spoken_salutation(raw_name, state.get("language", "en"))
+            say_ar = f" {salutation}" if salutation else ""
+            say_en = f", {salutation}" if salutation else ""
             if state.get("language") == "ar":
                 state["pending_goodbye_instruction"] = (
                     f"Respond only in Arabic. Say warmly and clearly: "
@@ -1705,6 +1762,9 @@ async def handle_single_call(asterisk_ws):
                     return {"success": False, "error": "Name was empty. Ask caller to repeat full name."}
 
                 state["caller_name"] = employee_name
+                last_name = get_spoken_last_name(employee_name)
+                salutation = get_spoken_salutation(employee_name, state.get("language", "en"))
+
                 # Fast-track: If employee_id is already known, auto-verify immediately to eliminate redundant turn delay!
                 if state.get("employee_id"):
                     return await execute_tool("verify_user", {
@@ -1726,7 +1786,13 @@ async def handle_single_call(asterisk_ws):
                         })
 
                 state["current_state"] = "ask_employee_id"
-                return {"success": True, "employee_name": employee_name, "next_state": state["current_state"]}
+                return {
+                    "success": True,
+                    "employee_name": employee_name,
+                    "last_name": last_name,
+                    "salutation": salutation,
+                    "next_state": state["current_state"],
+                }
 
             if tool_name == "capture_employee_id":
                 employee_id = arguments.get("employee_id", "").strip()
@@ -1928,6 +1994,7 @@ async def handle_single_call(asterisk_ws):
 
                 state["question_count"] += 1
                 state["current_state"] = "troubleshooting"
+                state["troubleshooting_step_count"] = state.get("troubleshooting_step_count", 0) + 1
 
                 update_call(
                     state["call_id"],
@@ -1967,6 +2034,25 @@ async def handle_single_call(asterisk_ws):
                         "success": True,
                         "ticket_number": existing_ticket,
                         "message": f"Resolution already logged for this call (Ticket: {existing_ticket}).",
+                    }
+
+                # Guardrail against premature resolution after only Step 1:
+                # Caller saying "Yes, I did", "Done", or "Good" confirms executing the step, NOT that the service is fixed!
+                confirmed_working = arguments.get("confirmed_working", False)
+                recent_lines = state.get("transcript_lines", [])[-3:]
+                caller_said_step_done = any(
+                    re.search(r"\b(yes,?\s*i\s*did|i\s*did\s*that|done|good|okay|i\s*restarted|i\s*reconnected)\b", line.lower())
+                    for line in recent_lines if "Caller:" in line
+                )
+                steps_done = state.get("troubleshooting_step_count", 0)
+                if caller_said_step_done and not confirmed_working and steps_done <= 1:
+                    return {
+                        "success": False,
+                        "error": (
+                            "Premature resolution blocked. The caller confirming they performed the step ('Yes, I did' / 'Done' / 'Good') "
+                            "does NOT confirm the issue is fixed! Ask the caller to test the service (e.g. 'Can you open a website/Outlook now?'). "
+                            "If the issue persists, you MUST proceed to Step 2."
+                        ),
                     }
 
                 title = arguments.get("title", "IT Issue Resolved on Call")
@@ -2595,29 +2681,43 @@ async def handle_single_call(asterisk_ws):
                 queue_response("Respond only in English. Say: Thank you for choosing English. May I please have your full name?")
 
         elif tool_name == "capture_name" and result.get("success"):
-            queue_response(f"{prefix} Ask for the caller's employee ID. Keep it short.")
+            name = result.get("employee_name") or state.get("caller_name") or ""
+            salutation = get_spoken_salutation(name, state.get("language", "en"))
+            if state.get("language") == "ar":
+                queue_response(
+                    f"Respond only in Arabic. Say: شكراً لك {salutation}. تفضل بالرقم الوظيفي لو سمحت؟ "
+                    f"قاعدة صارمة: لا تذكر الاسم الكامل للمتصل أبداً تحت أي ظرف، واكتفِ باسم العائلة واللقب فقط."
+                )
+            else:
+                queue_response(
+                    f"Respond only in English. Say: Thank you, {salutation}. Could you please provide your employee ID? "
+                    f"Strict rule: Do NOT recite the caller's full name under any circumstances. Use only the surname and title."
+                )
 
         elif (tool_name in ("verify_user", "capture_employee_id")) and result.get("verified"):
             raw_name = result.get("name") or state.get("caller_name") or ""
-            last_name = get_spoken_last_name(raw_name)
+            salutation = get_spoken_salutation(raw_name, state.get("language", "en"))
             if result.get("is_executive"):
                 queue_response(
-                    f"{prefix} Greet Mr. {last_name} with executive priority. "
-                    f"Say: Connecting you to our Priority Executive Desk immediately. Then call transfer_to_agent with queue_type='executive'."
+                    f"{prefix} Greet {salutation} with executive priority. "
+                    f"Say: Connecting you to our Priority Executive Desk immediately. Then call transfer_to_agent with queue_type='executive'. "
+                    f"Do NOT recite the full name."
                 )
             elif result.get("vip"):
                 queue_response(
-                    f"{prefix} Greet Mr. {last_name} warmly. Say the caller is verified and marked for priority support. "
-                    f"Ask: How can I assist you today?"
+                    f"{prefix} Greet {salutation} warmly. Say the caller is verified and marked for priority support. "
+                    f"Ask: How can I assist you today? Do NOT recite the full name."
                 )
             else:
                 if state.get("language") == "ar":
                     queue_response(
-                        f"Respond only in Arabic. Say: أهلاً بك أستاذ {last_name}، تم التحقق من هويتك بنجاح. كيف أقدر أساعدك في الدعم الفني اليوم؟"
+                        f"Respond only in Arabic. Say: أهلاً بك {salutation}، تم التحقق من هويتك بنجاح. كيف أقدر أساعدك في الدعم الفني اليوم؟ "
+                        f"قاعدة صارمة: لا تذكر الاسم الكامل أبداً."
                     )
                 else:
                     queue_response(
-                        f"Respond only in English. Say: Thank you, Mr. {last_name}. Your identity has been verified successfully. How can I assist you with your IT support today?"
+                        f"Respond only in English. Say: Thank you, {salutation}. Your identity has been verified successfully. How can I assist you with your IT support today? "
+                        f"Strict rule: Do NOT recite the caller's full name under any circumstances."
                     )
 
         elif (tool_name in ("verify_user", "capture_employee_id")) and not result.get("verified"):
@@ -2903,9 +3003,9 @@ async def handle_single_call(asterisk_ws):
 
         elif tool_name == "close_call":
             raw_name = state.get("caller_name") or ""
-            last_name = get_spoken_last_name(raw_name)
-            say_ar = f" أستاذ {last_name}" if last_name else ""
-            say_en = f", Mr. {last_name}" if last_name else ""
+            salutation = get_spoken_salutation(raw_name, state.get("language", "en"))
+            say_ar = f" {salutation}" if salutation else ""
+            say_en = f", {salutation}" if salutation else ""
             if state["language"] == "ar":
                 queue_response(
                     f"Respond only in Arabic. Say warmly and clearly: العفو{say_ar}! شكراً لتواصلك مع الدعم الفني لناشيونال فاينانس، في أمان الله ومع السلامة."
@@ -3033,6 +3133,9 @@ async def handle_single_call(asterisk_ws):
                     if lang_time < 2.0 or (state.get("ai_speech_started_at") and ai_speaking_time < 0.5):
                         # Transient noise or turn-start echo - do NOT discard audio or cancel response
                         pass
+                    elif state.get("closing") or state.get("pending_disconnect_after_goodbye") or state.get("close_after_next_response_done") or state.get("current_state") in ("closing", "ended"):
+                        # Critical: Never cancel or barge-in on the farewell closing greeting!
+                        pass
                     else:
                         # Genuine caller interruption while agent is actively speaking
                         if hasattr(asterisk_ws, "clear_outbound_queue"):
@@ -3085,7 +3188,7 @@ async def handle_single_call(asterisk_ws):
                             # Do NOT disconnect yet! Wait for the actual farewell audio response to speak.
                             print("[CALL] response.done had no audio; waiting for farewell audio response.")
                             await send_queued_response_if_any()
-                            return
+                            continue
 
                         # The farewell audio was generated and sent to Asterisk!
                         # Asterisk AudioSocket uses audio/pcmu (8,000 bytes per second).
