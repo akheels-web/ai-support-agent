@@ -50,21 +50,6 @@
                 <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">Initial voice greeting spoken by Arif when caller connects.</div>
             </div>
 
-            <div class="form-group">
-                <label class="form-label">AI Voice Model</label>
-                <select name="ai_voice" class="select">
-                    <option value="ash" {% if (settings.ai_voice or 'ash') == 'ash' %}selected{% endif %}>Ash (Warm, Natural & Conversational - Recommended)</option>
-                    <option value="ballad" {% if settings.ai_voice == 'ballad' %}selected{% endif %}>Ballad (Expressive & Melodic)</option>
-                    <option value="coral" {% if settings.ai_voice == 'coral' %}selected{% endif %}>Coral (Bright & Friendly)</option>
-                    <option value="sage" {% if settings.ai_voice == 'sage' %}selected{% endif %}>Sage (Calm & Authoritative)</option>
-                    <option value="verse" {% if settings.ai_voice == 'verse' %}selected{% endif %}>Verse (Dynamic & Articulate)</option>
-                    <option value="alloy" {% if settings.ai_voice == 'alloy' %}selected{% endif %}>Alloy (Neutral & Balanced)</option>
-                    <option value="echo" {% if settings.ai_voice == 'echo' %}selected{% endif %}>Echo (Clear & Direct)</option>
-                    <option value="shimmer" {% if settings.ai_voice == 'shimmer' %}selected{% endif %}>Shimmer (Clear & Warm)</option>
-                </select>
-                <div style="font-size:0.75rem; color:hsl(var(--muted-foreground));">Realtime neural voice persona used for all inbound employee calls.</div>
-            </div>
-
             <div class="nav-section-title" style="margin-top: 2rem; margin-bottom: 0.75rem; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; color: var(--muted-foreground); letter-spacing: 0.05em;">
                 Active Directory (AD / LDAP) Directory Sync
             </div>
