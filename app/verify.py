@@ -157,7 +157,7 @@ def _normalize_phone(phone: str) -> str:
 
 _USERS_CACHE = None
 _USERS_CACHE_TIME = 0.0
-_USERS_CACHE_TTL = 15.0  # seconds - auto-refreshes caller roster without daemon restarts
+_USERS_CACHE_TTL = 300.0  # seconds - fast in-memory user verification without repeated DB queries
 
 
 def clear_cache():

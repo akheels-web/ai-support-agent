@@ -99,6 +99,16 @@ class TestVerifyAndEscalation(unittest.TestCase):
         if res_alpha.get("verified"):
             self.assertEqual(res_alpha["employee_id"], "NFC-Chat")
 
+    def test_spoken_last_name(self):
+        from app.openai_realtime_bridge import get_spoken_last_name
+        self.assertEqual(get_spoken_last_name("Afrah Mahmood Al Hadabi"), "Al Hadabi")
+        self.assertEqual(get_spoken_last_name("Ahmed Al Balushi"), "Al Balushi")
+        self.assertEqual(get_spoken_last_name("Mustafa Mohammed Al Farsi"), "Al Farsi")
+        self.assertEqual(get_spoken_last_name("Mohammed Akheel"), "Akheel")
+        self.assertEqual(get_spoken_last_name("رقية البلوشي"), "البلوشي")
+        self.assertEqual(get_spoken_last_name("خالد الحارثي"), "الحارثي")
+        self.assertEqual(get_spoken_last_name("Anita"), "Anita")
+
 
 if __name__ == "__main__":
     unittest.main()

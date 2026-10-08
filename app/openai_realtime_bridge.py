@@ -599,11 +599,13 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
   - In Arabic: "تفضل أخي الكريم، معك.", "سم، تفضل أسمعك.", "حياك، تفضل كمل."
 - NEVER cut off abruptly into dead, frozen silence. Always acknowledge the caller gracefully.
 
-20. CALL COMPLETION & MANDATORY HANGUP VIA CLOSE_CALL:
-- When the issue is resolved or ticket created, you ask: "Is there anything else I can help you with today?" / "هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
-- If the caller answers "No", "No thanks", "Nothing else", "That is all", "That's it", "I'm good", "All good", "لا", "لا شكراً", "مع السلامة", "يعطيك العافية":
-  - YOU MUST IMMEDIATELY CALL THE TOOL: close_call(reason="resolved" or "completed").
-  - STRICT PROHIBITION: DO NOT simply speak a farewell message without calling close_call! Calling close_call is MANDATORY to disconnect the telephony channel and release PBX resources. Staying connected without calling close_call wastes call minutes and AI tokens.
+20. CALL COMPLETION & WARM PROFESSIONAL FAREWELL:
+- When the issue is resolved or ticket created, ask: "Is there anything else I can help you with today?" / "هل هناك أي استفسار آخر يمكنني مساعدتك به؟"
+- If the caller answers that they are done, declines further help, or concludes politely (e.g. "No", "No thanks", "Nothing else", "Nothing much thanks", "That is all", "That's it", "I'm good", "All good", "Thank you", "Thanks", "لا", "لا شكراً", "مع السلامة", "يعطيك العافية"):
+  1. ALWAYS speak a warm, polite closing farewell to the caller:
+     - In English: "You're very welcome! Thank you for calling National Finance IT Support. Have a great day and goodbye!"
+     - In Arabic: "العفو، أهلاً وسهلاً بك في أي وقت. شكراً لتواصلك مع الدعم الفني لناشيونال فاينانس، في أمان الله ومع السلامة."
+  2. Simultaneously call close_call(reason="completed" or "resolved"). The telephony bridge will ensure your complete farewell greeting plays fully to the caller before hanging up.
 
 STANDARD CALL FLOW:
 1. Greet caller: "Welcome to National Finance IT Support. For English please say English. للغة العربية قل عربي."
@@ -618,7 +620,10 @@ STANDARD CALL FLOW:
 4. If unverified caller requests transfer to agent or supervisor:
    - Refuse politely and require identity verification first.
    - Callers have maximum 3 verification attempts. After 3 failed attempts, call drops automatically.
-5. If verified, ask: "How can I assist you with your IT support today?"
+5. If verified:
+   - Address the caller respectfully using their LAST NAME / SURNAME ONLY (e.g. "Thank you, Mr. Al Hadabi." / "Thank you, Mr. Al Balushi." / "أهلاً بك أستاذ الهدابي").
+   - NEVER recite their full three-or-four-part name.
+   - Ask concisely: "How can I assist you with your IT support today?" / "كيف أقدر أساعدك في الدعم الفني اليوم؟"
 6. Classify caller intent:
    - If inquiry on existing ticket -> call check_ticket_status.
    - If technical issue -> Acknowledge with natural filler, call record_issue_detail, then lookup_knowledge_base, deliver Step 1, and troubleshoot through 3-4 steps. DO NOT offer a ticket upfront!
@@ -627,7 +632,7 @@ STANDARD CALL FLOW:
 7. Outcome:
    - If resolved through troubleshooting -> call record_resolution, praise caller, recite and repeat ticket number.
    - If unresolved after 3-4 steps -> ask caller if ticket can be created. When confirmed, call create_ticket, state that our IT support engineer will follow up, and REPEAT ticket number clearly.
-8. When caller confirms no further assistance needed, immediately call close_call to hang up the line.
+8. When caller confirms no further assistance needed, deliver a warm farewell and call close_call to conclude the call.
 """
 
 TOOLS = [
@@ -784,7 +789,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "repeat_ticket_number",
-        "description": "Repeat the created or resolved reference ticket number clearly to the caller digit-by-digit.",
+        "description": "Call this ONLY when the caller explicitly asks to repeat their ticket reference number (e.g. 'Can you repeat the ticket number?', 'What was my ticket number?', 'كرر الرقم'). DO NOT call this if the caller is saying thank you or concluding the call.",
         "parameters": {
             "type": "object",
             "properties": {},
@@ -846,7 +851,7 @@ TOOLS = [
     {
         "type": "function",
         "name": "close_call",
-        "description": "MANDATORY: Call this immediately whenever the caller indicates they are done or declines further assistance (e.g. saying 'No', 'No thanks', 'That is all', 'Nothing else', 'I am good', 'لا', 'لا شكراً', 'مع السلامة'). Calling this disconnects the telephony call and releases PBX channels. DO NOT just say goodbye without calling this tool!",
+        "description": "Call this whenever the caller indicates they have no further issues, is finished, or concludes the call (e.g. saying 'No', 'No thanks', 'That is all', 'Nothing else', 'Nothing much thanks', 'I am good', 'Thank you', 'Thanks', 'لا', 'لا شكراً', 'مع السلامة', 'يعطيك العافية'). Calling this ensures a polite farewell and cleanly releases PBX channels.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -855,6 +860,7 @@ TOOLS = [
                     "enum": [
                         "resolved",
                         "ticket_created",
+                        "completed",
                         "verification_failed",
                         "caller_requested",
                         "audio_unclear",
@@ -867,6 +873,42 @@ TOOLS = [
     },
 ]
 
+
+def get_spoken_last_name(full_name: str) -> str:
+    """
+    Extracts the respectful last name / surname for spoken IT support greetings.
+    Avoids lengthy recitation of 3-to-4 part full names.
+    Examples:
+        'Afrah Mahmood Al Hadabi' -> 'Al Hadabi'
+        'Ahmed Al Balushi' -> 'Al Balushi'
+        'Mustafa Mohammed Al Farsi' -> 'Al Farsi'
+        'Salim Al Maskari' -> 'Al Maskari'
+        'Khalid Al Harthy' -> 'Al Harthy'
+        'Mohammed Akheel' -> 'Akheel'
+        'Rakesh Sharma' -> 'Sharma'
+        'رقية البلوشي' -> 'البلوشي'
+        'أحمد البلوشي' -> 'البلوشي'
+        'خالد الحارثي' -> 'الحارثي'
+        'عمر الخروصي' -> 'الخروصي'
+    """
+    if not full_name:
+        return ""
+    name_str = str(full_name).strip()
+    parts = name_str.split()
+    if len(parts) <= 1:
+        return name_str
+
+    penultimate = parts[-2].lower().strip("-")
+    if penultimate in ("al", "el", "bin", "ibn", "abu", "al-", "el-") and len(parts) >= 2:
+        return f"{parts[-2]} {parts[-1]}"
+
+    if "-" in parts[-1] and parts[-1].lower().startswith(("al-", "el-")):
+        return parts[-1]
+
+    if parts[-1].startswith("ال") and len(parts[-1]) > 2:
+        return parts[-1]
+
+    return parts[-1]
 
 
 _SYSTEM_PROMPT_CACHE = None
@@ -1259,6 +1301,9 @@ async def handle_single_call(asterisk_ws):
         "pending_response_instruction": None,
         "pending_goodbye_instruction": None,
         "close_after_next_response_done": False,
+        "pending_disconnect_after_goodbye": False,
+        "current_turn_audio_bytes": 0,
+        "close_reason": "completed",
         "tool_in_progress": False,
         "call_ending": False,
         "closing": False,
@@ -1450,13 +1495,16 @@ async def handle_single_call(asterisk_ws):
 
         if res.get("verified"):
             v_name = res.get("name") or res.get("caller_name") or ""
+            last_name = get_spoken_last_name(v_name)
+            say_ar = f" أستاذ {last_name}" if last_name else ""
+            say_en = f", Mr. {last_name}" if last_name else ""
             if state["language"] == "ar":
                 queue_response(
-                    f"Respond only in Arabic. Say: شكراً لك. تم تأكيد هويتك بنجاح عبر الرقم الوظيفي {spoken} للموظف {v_name}. كيف يمكنني مساعدتك اليوم؟"
+                    f"Respond only in Arabic. Say: شكراً لك{say_ar}. تم تأكيد هويتك بنجاح. كيف يمكنني مساعدتك اليوم؟"
                 )
             else:
                 queue_response(
-                    f"Respond only in English. Say: Thank you. Your identity has been verified successfully with employee ID {spoken} for {v_name}. How can I assist you today?"
+                    f"Respond only in English. Say: Thank you{say_en}. Your identity has been verified successfully. How can I assist you today?"
                 )
         else:
             attempts_left = res.get("attempts_left", 0)
@@ -1575,17 +1623,22 @@ async def handle_single_call(asterisk_ws):
                     "I am having difficulty hearing you due to line noise. Please call us back from a quiet area. Goodbye."
                 )
         else:
+            raw_name = state.get("caller_name") or ""
+            last_name = get_spoken_last_name(raw_name)
+            say_ar = f" أستاذ {last_name}" if last_name else ""
+            say_en = f", Mr. {last_name}" if last_name else ""
             if state.get("language") == "ar":
                 state["pending_goodbye_instruction"] = (
-                    "Respond only in Arabic. Say exactly: "
-                    "شكراً لاتصالك بدعم تقنية المعلومات في ناشيونال فاينانس. مع السلامة."
+                    f"Respond only in Arabic. Say warmly and clearly: "
+                    f"العفو{say_ar}! شكراً لتواصلك مع الدعم الفني لناشيونال فاينانس، في أمان الله ومع السلامة."
                 )
             else:
                 state["pending_goodbye_instruction"] = (
-                    "Respond only in English. Say exactly: "
-                    "Thank you for calling National Finance IT Support. Goodbye."
+                    f"Respond only in English. Say warmly and clearly: "
+                    f"You're very welcome{say_en}! Thank you for calling National Finance IT Support. Have a great day and goodbye!"
                 )
 
+        state["close_reason"] = reason
         update_call(state["call_id"], status=reason)
         print(f"[CALL] Goodbye queued. Reason: {reason}")
 
@@ -1599,6 +1652,7 @@ async def handle_single_call(asterisk_ws):
         if state["pending_goodbye_instruction"]:
             instruction = state["pending_goodbye_instruction"]
             state["pending_goodbye_instruction"] = None
+            state["pending_disconnect_after_goodbye"] = True
             state["close_after_next_response_done"] = True
             state["active_response"] = True
             await send_response(openai_ws, instruction)
@@ -1657,6 +1711,19 @@ async def handle_single_call(asterisk_ws):
                         "employee_id": state["employee_id"],
                         "employee_name": employee_name,
                     })
+
+                # Check if caller provided both name and employee ID together (e.g. 'Afrah Al Hadabi 10595'):
+                embedded_id = re.search(r"\b(\d{4,5}|nfc\d{2,4})\b", employee_name, re.IGNORECASE)
+                if embedded_id:
+                    found_id = embedded_id.group(1)
+                    clean_name = re.sub(r"\b(\d{4,5}|nfc\d{2,4})\b", "", employee_name, flags=re.IGNORECASE).strip()
+                    if clean_name:
+                        state["caller_name"] = clean_name
+                        state["employee_id"] = found_id
+                        return await execute_tool("verify_user", {
+                            "employee_id": found_id,
+                            "employee_name": clean_name,
+                        })
 
                 state["current_state"] = "ask_employee_id"
                 return {"success": True, "employee_name": employee_name, "next_state": state["current_state"]}
@@ -2531,18 +2598,27 @@ async def handle_single_call(asterisk_ws):
             queue_response(f"{prefix} Ask for the caller's employee ID. Keep it short.")
 
         elif (tool_name in ("verify_user", "capture_employee_id")) and result.get("verified"):
+            raw_name = result.get("name") or state.get("caller_name") or ""
+            last_name = get_spoken_last_name(raw_name)
             if result.get("is_executive"):
                 queue_response(
-                    f"{prefix} Greet Mr. {result.get('name')} with executive priority. "
+                    f"{prefix} Greet Mr. {last_name} with executive priority. "
                     f"Say: Connecting you to our Priority Executive Desk immediately. Then call transfer_to_agent with queue_type='executive'."
                 )
             elif result.get("vip"):
                 queue_response(
-                    f"{prefix} Greet Mr. {result.get('name')} warmly. Say the caller is verified and marked for priority support. "
+                    f"{prefix} Greet Mr. {last_name} warmly. Say the caller is verified and marked for priority support. "
                     f"Ask: How can I assist you today?"
                 )
             else:
-                queue_response(f"{prefix} Say: Thank you, Mr. {result.get('name')}. Your identity has been verified successfully. How can I assist you with your IT support today?")
+                if state.get("language") == "ar":
+                    queue_response(
+                        f"Respond only in Arabic. Say: أهلاً بك أستاذ {last_name}، تم التحقق من هويتك بنجاح. كيف أقدر أساعدك في الدعم الفني اليوم؟"
+                    )
+                else:
+                    queue_response(
+                        f"Respond only in English. Say: Thank you, Mr. {last_name}. Your identity has been verified successfully. How can I assist you with your IT support today?"
+                    )
 
         elif (tool_name in ("verify_user", "capture_employee_id")) and not result.get("verified"):
             if result.get("reason") == "account_deactivated":
@@ -2825,6 +2901,21 @@ async def handle_single_call(asterisk_ws):
                     "Respond only in English. Say: This has been flagged as a critical incident. Transferring you immediately to the on-call emergency team."
                 )
 
+        elif tool_name == "close_call":
+            raw_name = state.get("caller_name") or ""
+            last_name = get_spoken_last_name(raw_name)
+            say_ar = f" أستاذ {last_name}" if last_name else ""
+            say_en = f", Mr. {last_name}" if last_name else ""
+            if state["language"] == "ar":
+                queue_response(
+                    f"Respond only in Arabic. Say warmly and clearly: العفو{say_ar}! شكراً لتواصلك مع الدعم الفني لناشيونال فاينانس، في أمان الله ومع السلامة."
+                )
+            else:
+                queue_response(
+                    f"Respond only in English. Say warmly and clearly: You're very welcome{say_en}! Thank you for calling National Finance IT Support. Have a great day and goodbye!"
+                )
+            state["pending_disconnect_after_goodbye"] = True
+
         await send_queued_response_if_any(default_fallback=True)
 
     async def asterisk_to_openai():
@@ -2929,6 +3020,7 @@ async def handle_single_call(asterisk_ws):
                 if event_type == "response.created":
                     state["active_response"] = True
                     state["response_had_audio"] = False
+                    state["current_turn_audio_bytes"] = 0
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # Caller interruption / barge-in guard:
@@ -2962,6 +3054,7 @@ async def handle_single_call(asterisk_ws):
                     if audio_b64:
                         raw_pcm = base64.b64decode(audio_b64)
                         if len(raw_pcm) > 0:
+                            state["current_turn_audio_bytes"] = state.get("current_turn_audio_bytes", 0) + len(raw_pcm)
                             await asterisk_ws.send(raw_pcm)
 
                 elif event_type == "response.output_item.done":
@@ -2986,10 +3079,24 @@ async def handle_single_call(asterisk_ws):
                             pass
                         return
 
-                    if state["close_after_next_response_done"]:
-                        await asyncio.sleep(1.2)
+                    if state.get("pending_disconnect_after_goodbye") or state.get("close_after_next_response_done"):
+                        if not state.get("response_had_audio"):
+                            # This was a tool call completion without audio (e.g. close_call or repeat_ticket_number).
+                            # Do NOT disconnect yet! Wait for the actual farewell audio response to speak.
+                            print("[CALL] response.done had no audio; waiting for farewell audio response.")
+                            await send_queued_response_if_any()
+                            return
+
+                        # The farewell audio was generated and sent to Asterisk!
+                        # Asterisk AudioSocket uses audio/pcmu (8,000 bytes per second).
+                        audio_sec = state.get("current_turn_audio_bytes", 0) / 8000.0 if state.get("current_turn_audio_bytes") else 3.0
+                        elapsed = (time.monotonic() - state.get("ai_speech_started_at", 0)) if state.get("ai_speech_started_at") else 0.0
+                        wait_time = max(2.5, (audio_sec - elapsed) + 1.2)
+                        print(f"[CALL] Waiting {wait_time:.1f}s for Asterisk to play complete farewell audio to caller before hangup.")
+                        await asyncio.sleep(wait_time)
+
                         state["call_ending"] = True
-                        close_status = "verification_failed" if state.get("verification_attempts", 0) >= 3 else "completed"
+                        close_status = state.get("close_reason") or ("verification_failed" if state.get("verification_attempts", 0) >= 3 else "completed")
                         wrap_up_call(status=close_status)
                         if state.get("asterisk_channel"):
                             await asyncio.to_thread(hangup_channel, state["asterisk_channel"])
@@ -3024,11 +3131,11 @@ async def handle_single_call(asterisk_ws):
                         if state.get("resolution_recorded") or state.get("ticket_created") or state.get("current_state") in ("resolved", "wrap_up", "ticket_created"):
                             t_clean = transcript.lower().strip()
                             is_decline = bool(re.search(
-                                r"\b(no|nope|nah|nothing|that'?s\s*(all|it)|that\s*is\s*(all|it)|all\s*good|i'?m\s*good|goodbye|bye|thank\s*you|thanks)\b",
+                                r"\b(no|nope|nah|nothing|that'?s\s*(all|it)|that\s*is\s*(all|it)|all\s*good|i'?m\s*good|goodbye|bye|thank\s*you|thanks|nothing\s*much)\b",
                                 t_clean,
                             )) or any(w in transcript for w in ["لا", "لا شكرا", "لا شكراً", "ما قصرت", "يعطيك العافية", "مع السلامة", "سلامتك", "تسلم", "خلاص", "بس كذا"])
-                            if is_decline:
-                                print(f"[CALL] Caller declined further assistance: '{transcript}'. Queuing goodbye and disconnect.")
+                            if is_decline and not state.get("closing"):
+                                print(f"[CALL] Caller declined further assistance: '{transcript}'. Delivering farewell and disconnecting.")
                                 queue_goodbye("resolved" if state.get("resolution_recorded") else "completed")
                                 await send_queued_response_if_any()
 
@@ -3056,20 +3163,22 @@ async def handle_single_call(asterisk_ws):
                         state["transcript_lines"].append(f"[{t_str}] Arif: {a_text}")
 
                         # Auto-detect if AI spoke farewell / goodbye closing text to drop call:
-                        if state.get("resolution_recorded") or state.get("ticket_created") or state.get("current_state") in ("resolved", "wrap_up", "ticket_created"):
+                        if state.get("resolution_recorded") or state.get("ticket_created") or state.get("current_state") in ("resolved", "wrap_up", "ticket_created", "closing"):
                             a_lower = a_text.lower()
                             farewell_phrases = [
                                 "thank you for calling national finance",
                                 "have a great day",
+                                "have a wonderful day",
                                 "goodbye",
                                 "شكراً لاتصالك",
+                                "شكراً لتواصلك",
                                 "مع السلامة",
                                 "يومك سعيد",
                                 "في أمان الله",
                             ]
                             if any(p in a_lower for p in farewell_phrases):
                                 print(f"[CALL] AI agent delivered farewell closing: '{a_text}'. Setting disconnect flag.")
-                                state["close_after_next_response_done"] = True
+                                state["pending_disconnect_after_goodbye"] = True
 
                 elif event_type == "error":
                     print(f"[OPENAI ERROR] {json.dumps(event, indent=2)}")
