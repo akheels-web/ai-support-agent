@@ -922,7 +922,7 @@ def build_session_config():
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": VAD_THRESHOLD,
-                        "prefix_padding_ms": 150,
+                        "prefix_padding_ms": 300,
                         "silence_duration_ms": VAD_SILENCE_MS,
                         "create_response": True,
                         "interrupt_response": True,  # Full-duplex barge-in enabled
@@ -1011,7 +1011,7 @@ class AudioSocketChannel:
     Adapter that wraps Asterisk AudioSocket TCP connection to match WebSocket API.
     Converts Asterisk 16-bit 8kHz linear PCM (ast_format_slin) <-> OpenAI Realtime audio/pcmu (G.711 u-law).
     Handles Asterisk AudioSocket frame headers (0x01 UUID, 0x10 Audio, 0x03 DTMF, 0x00 Hangup).
-    Implements real-time 20ms pacing to Asterisk to eliminate jitter, stuttering, and dropped packets.
+    Implements 80ms jitter pre-buffering and real-time 20ms pacing to eliminate broken words and audio starvation.
     """
 
     def __init__(self, reader, writer, call_uuid):
@@ -1024,29 +1024,75 @@ class AudioSocketChannel:
         self.playback_task = asyncio.create_task(self._playback_loop())
 
     async def _playback_loop(self):
-        """Paces audio frames to Asterisk at exactly 20ms per 320-byte SLIN frame with drift-free clock."""
+        """Paces audio frames to Asterisk at exactly 20ms per 320-byte SLIN frame with 80ms jitter pre-buffering."""
         interval = 0.020
-        next_deadline = time.perf_counter()
+        prebuffer_target = 4  # 80ms pre-buffer (4 x 20ms frames) to absorb cloud packet jitter
+        is_playing = False
+        next_deadline = 0.0
+
         while not self._closed:
             try:
-                frame = await self.outbound_queue.get()
+                if not is_playing:
+                    # Wait for first audio frame of an utterance
+                    frame = await self.outbound_queue.get()
+                    if self._closed or self.writer.is_closing():
+                        break
+
+                    # Pre-buffer: allow up to 80ms for prebuffer_target frames to accumulate
+                    wait_until = time.perf_counter() + 0.080
+                    while self.outbound_queue.qsize() < (prebuffer_target - 1):
+                        rem = wait_until - time.perf_counter()
+                        if rem <= 0:
+                            break
+                        await asyncio.sleep(0.010)
+
+                    is_playing = True
+                    next_deadline = time.perf_counter()
+                    slin = audioop.ulaw2lin(frame, 2)
+                    self.writer.write(struct.pack("!BH", 0x10, len(slin)) + slin)
+                    next_deadline += interval
+                    continue
+
+                # Actively streaming: pull next frame with 60ms grace timeout before declaring idle
+                try:
+                    frame = await asyncio.wait_for(self.outbound_queue.get(), timeout=0.060)
+                except asyncio.TimeoutError:
+                    # Queue drained: utterance ended or network pause; return to pre-buffer mode
+                    is_playing = False
+                    continue
+
                 if self._closed or self.writer.is_closing():
                     break
+
                 slin = audioop.ulaw2lin(frame, 2)
-                packet = struct.pack("!BH", 0x10, len(slin)) + slin
-                self.writer.write(packet)
-                await self.writer.drain()
+                self.writer.write(struct.pack("!BH", 0x10, len(slin)) + slin)
+
                 now = time.perf_counter()
-                if next_deadline < now - 0.100:
+                if next_deadline < now - 0.040:
+                    # Prevent backward clock lag while avoiding 0ms burst packet dumping
                     next_deadline = now
                 next_deadline += interval
                 sleep_dur = next_deadline - time.perf_counter()
                 if sleep_dur > 0:
                     await asyncio.sleep(sleep_dur)
+
             except asyncio.CancelledError:
                 break
             except Exception:
                 break
+
+    def flush_send_buffer(self):
+        """Pad any remaining partial frame with silence and enqueue so no audio is lost or carries over."""
+        if self._send_buffer:
+            rem = len(self._send_buffer)
+            if rem < 160:
+                self._send_buffer.extend(b"\xff" * (160 - rem))  # 0xff is silence in u-law
+            chunk = bytes(self._send_buffer[:160])
+            self._send_buffer.clear()
+            try:
+                self.outbound_queue.put_nowait(chunk)
+            except Exception:
+                pass
 
     def clear_outbound_queue(self):
         """Instantly flush all pending outbound audio frames on barge-in / speech interruption."""
@@ -1109,6 +1155,10 @@ class AudioSocketChannel:
             self._closed = True
             if self.playback_task and not self.playback_task.done():
                 self.playback_task.cancel()
+                try:
+                    await self.playback_task
+                except (asyncio.CancelledError, Exception):
+                    pass
             self.clear_outbound_queue()
             try:
                 self.writer.write(struct.pack("!BH", 0x00, 0))
@@ -1204,6 +1254,9 @@ async def handle_single_call(asterisk_ws):
         "transcript_lines": [],
         "call_logged_closed": False,
         "pending_transfer_after_announcement": False,
+        "language_selected_at": 0.0,
+        "language_processing": False,
+        "ai_speech_started_at": 0.0,
     }
 
     create_call(state["call_id"])
@@ -1541,6 +1594,8 @@ async def handle_single_call(asterisk_ws):
                     language = "en"
 
                 state["language"] = language
+                state["language_processing"] = True
+                state["language_selected_at"] = time.monotonic()
                 state["current_state"] = "ask_name"
                 update_call(state["call_id"], language=language, status="language_selected")
                 print(f"[LANGUAGE] Selected: {language}")
@@ -1574,6 +1629,14 @@ async def handle_single_call(asterisk_ws):
                     return {"success": False, "error": "Employee ID was empty. Ask caller to repeat employee ID."}
 
                 state["employee_id"] = employee_id
+
+                # Fast-track: If caller name is already known, auto-verify immediately to eliminate redundant turn delay!
+                if state.get("caller_name"):
+                    return await execute_tool("verify_user", {
+                        "employee_id": employee_id,
+                        "employee_name": state["caller_name"],
+                    })
+
                 state["current_state"] = "verification"
                 return {"success": True, "employee_id": employee_id, "next_state": state["current_state"]}
 
@@ -1767,11 +1830,23 @@ async def handle_single_call(asterisk_ws):
                     summary=state.get("issue_summary") or value,
                 )
 
-                return {
+                res = {
                     "success": True,
                     "question_count": state["question_count"],
                     "next_state": state["current_state"],
                 }
+
+                # Auto-lookup knowledge base on initial issue detail to eliminate sequential tool latency:
+                search_query = value or summary or issue_category
+                if search_query and state["question_count"] == 1:
+                    kb_res = search_knowledge_base(search_query)
+                    if kb_res.get("found"):
+                        res["playbook"] = kb_res.get("playbook")
+                        res["playbook_id"] = kb_res.get("playbook_id")
+                        res["title"] = kb_res.get("title")
+                        print(f"[KB AUTO-MATCH] Issue='{search_query[:30]}' -> Playbook='{kb_res.get('playbook_id')}' (Score: {kb_res.get('score')})")
+
+                return res
 
             if tool_name == "record_resolution":
                 verified_user = state.get("verified_user") or {}
@@ -2413,10 +2488,7 @@ async def handle_single_call(asterisk_ws):
         elif tool_name == "capture_name" and result.get("success"):
             queue_response(f"{prefix} Ask for the caller's employee ID. Keep it short.")
 
-        elif tool_name == "capture_employee_id" and result.get("success"):
-            queue_response(f"{prefix} Say please wait while I verify your details, then call verify_user immediately.")
-
-        elif tool_name == "verify_user" and result.get("verified"):
+        elif (tool_name in ("verify_user", "capture_employee_id")) and result.get("verified"):
             if result.get("is_executive"):
                 queue_response(
                     f"{prefix} Greet Mr. {result.get('name')} with executive priority. "
@@ -2424,13 +2496,13 @@ async def handle_single_call(asterisk_ws):
                 )
             elif result.get("vip"):
                 queue_response(
-                    f"{prefix} Say the caller is verified and marked for priority support. "
+                    f"{prefix} Greet Mr. {result.get('name')} warmly. Say the caller is verified and marked for priority support. "
                     f"Ask: How can I assist you today?"
                 )
             else:
-                queue_response(f"{prefix} Say the caller is verified. Then ask: How can I help you today?")
+                queue_response(f"{prefix} Say: Thank you, Mr. {result.get('name')}. Your identity has been verified successfully. How can I assist you with your IT support today?")
 
-        elif tool_name == "verify_user" and not result.get("verified"):
+        elif (tool_name in ("verify_user", "capture_employee_id")) and not result.get("verified"):
             if result.get("reason") == "account_deactivated":
                 if state.get("language") == "ar":
                     queue_response(
@@ -2450,6 +2522,8 @@ async def handle_single_call(asterisk_ws):
                     queue_response(
                         f"Respond only in English. Say: Those details do not match our employee directory. You have {attempts_left} verification attempt(s) remaining. May I please have your full name and 4-digit employee ID?"
                     )
+            elif tool_name == "capture_employee_id" and result.get("success"):
+                queue_response(f"{prefix} Ask for the caller's full name to complete verification.")
 
         elif tool_name == "lookup_knowledge_base" and result.get("found"):
             if state["language"] == "ar":
@@ -2482,8 +2556,22 @@ async def handle_single_call(asterisk_ws):
 
         elif tool_name == "record_issue_detail" and result.get("success"):
             q_count = result.get("question_count", 1)
+            playbook = result.get("playbook")
             next_step = min(q_count + 1, 4)
-            if q_count >= 3:
+            if q_count == 1 and playbook:
+                if state["language"] == "ar":
+                    queue_response(
+                        "Respond only in Arabic. Acknowledge with a natural filler: تمام، فهمت عليك تماماً، ولا تشيل هم بنحل المشكلة معك خطوة بخطوة. "
+                        "قدم الخطوة الأولى فقط من الدليل الفني بوضوح، واطلب من المتصل تجربتها الآن وإخبارك بما يظهر معه. "
+                        "ممنوع منعاً باتاً عرض إنشاء تذكرة الآن، يجب اتباع 3 إلى 4 خطوات تشخيصية متتالية أولاً."
+                    )
+                else:
+                    queue_response(
+                        "Respond only in English. Acknowledge with a natural corporate filler: Umm, I understand how frustrating that is. Let's troubleshoot that together right now. "
+                        "Give Step 1 from the playbook clearly. Ask the caller to try Step 1 right now and tell you what happens. "
+                        "DO NOT offer to create a ticket yet. Guide the caller through 3 to 4 troubleshooting steps first."
+                    )
+            elif q_count >= 3:
                 # 3 to 4 steps attempted: Stop troubleshooting and ask caller if we can create a ticket!
                 if state["language"] == "ar":
                     queue_response(
@@ -2805,19 +2893,32 @@ async def handle_single_call(asterisk_ws):
                     state["active_response"] = True
 
                 elif event_type == "input_audio_buffer.speech_started":
-                    # Caller interrupted while AI is speaking (barge-in)
-                    if hasattr(asterisk_ws, "clear_outbound_queue"):
-                        asterisk_ws.clear_outbound_queue()
-                    if state.get("active_response"):
-                        state["active_response"] = False
-                        try:
-                            await openai_ws.send(json.dumps({"type": "response.cancel"}))
-                        except Exception:
-                            pass
+                    # Caller interruption / barge-in guard:
+                    # Ignore echoes, breath, or line clicks during the first 500ms of agent speech
+                    # and during the initial 2.0s language greeting/selection window.
+                    now_mono = time.monotonic()
+                    ai_speaking_time = now_mono - state.get("ai_speech_started_at", 0) if state.get("ai_speech_started_at") else 0
+                    lang_time = now_mono - state.get("language_selected_at", 0) if state.get("language_selected_at") else 999.0
+
+                    if lang_time < 2.0 or (state.get("ai_speech_started_at") and ai_speaking_time < 0.5):
+                        # Transient noise or turn-start echo - do NOT discard audio or cancel response
+                        pass
+                    else:
+                        # Genuine caller interruption while agent is actively speaking
+                        if hasattr(asterisk_ws, "clear_outbound_queue"):
+                            asterisk_ws.clear_outbound_queue()
+                        if state.get("active_response"):
+                            state["active_response"] = False
+                            try:
+                                await openai_ws.send(json.dumps({"type": "response.cancel"}))
+                            except Exception:
+                                pass
 
                 elif event_type == "response.output_audio.delta":
                     if state["call_ending"]:
                         break
+                    if not state.get("ai_speech_started_at"):
+                        state["ai_speech_started_at"] = time.monotonic()
                     audio_b64 = event.get("delta", "")
                     if audio_b64:
                         raw_pcm = base64.b64decode(audio_b64)
@@ -2830,6 +2931,9 @@ async def handle_single_call(asterisk_ws):
                         await handle_tool_call(event)
 
                 elif event_type == "response.done":
+                    state["ai_speech_started_at"] = 0.0
+                    if hasattr(asterisk_ws, "flush_send_buffer"):
+                        asterisk_ws.flush_send_buffer()
                     response = event.get("response", {})
                     status = response.get("status")
                     state["active_response"] = False
@@ -2889,17 +2993,19 @@ async def handle_single_call(asterisk_ws):
                                 queue_goodbye("resolved" if state.get("resolution_recorded") else "completed")
                                 await send_queued_response_if_any()
 
-                        # Deterministic initial language selection gate:
-                        if state["language"] is None:
+                        # Deterministic initial language selection gate (fallback only):
+                        if state["language"] is None and not state.get("language_processing"):
                             t_lower = transcript.lower()
                             is_english = any(w in t_lower for w in ["english", "inglizi", "ingleezi"]) or bool(re.search(r"\b(en|english)\b", t_lower))
                             is_arabic = any(w in transcript for w in ["عربي", "عربية", "العربية"]) or any(w in t_lower for w in ["arabic", "arabi"])
 
                             if is_english and not is_arabic:
+                                state["language_processing"] = True
                                 await execute_tool("set_language", {"language": "en"})
                                 queue_response("Respond only in English. Say: Thank you for choosing English. May I please have your full name?")
                                 await send_queued_response_if_any()
                             elif is_arabic and not is_english:
+                                state["language_processing"] = True
                                 await execute_tool("set_language", {"language": "ar"})
                                 queue_response("Respond only in Arabic. Say: شكراً لك. تفضل بالاسم الكامل لو سمحت؟")
                                 await send_queued_response_if_any()
@@ -2928,12 +3034,10 @@ async def handle_single_call(asterisk_ws):
 
                 elif event_type == "error":
                     print(f"[OPENAI ERROR] {json.dumps(event, indent=2)}")
-                    error = event.get("error", {})
-                    if error.get("code") == "conversation_already_has_active_response":
-                        state["active_response"] = True
-                    else:
-                        # Release active_response lock on general errors so conversation is not blocked
-                        state["active_response"] = False
+                    # Never lock active_response to True on an error!
+                    # If OpenAI rejected a response, active_response should be False so subsequent
+                    # queued responses or caller speech can proceed freely.
+                    state["active_response"] = False
 
         except websockets.exceptions.ConnectionClosed:
             pass

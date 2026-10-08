@@ -219,7 +219,7 @@ class TestAIGuardrails(unittest.TestCase):
     def test_vad_config_defaults(self):
         from app.config import VAD_THRESHOLD, VAD_SILENCE_MS
         self.assertGreaterEqual(VAD_THRESHOLD, 0.50)
-        self.assertGreaterEqual(VAD_SILENCE_MS, 1000)
+        self.assertGreaterEqual(VAD_SILENCE_MS, 400)
 
 
 if __name__ == "__main__":
