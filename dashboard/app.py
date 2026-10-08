@@ -16,7 +16,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import FastAPI, Request, Form, HTTPException, Response, File, UploadFile
+from fastapi import FastAPI, Request, Form, HTTPException, Response, File, UploadFile, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -913,12 +913,12 @@ def logout(request: Request):
 # -----------------------------------------------------------------------------
 
 @app.get("/api/dashboard/stats")
-def api_dashboard_stats(request: Request, range: str = "1d"):
+def api_dashboard_stats(request: Request, range_val: str = Query(default="1d", alias="range")):
     user = current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    range_clean = (range or "1d").lower().strip()
+    range_clean = (range_val or "1d").lower().strip()
     now_int = int(time.time())
 
     if range_clean == "7d":
@@ -977,12 +977,12 @@ def api_dashboard_stats(request: Request, range: str = "1d"):
 
 
 @app.get("/api/dashboard/chart-data")
-def api_dashboard_chart_data(request: Request, range: str = "1d"):
+def api_dashboard_chart_data(request: Request, range_val: str = Query(default="1d", alias="range")):
     user = current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    range_clean = (range or "1d").lower().strip()
+    range_clean = (range_val or "1d").lower().strip()
     now = int(time.time())
 
     if range_clean == "7d":
@@ -1178,9 +1178,9 @@ def api_call_detail(request: Request, call_identifier: str):
 # -----------------------------------------------------------------------------
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request, range: str = "1d"):
+def dashboard(request: Request, range_val: str = Query(default="1d", alias="range")):
     user = require_roles(request, ["admin", "user"])
-    stats_data = api_dashboard_stats(request, range=range)
+    stats_data = api_dashboard_stats(request, range_val=range_val)
 
     conn = db()
     recent_calls = conn.execute("SELECT * FROM calls ORDER BY id DESC LIMIT 10").fetchall()
@@ -1193,7 +1193,7 @@ def dashboard(request: Request, range: str = "1d"):
             "active_page": "dashboard",
             "user": user,
             "stats": stats_data,
-            "selected_range": range,
+            "selected_range": range_val,
             "recent_calls": recent_calls,
         }
     )
