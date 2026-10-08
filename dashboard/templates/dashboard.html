@@ -6,7 +6,13 @@
         <h1>{{ dashboard_title }}</h1>
         <p>{{ organization_name }} — {{ dashboard_subtitle }}</p>
     </div>
-    <div class="page-actions">
+    <div class="page-actions" style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <!-- Time Range Segmented Control (1d / 7d / 30d) -->
+        <div class="time-range-group" role="group" aria-label="Metrics time range">
+            <button type="button" class="time-range-btn {% if selected_range == '1d' or not selected_range %}active{% endif %}" data-range="1d" onclick="setTimeRange('1d')">24 Hours</button>
+            <button type="button" class="time-range-btn {% if selected_range == '7d' %}active{% endif %}" data-range="7d" onclick="setTimeRange('7d')">7 Days</button>
+            <button type="button" class="time-range-btn {% if selected_range == '30d' %}active{% endif %}" data-range="30d" onclick="setTimeRange('30d')">30 Days</button>
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="refreshTelemetryStats()">
             <i data-lucide="refresh-cw"></i>
             <span>Refresh Telemetry</span>
@@ -117,8 +123,16 @@
     <div class="card">
         <div class="card-header">
             <div class="card-header-title">
-                <h3 class="card-title">24-Hour Call Volume & AI Deflection Trend</h3>
-                <p class="card-description">Hourly traffic distribution comparing total volume against autonomous deflection</p>
+                <h3 class="card-title" id="volumeTrendCardTitle">
+                    {% if selected_range == '7d' %}7-Day Call Volume & AI Deflection Trend
+                    {% elif selected_range == '30d' %}30-Day Call Volume & AI Deflection Trend
+                    {% else %}24-Hour Call Volume & AI Deflection Trend{% endif %}
+                </h3>
+                <p class="card-description" id="volumeTrendCardDesc">
+                    {% if selected_range == '7d' %}Daily traffic volume and resolution patterns over the past 7 days
+                    {% elif selected_range == '30d' %}Monthly call volume metrics and deflection trajectory over 30 days
+                    {% else %}Hourly traffic distribution comparing total volume against autonomous deflection{% endif %}
+                </p>
             </div>
         </div>
         <div class="card-body">

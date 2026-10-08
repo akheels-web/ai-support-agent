@@ -493,16 +493,26 @@ def recording_files():
 
     # Pre-fetch call metadata to map recordings to verified names and caller identities
     call_lookup = {}
+    reviews_map = {}
     try:
         conn = db()
         rows = conn.execute("SELECT call_id, caller_number, employee_id, verified_name, recording_file, start_time FROM calls").fetchall()
-        conn.close()
         for r in rows:
             if r.get("recording_file"):
                 rec_basename = Path(r["recording_file"]).name
                 call_lookup[rec_basename] = r
             if r.get("call_id"):
                 call_lookup[r["call_id"]] = r
+
+        try:
+            r_rows = conn.execute("SELECT recording_file, reviewer, rating, notes, created_at FROM quality_reviews ORDER BY id ASC").fetchall()
+            for rev in r_rows:
+                if rev.get("recording_file"):
+                    reviews_map[Path(rev["recording_file"]).name] = rev
+        except Exception:
+            pass
+
+        conn.close()
     except Exception:
         pass
 
@@ -552,6 +562,19 @@ def recording_files():
         else:
             display_name = f"{clean_user}_{time_str}_{day_str}_{year_str}"
 
+        # Match saved quality reviews
+        matched_review = reviews_map.get(file.name)
+        if not matched_review:
+            for k, val in reviews_map.items():
+                if k in file.name or file.name in k:
+                    matched_review = val
+                    break
+
+        rating = matched_review.get("rating", "") if matched_review else ""
+        notes = matched_review.get("notes", "") if matched_review else ""
+        reviewer = matched_review.get("reviewer", "") if matched_review else ""
+        reviewed_at = human_time(matched_review.get("created_at")) if matched_review else ""
+
         files.append(
             {
                 "name": file.name,
@@ -563,6 +586,10 @@ def recording_files():
                 "size_mb": round(stat.st_size / 1024 / 1024, 2),
                 "created_at": stat.st_mtime,
                 "created_at_human": human_time(stat.st_mtime),
+                "rating": rating,
+                "notes": notes,
+                "reviewer": reviewer,
+                "reviewed_at": reviewed_at,
             }
         )
     return files
@@ -670,6 +697,15 @@ def init_db():
             save_setting(conn, key, value)
         elif key == "ai_greeting" and ("Hi, I am Arif" in str(exists.get("value") or "")):
             save_setting(conn, key, value)
+
+    # Ensure high-performance indexes on critical query paths
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_start_time ON calls(start_time)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_calls_status ON calls(status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_callers_emp_id ON callers(employee_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_quality_reviews_rec ON quality_reviews(recording_file)")
+    except Exception:
+        pass
 
     conn.commit()
     conn.close()
@@ -877,17 +913,23 @@ def logout(request: Request):
 # -----------------------------------------------------------------------------
 
 @app.get("/api/dashboard/stats")
-def api_dashboard_stats(request: Request):
+def api_dashboard_stats(request: Request, range: str = "1d"):
     user = current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    global _STATS_CACHE, _STATS_CACHE_TIME
-    now = time.time()
-    if _STATS_CACHE and (now - _STATS_CACHE_TIME < 5.0):
-        return _STATS_CACHE
+    range_clean = (range or "1d").lower().strip()
+    now_int = int(time.time())
 
-    live_cutoff = int(now) - 600
+    if range_clean == "7d":
+        start_cutoff = now_int - 7 * 86400
+    elif range_clean == "30d":
+        start_cutoff = now_int - 30 * 86400
+    else:  # "1d" default
+        range_clean = "1d"
+        start_cutoff = now_int - 86400
+
+    live_cutoff = now_int - 600
     conn = db()
     query = """
         SELECT
@@ -901,8 +943,9 @@ def api_dashboard_stats(request: Request):
             SUM(CASE WHEN tier='CRITICAL' OR status='emergency_escalated' THEN 1 ELSE 0 END) as emergency_calls,
             SUM(CASE WHEN transferred=1 THEN 1 ELSE 0 END) as transferred
         FROM calls
+        WHERE start_time >= ?
     """
-    row = conn.execute(query, (live_cutoff,)).fetchone()
+    row = conn.execute(query, (live_cutoff, start_cutoff)).fetchone()
     conn.close()
 
     total_calls = row["total_calls"] or 0
@@ -918,6 +961,7 @@ def api_dashboard_stats(request: Request):
     deflection_rate = round((deflected / total_calls * 100), 1) if total_calls > 0 else 0.0
 
     result = {
+        "range": range_clean,
         "total_calls": total_calls,
         "deflected": deflected,
         "deflection_rate": deflection_rate,
@@ -929,20 +973,45 @@ def api_dashboard_stats(request: Request):
         "failed": failed,
         "transferred": transferred,
     }
-
-    _STATS_CACHE = result
-    _STATS_CACHE_TIME = now
     return result
 
 
 @app.get("/api/dashboard/chart-data")
-def api_dashboard_chart_data(request: Request):
+def api_dashboard_chart_data(request: Request, range: str = "1d"):
     user = current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    range_clean = (range or "1d").lower().strip()
     now = int(time.time())
-    one_day_ago = now - 86400
+
+    if range_clean == "7d":
+        duration = 7 * 86400
+        num_buckets = 7
+        bucket_seconds = 86400
+        labels = []
+        for i in range(num_buckets):
+            b_time = now - (num_buckets - 1 - i) * bucket_seconds
+            labels.append(time.strftime("%a %d", time.localtime(b_time)))
+    elif range_clean == "30d":
+        duration = 30 * 86400
+        num_buckets = 10
+        bucket_seconds = 3 * 86400
+        labels = []
+        for i in range(num_buckets):
+            b_time = now - (num_buckets - 1 - i) * bucket_seconds
+            labels.append(time.strftime("%b %d", time.localtime(b_time)))
+    else:  # "1d" default
+        range_clean = "1d"
+        duration = 86400
+        num_buckets = 12
+        bucket_seconds = 7200
+        labels = []
+        for i in range(num_buckets):
+            b_time = now - (num_buckets - 1 - i) * bucket_seconds
+            labels.append(time.strftime("%H:00", time.localtime(b_time)))
+
+    start_cutoff = now - duration
 
     conn = db()
     rows = conn.execute(
@@ -952,32 +1021,46 @@ def api_dashboard_chart_data(request: Request):
         WHERE start_time >= ?
         ORDER BY start_time ASC
         """,
-        (one_day_ago,),
+        (start_cutoff,),
     ).fetchall()
 
-    deflected_count = conn.execute("SELECT COUNT(*) c FROM calls WHERE ai_deflected=1 OR resolution_type='AI_Resolved'").fetchone()["c"]
-    transferred_l1 = conn.execute("SELECT COUNT(*) c FROM calls WHERE transferred=1 AND tier NOT IN ('P0_EXECUTIVE','P1_VIP','CRITICAL')").fetchone()["c"]
-    transferred_vip = conn.execute("SELECT COUNT(*) c FROM calls WHERE transferred=1 AND tier IN ('P0_EXECUTIVE','P1_VIP')").fetchone()["c"]
-    transferred_emerg = conn.execute("SELECT COUNT(*) c FROM calls WHERE tier='CRITICAL' OR status='emergency_escalated'").fetchone()["c"]
-    tickets_count = conn.execute("SELECT COUNT(*) c FROM calls WHERE ticket_created=1").fetchone()["c"]
+    deflected_count = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE start_time >= ? AND (ai_deflected=1 OR resolution_type='AI_Resolved')",
+        (start_cutoff,),
+    ).fetchone()["c"]
+
+    transferred_l1 = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE start_time >= ? AND transferred=1 AND tier NOT IN ('P0_EXECUTIVE','P1_VIP','CRITICAL')",
+        (start_cutoff,),
+    ).fetchone()["c"]
+
+    transferred_vip = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE start_time >= ? AND transferred=1 AND tier IN ('P0_EXECUTIVE','P1_VIP')",
+        (start_cutoff,),
+    ).fetchone()["c"]
+
+    transferred_emerg = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE start_time >= ? AND (tier='CRITICAL' OR status='emergency_escalated')",
+        (start_cutoff,),
+    ).fetchone()["c"]
+
+    tickets_count = conn.execute(
+        "SELECT COUNT(*) c FROM calls WHERE start_time >= ? AND ticket_created=1",
+        (start_cutoff,),
+    ).fetchone()["c"]
     conn.close()
 
-    labels = []
-    bucket_total = [0] * 12
-    bucket_deflected = [0] * 12
-    bucket_escalated = [0] * 12
-
-    for i in range(12):
-        bucket_time = now - (11 - i) * 7200
-        labels.append(time.strftime("%H:00", time.localtime(bucket_time)))
+    bucket_total = [0] * num_buckets
+    bucket_deflected = [0] * num_buckets
+    bucket_escalated = [0] * num_buckets
 
     for r in rows:
         st = r["start_time"]
         if not st:
             continue
         diff = now - int(st)
-        if 0 <= diff <= 86400:
-            idx = 11 - min(11, int(diff // 7200))
+        if 0 <= diff <= duration:
+            idx = (num_buckets - 1) - min(num_buckets - 1, int(diff // bucket_seconds))
             bucket_total[idx] += 1
             if r["ai_deflected"] == 1 or r["resolution_type"] == "AI_Resolved":
                 bucket_deflected[idx] += 1
@@ -985,6 +1068,7 @@ def api_dashboard_chart_data(request: Request):
                 bucket_escalated[idx] += 1
 
     return {
+        "range": range_clean,
         "volume_trend": {
             "labels": labels,
             "total": bucket_total,
@@ -1094,9 +1178,9 @@ def api_call_detail(request: Request, call_identifier: str):
 # -----------------------------------------------------------------------------
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request):
+def dashboard(request: Request, range: str = "1d"):
     user = require_roles(request, ["admin", "user"])
-    stats_data = api_dashboard_stats(request)
+    stats_data = api_dashboard_stats(request, range=range)
 
     conn = db()
     recent_calls = conn.execute("SELECT * FROM calls ORDER BY id DESC LIMIT 10").fetchall()
@@ -1109,6 +1193,7 @@ def dashboard(request: Request):
             "active_page": "dashboard",
             "user": user,
             "stats": stats_data,
+            "selected_range": range,
             "recent_calls": recent_calls,
         }
     )
@@ -1309,18 +1394,49 @@ def save_review(
 ):
     validate_csrf(request, csrf_token)
     user = require_roles(request, ["admin", "quality_reviewer"])
+    safe_rec = Path(recording_file).name
+    now_ts = int(time.time())
+
     conn = db()
-    conn.execute(
-        """
-        INSERT INTO quality_reviews(recording_file, reviewer, rating, notes, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (Path(recording_file).name, user["username"], rating, notes, int(time.time())),
-    )
+    existing = conn.execute(
+        "SELECT id FROM quality_reviews WHERE recording_file = ? ORDER BY id DESC LIMIT 1",
+        (safe_rec,)
+    ).fetchone()
+
+    if existing:
+        conn.execute(
+            """
+            UPDATE quality_reviews
+            SET reviewer = ?, rating = ?, notes = ?, created_at = ?
+            WHERE id = ?
+            """,
+            (user["username"], rating, notes.strip(), now_ts, existing["id"]),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO quality_reviews(recording_file, reviewer, rating, notes, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (safe_rec, user["username"], rating, notes.strip(), now_ts),
+        )
     conn.commit()
     conn.close()
     audit(user["username"], "save_quality_review", "recording", recording_file)
-    return RedirectResponse("/recordings", status_code=302)
+
+    accept_header = request.headers.get("accept", "")
+    is_ajax = ("application/json" in accept_header) or (request.headers.get("x-requested-with") == "XMLHttpRequest")
+    if is_ajax:
+        return JSONResponse({
+            "success": True,
+            "message": "Quality review saved successfully",
+            "recording_file": safe_rec,
+            "rating": rating,
+            "notes": notes.strip(),
+            "reviewer": user["username"],
+        })
+
+    return RedirectResponse("/recordings?saved=1", status_code=302)
 
 
 # -----------------------------------------------------------------------------
@@ -1955,7 +2071,29 @@ def update_caller(
         pass
 
     audit(admin["username"], "update_caller", "caller", str(caller_id))
-    return RedirectResponse("/callers", status_code=302)
+
+    accept_header = request.headers.get("accept", "")
+    is_ajax = ("application/json" in accept_header) or (request.headers.get("x-requested-with") == "XMLHttpRequest")
+    if is_ajax:
+        return JSONResponse({
+            "success": True,
+            "message": f"Caller profile for {name} updated successfully",
+            "caller": {
+                "id": caller_id,
+                "name": name,
+                "aliases": [a.strip() for a in aliases.split("|") if a.strip()],
+                "raw_aliases": aliases.strip(),
+                "email": email.strip(),
+                "phone": phone.strip(),
+                "department": department.strip(),
+                "role": role.strip() or "Employee",
+                "tier": tier,
+                "vip": bool(vip),
+                "active": active_val,
+            }
+        })
+
+    return RedirectResponse("/callers?saved=1", status_code=302)
 
 
 @app.post("/callers/toggle-status")
@@ -1988,7 +2126,18 @@ def toggle_caller_status(
 
     action = "offboard_caller" if new_status == 0 else "activate_caller"
     audit(admin["username"], action, "caller", target["employee_id"])
-    return RedirectResponse("/callers", status_code=302)
+
+    accept_header = request.headers.get("accept", "")
+    is_ajax = ("application/json" in accept_header) or (request.headers.get("x-requested-with") == "XMLHttpRequest")
+    if is_ajax:
+        return JSONResponse({
+            "success": True,
+            "active": new_status,
+            "caller_id": caller_id,
+            "message": f"Caller status changed to {'Active' if new_status == 1 else 'Offboarded'}",
+        })
+
+    return RedirectResponse("/callers?saved=1", status_code=302)
 
 
 @app.post("/callers/delete")
@@ -2017,7 +2166,16 @@ def delete_caller(
     if target:
         audit(admin["username"], "delete_caller", "caller", target["employee_id"])
 
-    return RedirectResponse("/callers", status_code=302)
+    accept_header = request.headers.get("accept", "")
+    is_ajax = ("application/json" in accept_header) or (request.headers.get("x-requested-with") == "XMLHttpRequest")
+    if is_ajax:
+        return JSONResponse({
+            "success": True,
+            "caller_id": caller_id,
+            "message": "Caller profile deleted successfully",
+        })
+
+    return RedirectResponse("/callers?saved=1", status_code=302)
 
 
 @app.get("/callers/export")

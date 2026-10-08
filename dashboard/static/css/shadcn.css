@@ -1381,3 +1381,189 @@ code, pre, .mono {
         grid-template-columns: 1fr;
     }
 }
+
+/* ==========================================================================
+   Modern Toast Notifications & Confirm Dialogs
+   ========================================================================== */
+#toast-container {
+    position: fixed;
+    top: 1.25rem;
+    right: 1.25rem;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    pointer-events: none;
+    max-width: 400px;
+    width: calc(100vw - 2.5rem);
+}
+
+.toast-item {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-radius: 0.65rem;
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border: 1px solid hsl(var(--border));
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    animation: toastSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.toast-item.toast-leave {
+    opacity: 0;
+    transform: translateX(30px) scale(0.95);
+    margin-top: -3.5rem;
+}
+
+@keyframes toastSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(40px) scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+.toast-item.toast-success {
+    border-color: rgba(16, 185, 129, 0.35);
+}
+.toast-item.toast-success .toast-icon {
+    color: #10B981;
+    background: rgba(16, 185, 129, 0.12);
+}
+
+.toast-item.toast-error {
+    border-color: rgba(200, 16, 46, 0.35);
+}
+.toast-item.toast-error .toast-icon {
+    color: var(--nf-crimson);
+    background: rgba(200, 16, 46, 0.12);
+}
+
+.toast-item.toast-warning {
+    border-color: rgba(245, 158, 11, 0.35);
+}
+.toast-item.toast-warning .toast-icon {
+    color: #F59E0B;
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.toast-item.toast-info {
+    border-color: rgba(43, 74, 159, 0.35);
+}
+.toast-item.toast-info .toast-icon {
+    color: var(--nf-blue);
+    background: rgba(43, 74, 159, 0.12);
+}
+
+.toast-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.toast-title {
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: hsl(var(--foreground));
+}
+
+.toast-message {
+    font-size: 0.8rem;
+    color: hsl(var(--muted-foreground));
+    margin-top: 0.2rem;
+    line-height: 1.35;
+}
+
+.toast-close-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: hsl(var(--muted-foreground));
+    padding: 0.15rem;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.15s;
+    flex-shrink: 0;
+}
+.toast-close-btn:hover {
+    color: hsl(var(--foreground));
+}
+
+/* Time range filter pill control */
+.time-range-group {
+    display: inline-flex;
+    align-items: center;
+    background: hsl(var(--secondary));
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid hsl(var(--border));
+    gap: 2px;
+}
+
+.time-range-btn {
+    border: none;
+    background: transparent;
+    color: hsl(var(--muted-foreground));
+    font-size: 0.775rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.time-range-btn:hover {
+    color: hsl(var(--foreground));
+}
+
+.time-range-btn.active {
+    background: hsl(var(--card));
+    color: var(--nf-navy);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.dark .time-range-btn.active {
+    background: hsl(var(--primary));
+    color: #ffffff;
+}
+
+.btn-danger {
+    background-color: var(--nf-crimson);
+    color: white;
+    border-color: var(--nf-crimson);
+}
+
+.btn-danger:hover {
+    background-color: #B91C1C;
+    border-color: #B91C1C;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.spin-animation {
+    animation: spin 1s linear infinite;
+    display: inline-block;
+}
+

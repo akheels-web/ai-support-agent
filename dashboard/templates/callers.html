@@ -120,14 +120,18 @@
 <!-- Filters Bar -->
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-body" style="padding: 1rem 1.25rem;">
-        <form method="get" action="/callers" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
-            <div style="flex: 2; min-width: 220px;">
-                <input type="text" name="q" value="{{ filters.q }}" class="input" placeholder="Search by name, ID, phone, aliases, dept..." style="width: 100%;">
+        <form id="callerFilterForm" onsubmit="event.preventDefault(); return false;" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+            <div style="flex: 2; min-width: 240px; position: relative;">
+                <input type="text" id="callerSearchInput" name="q" value="{{ filters.q }}" class="input" placeholder="Instant search by name, ID, phone, aliases, dept..." autocomplete="off" style="width: 100%; padding-left: 2.2rem; padding-right: 2.2rem;">
+                <i data-lucide="search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--muted-foreground); pointer-events: none;"></i>
+                <button type="button" id="clearSearchBtn" onclick="clearCallerSearch()" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); background: transparent; border: none; cursor: pointer; color: var(--muted-foreground); display: none; padding: 2px;" title="Clear search">
+                    <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                </button>
             </div>
 
             <div style="flex: 1; min-width: 140px;">
-                <select name="tier" class="select" style="width: 100%;">
-                    <option value="ALL" {% if filters.tier == 'ALL' %}selected{% endif %}>All Tiers</option>
+                <select name="tier" id="filterTier" class="select" style="width: 100%;" onchange="filterCallersInstant()">
+                    <option value="ALL">All Tiers</option>
                     <option value="P0_EXECUTIVE" {% if filters.tier == 'P0_EXECUTIVE' %}selected{% endif %}>P0 Executive (C-Suite)</option>
                     <option value="P1_VIP" {% if filters.tier == 'P1_VIP' %}selected{% endif %}>P1 VIP (Priority)</option>
                     <option value="STANDARD" {% if filters.tier == 'STANDARD' %}selected{% endif %}>Standard Support</option>
@@ -135,16 +139,16 @@
             </div>
 
             <div style="flex: 1; min-width: 130px;">
-                <select name="status" class="select" style="width: 100%;">
-                    <option value="ALL" {% if filters.status == 'ALL' %}selected{% endif %}>All Statuses</option>
+                <select name="status" id="filterStatus" class="select" style="width: 100%;" onchange="filterCallersInstant()">
+                    <option value="ALL">All Statuses</option>
                     <option value="active" {% if filters.status == 'active' %}selected{% endif %}>Active Only</option>
                     <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>Offboarded Only</option>
                 </select>
             </div>
 
             <div style="flex: 1; min-width: 130px;">
-                <select name="department" class="select" style="width: 100%;">
-                    <option value="ALL" {% if filters.department == 'ALL' %}selected{% endif %}>All Departments</option>
+                <select name="department" id="filterDepartment" class="select" style="width: 100%;" onchange="filterCallersInstant()">
+                    <option value="ALL">All Departments</option>
                     {% for dept in departments %}
                     <option value="{{ dept }}" {% if filters.department == dept %}selected{% endif %}>{{ dept }}</option>
                     {% endfor %}
@@ -152,14 +156,9 @@
             </div>
 
             <div style="display: flex; gap: 0.5rem;">
-                <button type="submit" class="btn btn-secondary btn-sm">
-                    <i data-lucide="filter"></i> Filter
-                </button>
-                {% if filters.q or filters.tier != 'ALL' or filters.status != 'ALL' or filters.department != 'ALL' %}
-                <a href="/callers" class="btn btn-outline btn-sm" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="resetCallerFilters()" title="Reset all filters">
                     <i data-lucide="rotate-ccw" style="width: 14px; height: 14px;"></i> Reset
-                </a>
-                {% endif %}
+                </button>
             </div>
         </form>
     </div>
@@ -170,21 +169,16 @@
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
         <div class="card-header-title">
             <h3 class="card-title">Authorized Callers & Telephony Roster</h3>
-            <p class="card-description">
-                Showing <strong>{{ rows|length }}</strong> of <strong>{{ stats.total }}</strong> registered caller profile(s)
-                {% if filters.q or filters.tier != 'ALL' or filters.status != 'ALL' or filters.department != 'ALL' %}
-                    <span style="color: var(--nf-navy); font-weight: 600; margin-left: 0.25rem;">(Filtered View)</span>
-                {% endif %}
+            <p class="card-description" id="callerCountDesc">
+                Showing <strong id="callerVisibleCount">{{ rows|length }}</strong> of <strong id="callerTotalCount">{{ stats.total }}</strong> registered caller profile(s)
             </p>
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <span class="badge badge-secondary" style="font-size: 0.75rem;">Active: <strong>{{ stats.active }}</strong></span>
-            <span class="badge badge-secondary" style="font-size: 0.75rem;">VIP / Exec: <strong>{{ stats.vip }}</strong></span>
-            {% if stats.inactive > 0 %}
-            <span class="badge" style="font-size: 0.75rem; background: rgba(200, 16, 46, 0.1); color: var(--nf-crimson); border: 1px solid rgba(200, 16, 46, 0.25);">
-                Offboarded: <strong>{{ stats.inactive }}</strong>
+            <span class="badge badge-secondary" style="font-size: 0.75rem;">Active: <strong id="kpiActiveCount">{{ stats.active }}</strong></span>
+            <span class="badge badge-secondary" style="font-size: 0.75rem;">VIP / Exec: <strong id="kpiVipCount">{{ stats.vip }}</strong></span>
+            <span class="badge" id="kpiInactiveBadge" style="font-size: 0.75rem; background: rgba(200, 16, 46, 0.1); color: var(--nf-crimson); border: 1px solid rgba(200, 16, 46, 0.25); {% if stats.inactive == 0 %}display:none;{% endif %}">
+                Offboarded: <strong id="kpiInactiveCount">{{ stats.inactive }}</strong>
             </span>
-            {% endif %}
         </div>
     </div>
     <div class="card-body" style="padding: 0;">
@@ -201,44 +195,46 @@
                         <th style="min-width: 220px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="callersTableBody">
                     {% for r in rows %}
-                    <tr style="{% if r.active == 0 %}opacity: 0.65; background: rgba(200, 16, 46, 0.02);{% endif %}">
+                    <tr id="caller-row-{{ r.id }}" class="caller-row" data-id="{{ r.id }}" data-emp-id="{{ r.employee_id|lower }}" data-name="{{ r.name|lower }}" data-aliases="{{ (r.raw_aliases or '')|lower }}" data-phone="{{ (r.phone or '')|lower }}" data-dept="{{ (r.department or '')|lower }}" data-role="{{ (r.role or '')|lower }}" data-tier="{{ r.tier }}" data-status="{{ 'active' if r.active == 1 else 'inactive' }}" style="{% if r.active == 0 %}opacity: 0.65; background: rgba(200, 16, 46, 0.02);{% endif %}">
                         <td>
-                            <span style="font-family: monospace; font-weight: 700; color: var(--foreground); background: var(--secondary); padding: 0.2rem 0.45rem; border-radius: 4px; font-size: 0.8rem;">
+                            <span class="caller-emp-badge" style="font-family: monospace; font-weight: 700; color: var(--foreground); background: var(--secondary); padding: 0.2rem 0.45rem; border-radius: 4px; font-size: 0.8rem;">
                                 {{ r.employee_id }}
                             </span>
                         </td>
                         <td>
-                            <div style="font-weight: 600; color: var(--foreground); font-size: 0.9rem;">
+                            <div class="caller-name-text" style="font-weight: 600; color: var(--foreground); font-size: 0.9rem;">
                                 {{ r.name }}
                             </div>
-                            {% if r.aliases %}
-                            <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem;">
-                                {% for a in r.aliases %}
-                                <span style="font-size: 0.7rem; background: var(--secondary); color: var(--muted-foreground); padding: 0.1rem 0.35rem; border-radius: 3px; border: 1px solid var(--border);">
-                                    {{ a }}
-                                </span>
-                                {% endfor %}
+                            <div class="caller-aliases-wrapper">
+                                {% if r.aliases %}
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem;">
+                                    {% for a in r.aliases %}
+                                    <span style="font-size: 0.7rem; background: var(--secondary); color: var(--muted-foreground); padding: 0.1rem 0.35rem; border-radius: 3px; border: 1px solid var(--border);">
+                                        {{ a }}
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                             </div>
-                            {% endif %}
                             {% if r.email %}
-                            <div style="font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.15rem;">
+                            <div class="caller-email-text" style="font-size: 0.75rem; color: var(--muted-foreground); margin-top: 0.15rem;">
                                 {{ r.email }}
                             </div>
                             {% endif %}
                         </td>
                         <td>
-                            <div style="display: flex; align-items: center; gap: 0.35rem; font-family: monospace; font-size: 0.85rem; font-weight: 500;">
+                            <div class="caller-phone-text" style="display: flex; align-items: center; gap: 0.35rem; font-family: monospace; font-size: 0.85rem; font-weight: 500;">
                                 <i data-lucide="phone" style="width: 14px; height: 14px; color: var(--muted-foreground);"></i>
-                                {{ r.phone or 'None' }}
+                                <span>{{ r.phone or 'None' }}</span>
                             </div>
                         </td>
                         <td>
-                            <div style="font-weight: 500; font-size: 0.85rem;">{{ r.department or '-' }}</div>
-                            <div style="font-size: 0.75rem; color: var(--muted-foreground);">{{ r.role or 'Employee' }}</div>
+                            <div class="caller-dept-text" style="font-weight: 500; font-size: 0.85rem;">{{ r.department or '-' }}</div>
+                            <div class="caller-role-text" style="font-size: 0.75rem; color: var(--muted-foreground);">{{ r.role or 'Employee' }}</div>
                         </td>
-                        <td>
+                        <td class="caller-tier-cell">
                             {% if r.tier == 'P0_EXECUTIVE' %}
                                 <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600;">
                                     <i data-lucide="shield-alert" style="width: 12px; height: 12px; margin-right: 3px;"></i> P0 Executive
@@ -251,47 +247,37 @@
                                 <span class="badge badge-secondary" style="font-weight: 500;">Standard</span>
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="caller-status-cell">
                             {% if r.active == 1 %}
-                                <span style="display: inline-flex; align-items: center; gap: 0.3rem; color: #10B981; font-size: 0.78rem; font-weight: 600;">
+                                <span class="status-indicator-badge" style="display: inline-flex; align-items: center; gap: 0.3rem; color: #10B981; font-size: 0.78rem; font-weight: 600;">
                                     <span style="width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></span> Active
                                 </span>
                             {% else %}
-                                <span style="display: inline-flex; align-items: center; gap: 0.3rem; color: var(--nf-crimson); font-size: 0.78rem; font-weight: 600;">
+                                <span class="status-indicator-badge" style="display: inline-flex; align-items: center; gap: 0.3rem; color: var(--nf-crimson); font-size: 0.78rem; font-weight: 600;">
                                     <span style="width: 7px; height: 7px; border-radius: 50%; background: var(--nf-crimson);"></span> Offboarded
                                 </span>
                             {% endif %}
                         </td>
                         <td style="text-align: right;">
                             <div style="display: inline-flex; gap: 0.4rem; align-items: center; justify-content: flex-end;">
-                                <!-- Toggle Active / Offboard Status Form -->
-                                <form method="post" action="/callers/toggle-status" style="margin: 0;">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="caller_id" value="{{ r.id }}">
+                                <!-- Toggle Active / Offboard Status -->
+                                <button type="button" class="btn btn-toggle-status btn-xs {% if r.active == 1 %}btn-outline-danger{% else %}btn-success-subtle{% endif %}" onclick="toggleCallerStatusAsync({{ r.id }}, this)" title="{% if r.active == 1 %}Deactivate caller immediately{% else %}Re-activate caller{% endif %}">
                                     {% if r.active == 1 %}
-                                    <button type="submit" class="btn btn-outline-danger btn-xs" title="Deactivate caller immediately">
-                                        <i data-lucide="user-minus"></i> Offboard
-                                    </button>
+                                    <i data-lucide="user-minus"></i> <span>Offboard</span>
                                     {% else %}
-                                    <button type="submit" class="btn btn-success-subtle btn-xs" title="Re-activate caller">
-                                        <i data-lucide="user-check"></i> Activate
-                                    </button>
+                                    <i data-lucide="user-check"></i> <span>Activate</span>
                                     {% endif %}
-                                </form>
+                                </button>
 
                                 <!-- Edit Caller Trigger -->
                                 <button type="button" class="btn btn-secondary btn-xs" onclick='openEditCallerModal({{ r|tojson }})' title="Edit Caller Profile">
                                     <i data-lucide="edit-2"></i> Edit
                                 </button>
 
-                                <!-- Delete Form -->
-                                <form method="post" action="/callers/delete" style="margin: 0;" onsubmit="return confirm('Permanently delete caller {{ r.name }} ({{ r.employee_id }})? This action cannot be undone.');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="hidden" name="caller_id" value="{{ r.id }}">
-                                    <button type="submit" class="btn btn-ghost-danger btn-xs btn-icon" style="width: 28px; height: 28px; padding: 0;" title="Delete Record">
-                                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
-                                    </button>
-                                </form>
+                                <!-- Delete Trigger (Modern Modal) -->
+                                <button type="button" class="btn btn-ghost-danger btn-xs btn-icon" style="width: 28px; height: 28px; padding: 0;" onclick="openDeleteConfirmModal({{ r.id }}, '{{ r.name|replace('\'', '\\\'') }}', '{{ r.employee_id }}')" title="Delete Record">
+                                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -299,11 +285,18 @@
                     <tr>
                         <td colspan="7" style="text-align: center; padding: 3rem 1rem; color: var(--muted-foreground);">
                             <i data-lucide="user-x" style="width: 36px; height: 36px; stroke-width: 1.5; margin-bottom: 0.5rem;"></i>
-                            <div style="font-weight: 500;">No callers matched the filter criteria</div>
-                            <div style="font-size: 0.8rem; margin-top: 0.25rem;">Try adjusting your search query or reset the filters.</div>
+                            <div style="font-weight: 500;">No callers registered in the directory</div>
+                            <div style="font-size: 0.8rem; margin-top: 0.25rem;">Click "Onboard New Caller" or "Import CSV" to add records.</div>
                         </td>
                     </tr>
                     {% endfor %}
+                    <tr id="noInstantMatchesRow" style="display: none;">
+                        <td colspan="7" style="text-align: center; padding: 3rem 1rem; color: var(--muted-foreground);">
+                            <i data-lucide="search-x" style="width: 36px; height: 36px; stroke-width: 1.5; margin-bottom: 0.5rem; display: inline-block;"></i>
+                            <div style="font-weight: 500;">No callers matched the search query</div>
+                            <div style="font-size: 0.8rem; margin-top: 0.25rem;">Try typing another name, employee ID, phone number or click Reset.</div>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -412,7 +405,7 @@
             </button>
         </div>
         <div class="card-body">
-            <form method="post" action="/callers/update">
+            <form method="post" action="/callers/update" id="editCallerForm" onsubmit="submitEditCallerAsync(event)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="caller_id" id="edit_caller_id">
 
@@ -476,7 +469,7 @@
 
                 <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
                     <button type="button" class="btn btn-outline" onclick="closeModal('editCallerModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="btnSubmitEditCaller">
                         <i data-lucide="check"></i> Update Caller
                     </button>
                 </div>
@@ -542,7 +535,120 @@
     </div>
 </div>
 
+<!-- ========================================== -->
+<!-- MODAL 5: Delete Caller Confirmation        -->
+<!-- ========================================== -->
+<div id="deleteConfirmModal" class="modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; align-items: center; justify-content: center; backdrop-filter: blur(2px);">
+    <div class="card" style="width: 100%; max-width: 440px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);">
+            <div class="card-header-title">
+                <h3 class="card-title" style="color: var(--nf-crimson); display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="alert-triangle" style="width: 18px; height: 18px;"></i> Remove Caller
+                </h3>
+                <p class="card-description">This action will permanently delete the caller record</p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="closeModal('deleteConfirmModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="card-body" style="padding: 1.25rem;">
+            <p style="font-size: 0.9rem; color: var(--foreground); margin-bottom: 0.5rem;">
+                Are you sure you want to remove <strong id="deleteCallerName"></strong> (<span id="deleteCallerEmpId" style="font-family: monospace; color: var(--muted-foreground);"></span>)?
+            </p>
+            <p style="font-size: 0.8rem; color: var(--muted-foreground); margin-bottom: 1.25rem;">
+                The caller will no longer be identified during inbound calls, and will lose automated priority routing.
+            </p>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button type="button" class="btn btn-outline" onclick="closeModal('deleteConfirmModal')">Cancel</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmDeleteCaller" onclick="confirmCallerDeleteAsync()">
+                    <i data-lucide="trash-2"></i> Delete Caller
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+let callerSearchDebounce = null;
+
+function filterCallersInstant() {
+    clearTimeout(callerSearchDebounce);
+    callerSearchDebounce = setTimeout(() => {
+        applyCallerFilters();
+    }, 120);
+}
+
+function clearCallerSearch() {
+    const input = document.getElementById('callerLiveSearchInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    applyCallerFilters();
+}
+
+function resetCallerFilters() {
+    const input = document.getElementById('callerLiveSearchInput');
+    if (input) input.value = '';
+    const dept = document.getElementById('filterDepartment');
+    if (dept) dept.value = '';
+    const tier = document.getElementById('filterTier');
+    if (tier) tier.value = '';
+    const status = document.getElementById('filterStatus');
+    if (status) status.value = '';
+    applyCallerFilters();
+}
+
+function applyCallerFilters() {
+    const query = (document.getElementById('callerLiveSearchInput')?.value || '').trim().toLowerCase();
+    const dept = (document.getElementById('filterDepartment')?.value || '').trim().toLowerCase();
+    const tier = (document.getElementById('filterTier')?.value || '').trim().toUpperCase();
+    const status = (document.getElementById('filterStatus')?.value || '').trim().toLowerCase();
+
+    const rows = document.querySelectorAll('#callerDirectoryTable tbody tr.caller-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const empId = (row.dataset.empId || '').toLowerCase();
+        const name = (row.dataset.name || '').toLowerCase();
+        const aliases = (row.dataset.aliases || '').toLowerCase();
+        const phone = (row.dataset.phone || '').toLowerCase();
+        const rowDept = (row.dataset.dept || '').toLowerCase();
+        const rowRole = (row.dataset.role || '').toLowerCase();
+        const rowTier = (row.dataset.tier || '').toUpperCase();
+        const rowStatus = (row.dataset.status || '').toLowerCase();
+
+        const matchesQuery = !query || 
+            empId.includes(query) || 
+            name.includes(query) || 
+            aliases.includes(query) || 
+            phone.includes(query) || 
+            rowDept.includes(query) || 
+            rowRole.includes(query);
+
+        const matchesDept = !dept || rowDept === dept;
+        const matchesTier = !tier || rowTier === tier;
+        const matchesStatus = !status || rowStatus === status;
+
+        if (matchesQuery && matchesDept && matchesTier && matchesStatus) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    const noMatches = document.getElementById('noInstantMatchesRow');
+    if (noMatches) {
+        noMatches.style.display = (visibleCount === 0 && rows.length > 0) ? '' : 'none';
+    }
+
+    const counter = document.getElementById('callerVisibleCount');
+    if (counter) {
+        counter.textContent = visibleCount;
+    }
+}
+
 function openModal(id) {
     const el = document.getElementById(id);
     if (el) {
@@ -570,10 +676,245 @@ function openEditCallerModal(caller) {
     openModal('editCallerModal');
 }
 
+async function submitEditCallerAsync(e) {
+    e.preventDefault();
+    const form = document.getElementById('editCallerForm');
+    const btn = document.getElementById('btnSubmitEditCaller');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" class="spin-animation" style="width:14px;height:14px;"></i> Updating...</span>';
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData(form);
+        const res = await fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            closeModal('editCallerModal');
+            if (window.showToast) {
+                window.showToast(data.message || 'Caller profile updated successfully', 'success');
+            }
+            
+            // Update row live in DOM
+            const callerId = formData.get('caller_id');
+            const row = document.getElementById('caller-row-' + callerId);
+            if (row) {
+                const name = formData.get('name') || '';
+                const aliases = formData.get('aliases') || '';
+                const phone = formData.get('phone') || '';
+                const email = formData.get('email') || '';
+                const department = formData.get('department') || '';
+                const role = formData.get('role') || 'Employee';
+                const tier = formData.get('tier') || 'STANDARD';
+                const active = formData.get('active') ? 1 : 0;
+
+                row.dataset.name = name;
+                row.dataset.aliases = aliases;
+                row.dataset.phone = phone;
+                row.dataset.dept = department;
+                row.dataset.role = role;
+                row.dataset.tier = tier;
+                row.dataset.status = active ? 'active' : 'offboarded';
+
+                const nameCell = row.querySelector('.caller-name-cell strong');
+                if (nameCell) nameCell.textContent = name;
+                const emailCell = row.querySelector('.caller-email-cell');
+                if (emailCell) emailCell.textContent = email;
+                const phoneCell = row.querySelector('.caller-phone-cell');
+                if (phoneCell) phoneCell.textContent = phone;
+                const deptCell = row.querySelector('.caller-dept-cell');
+                if (deptCell) deptCell.textContent = department ? (role ? `${role} · ${department}` : department) : (role || '—');
+
+                const tierCell = row.querySelector('.caller-tier-cell');
+                if (tierCell) {
+                    if (tier === 'P0_EXECUTIVE') {
+                        tierCell.innerHTML = '<span class="badge" style="background: rgba(200, 16, 46, 0.15); color: var(--nf-crimson); border: 1px solid rgba(200, 16, 46, 0.3); font-weight: 600;"><i data-lucide="shield-alert" style="width: 12px; height: 12px; margin-right: 3px;"></i> P0 Executive</span>';
+                    } else if (tier === 'P1_VIP') {
+                        tierCell.innerHTML = '<span class="badge" style="background: rgba(139, 92, 246, 0.15); color: #6D28D9; border: 1px solid rgba(139, 92, 246, 0.3); font-weight: 600;"><i data-lucide="star" style="width: 12px; height: 12px; margin-right: 3px;"></i> P1 VIP</span>';
+                    } else {
+                        tierCell.innerHTML = '<span class="badge badge-secondary" style="font-weight: 500;">Standard</span>';
+                    }
+                }
+
+                const statusCell = row.querySelector('.caller-status-cell');
+                const toggleBtn = row.querySelector('.btn-toggle-status');
+                if (statusCell) {
+                    if (active) {
+                        statusCell.innerHTML = '<span class="status-indicator-badge" style="display: inline-flex; align-items: center; gap: 0.3rem; color: #10B981; font-size: 0.78rem; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></span> Active</span>';
+                    } else {
+                        statusCell.innerHTML = '<span class="status-indicator-badge" style="display: inline-flex; align-items: center; gap: 0.3rem; color: var(--nf-crimson); font-size: 0.78rem; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: var(--nf-crimson);"></span> Offboarded</span>';
+                    }
+                }
+                if (toggleBtn) {
+                    if (active) {
+                        toggleBtn.className = 'btn btn-toggle-status btn-xs btn-outline-danger';
+                        toggleBtn.innerHTML = '<i data-lucide="user-minus"></i> <span>Offboard</span>';
+                        toggleBtn.title = 'Deactivate caller immediately';
+                    } else {
+                        toggleBtn.className = 'btn btn-toggle-status btn-xs btn-success-subtle';
+                        toggleBtn.innerHTML = '<i data-lucide="user-check"></i> <span>Activate</span>';
+                        toggleBtn.title = 'Re-activate caller';
+                    }
+                }
+                if (window.lucide) lucide.createIcons();
+            }
+        } else {
+            if (window.showToast) {
+                window.showToast(data.message || 'Error updating caller profile', 'error');
+            } else {
+                alert(data.message || 'Error updating caller profile');
+            }
+        }
+    } catch (err) {
+        if (window.showToast) {
+            window.showToast('Network error: ' + err.message, 'error');
+        } else {
+            alert('Network error: ' + err.message);
+        }
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+async function toggleCallerStatusAsync(callerId, btn) {
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="loader-2" class="spin-animation" style="width:12px;height:12px;"></i>';
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('caller_id', callerId);
+        const csrf = document.querySelector('input[name="csrf_token"]')?.value || '';
+        formData.append('csrf_token', csrf);
+
+        const res = await fetch('/callers/toggle-status', {
+            method: 'POST',
+            body: formData,
+            headers: {'Accept': 'application/json'}
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            if (window.showToast) {
+                window.showToast(data.message || 'Caller status updated', 'success');
+            }
+            const row = document.getElementById('caller-row-' + callerId);
+            if (row) {
+                const isActive = data.active == 1;
+                row.dataset.status = isActive ? 'active' : 'offboarded';
+
+                const statusCell = row.querySelector('.caller-status-cell');
+                if (statusCell) {
+                    if (isActive) {
+                        statusCell.innerHTML = '<span class="status-indicator-badge" style="display: inline-flex; align-items: center; gap: 0.3rem; color: #10B981; font-size: 0.78rem; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #10B981;"></span> Active</span>';
+                    } else {
+                        statusCell.innerHTML = '<span class="status-indicator-badge" style="display: inline-flex; align-items: center; gap: 0.3rem; color: var(--nf-crimson); font-size: 0.78rem; font-weight: 600;"><span style="width: 7px; height: 7px; border-radius: 50%; background: var(--nf-crimson);"></span> Offboarded</span>';
+                    }
+                }
+
+                if (isActive) {
+                    btn.className = 'btn btn-toggle-status btn-xs btn-outline-danger';
+                    btn.innerHTML = '<i data-lucide="user-minus"></i> <span>Offboard</span>';
+                    btn.title = 'Deactivate caller immediately';
+                } else {
+                    btn.className = 'btn btn-toggle-status btn-xs btn-success-subtle';
+                    btn.innerHTML = '<i data-lucide="user-check"></i> <span>Activate</span>';
+                    btn.title = 'Re-activate caller';
+                }
+                if (window.lucide) lucide.createIcons();
+            }
+        } else {
+            if (window.showToast) {
+                window.showToast(data.message || 'Failed to toggle status', 'error');
+            } else {
+                alert(data.message || 'Failed to toggle status');
+            }
+            btn.innerHTML = originalHtml;
+        }
+    } catch (err) {
+        if (window.showToast) {
+            window.showToast('Network error: ' + err.message, 'error');
+        } else {
+            alert('Network error: ' + err.message);
+        }
+        btn.innerHTML = originalHtml;
+    } finally {
+        btn.disabled = false;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
+let pendingDeleteCallerId = null;
+
+function openDeleteConfirmModal(callerId, name, empId) {
+    pendingDeleteCallerId = callerId;
+    const nameEl = document.getElementById('deleteCallerName');
+    const empEl = document.getElementById('deleteCallerEmpId');
+    if (nameEl) nameEl.textContent = name;
+    if (empEl) empEl.textContent = 'ID: ' + empId;
+    openModal('deleteConfirmModal');
+}
+
+async function confirmCallerDeleteAsync() {
+    if (!pendingDeleteCallerId) return;
+    const btn = document.getElementById('btnConfirmDeleteCaller');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" class="spin-animation" style="width:14px;height:14px;"></i> Deleting...</span>';
+    btn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append('caller_id', pendingDeleteCallerId);
+        const csrf = document.querySelector('input[name="csrf_token"]')?.value || '';
+        formData.append('csrf_token', csrf);
+
+        const res = await fetch('/callers/delete', {
+            method: 'POST',
+            body: formData,
+            headers: {'Accept': 'application/json'}
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            closeModal('deleteConfirmModal');
+            if (window.showToast) {
+                window.showToast(data.message || 'Caller profile permanently removed', 'success');
+            }
+            const row = document.getElementById('caller-row-' + pendingDeleteCallerId);
+            if (row) {
+                row.remove();
+                applyCallerFilters();
+            }
+        } else {
+            if (window.showToast) {
+                window.showToast(data.message || 'Failed to delete caller', 'error');
+            } else {
+                alert(data.message || 'Failed to delete caller');
+            }
+        }
+    } catch (err) {
+        if (window.showToast) {
+            window.showToast('Network error: ' + err.message, 'error');
+        } else {
+            alert('Network error: ' + err.message);
+        }
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+        pendingDeleteCallerId = null;
+        if (window.lucide) lucide.createIcons();
+    }
+}
+
 async function runTestAdConnection() {
     const btn = document.getElementById('btnTestAd');
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" style="width:14px;height:14px;"></i> Testing...</span>';
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" class="spin-animation" style="width:14px;height:14px;"></i> Testing...</span>';
     btn.disabled = true;
 
     try {
@@ -648,7 +989,7 @@ function renderAdTestResult(data) {
 async function runAdSyncNow() {
     const btn = document.getElementById('btnSyncAd');
     const originalText = btn.innerHTML;
-    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" style="width:14px;height:14px;"></i> Syncing...</span>';
+    btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:0.3rem;"><i data-lucide="loader-2" class="spin-animation" style="width:14px;height:14px;"></i> Syncing...</span>';
     btn.disabled = true;
 
     try {
@@ -658,13 +999,23 @@ async function runAdSyncNow() {
         });
         const data = await res.json();
         if (data.success) {
-            alert('Active Directory Sync Succeeded!\n\n' + data.message + '\n\n• Added: ' + data.added + '\n• Updated: ' + data.updated + '\n• Deactivated: ' + data.deactivated);
-            window.location.reload();
+            if (window.showToast) {
+                window.showToast(`AD Sync Succeeded! Added: ${data.added}, Updated: ${data.updated}, Deactivated: ${data.deactivated}`, 'success');
+            }
+            setTimeout(() => window.location.reload(), 1200);
         } else {
-            alert('Active Directory Sync Failed:\n' + data.message);
+            if (window.showToast) {
+                window.showToast('AD Sync Failed: ' + data.message, 'error');
+            } else {
+                alert('Active Directory Sync Failed:\n' + data.message);
+            }
         }
     } catch (err) {
-        alert('Sync Request Error: ' + err.message);
+        if (window.showToast) {
+            window.showToast('Sync Request Error: ' + err.message, 'error');
+        } else {
+            alert('Sync Request Error: ' + err.message);
+        }
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;

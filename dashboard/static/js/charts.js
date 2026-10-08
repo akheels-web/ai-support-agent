@@ -15,24 +15,25 @@ async function initDashboardCharts() {
     if (!volumeCanvas && !deflectionCanvas && !queueCanvas) return;
 
     try {
-        const resp = await fetch('/api/dashboard/chart-data');
+        const activeRange = window.currentMetricsRange || '1d';
+        const resp = await fetch(`/api/dashboard/chart-data?range=${encodeURIComponent(activeRange)}`);
         if (!resp.ok) return;
         const chartData = await resp.json();
 
         const isDark = document.documentElement.classList.contains('dark');
         const theme = getChartTheme(isDark);
 
-        // 1. 24-Hour Volume & Deflection Trend
+        // 1. Call Volume & Deflection Trend (Clean, no odd dots)
         if (volumeCanvas) {
             const ctx = volumeCanvas.getContext('2d');
             
             // Create smooth gradient fills
             const totalGradient = ctx.createLinearGradient(0, 0, 0, 300);
-            totalGradient.addColorStop(0, 'rgba(27, 47, 107, 0.25)');
+            totalGradient.addColorStop(0, 'rgba(27, 47, 107, 0.22)');
             totalGradient.addColorStop(1, 'rgba(27, 47, 107, 0.00)');
 
             const deflectedGradient = ctx.createLinearGradient(0, 0, 0, 300);
-            deflectedGradient.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+            deflectedGradient.addColorStop(0, 'rgba(16, 185, 129, 0.22)');
             deflectedGradient.addColorStop(1, 'rgba(16, 185, 129, 0.00)');
 
             volumeTrendChart = new Chart(ctx, {
@@ -45,33 +46,36 @@ async function initDashboardCharts() {
                             data: chartData.volume_trend.total || [],
                             borderColor: '#1B2F6B',
                             backgroundColor: totalGradient,
-                            borderWidth: 2.5,
+                            borderWidth: 2.2,
                             fill: true,
                             tension: 0.35,
-                            pointRadius: 3,
-                            pointHoverRadius: 6,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            pointHitRadius: 12,
                         },
                         {
                             label: 'AI Deflected / Resolved',
                             data: chartData.volume_trend.deflected || [],
                             borderColor: '#10B981',
                             backgroundColor: deflectedGradient,
-                            borderWidth: 2.5,
+                            borderWidth: 2.2,
                             fill: true,
                             tension: 0.35,
-                            pointRadius: 3,
-                            pointHoverRadius: 6,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            pointHitRadius: 12,
                         },
                         {
                             label: 'Escalated / Transferred',
                             data: chartData.volume_trend.escalated || [],
                             borderColor: '#C8102E',
-                            borderWidth: 2,
+                            borderWidth: 1.8,
                             borderDash: [5, 5],
                             fill: false,
                             tension: 0.35,
-                            pointRadius: 3,
-                            pointHoverRadius: 6,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            pointHitRadius: 12,
                         }
                     ]
                 },
@@ -88,8 +92,9 @@ async function initDashboardCharts() {
                             labels: {
                                 color: theme.textColor,
                                 font: { family: 'Inter', size: 12, weight: '600' },
-                                usePointStyle: true,
-                                boxWidth: 8,
+                                usePointStyle: false,
+                                boxWidth: 14,
+                                boxHeight: 3,
                             }
                         },
                         tooltip: {
@@ -100,7 +105,7 @@ async function initDashboardCharts() {
                             borderWidth: 1,
                             padding: 10,
                             boxPadding: 4,
-                            usePointStyle: true,
+                            usePointStyle: false,
                         }
                     },
                     scales: {
@@ -205,6 +210,34 @@ async function initDashboardCharts() {
     }
 }
 
+async function updateDashboardCharts(range = '1d') {
+    try {
+        const resp = await fetch(`/api/dashboard/chart-data?range=${encodeURIComponent(range)}`);
+        if (!resp.ok) return;
+        const chartData = await resp.json();
+
+        if (volumeTrendChart) {
+            volumeTrendChart.data.labels = chartData.volume_trend.labels || [];
+            volumeTrendChart.data.datasets[0].data = chartData.volume_trend.total || [];
+            volumeTrendChart.data.datasets[1].data = chartData.volume_trend.deflected || [];
+            volumeTrendChart.data.datasets[2].data = chartData.volume_trend.escalated || [];
+            volumeTrendChart.update();
+        }
+
+        if (deflectionDoughnutChart) {
+            deflectionDoughnutChart.data.datasets[0].data = chartData.deflection_breakdown || [0, 0, 0, 0, 0];
+            deflectionDoughnutChart.update();
+        }
+
+        if (queueDistChart) {
+            queueDistChart.data.datasets[0].data = chartData.queue_distribution || [0, 0, 0];
+            queueDistChart.update();
+        }
+    } catch (err) {
+        console.warn('Failed to update charts for range:', range, err);
+    }
+}
+
 function getChartTheme(isDark) {
     if (isDark) {
         return {
@@ -249,4 +282,6 @@ function updateChartsTheme(isDark) {
 }
 
 window.updateChartsTheme = updateChartsTheme;
+window.updateDashboardCharts = updateDashboardCharts;
 document.addEventListener('DOMContentLoaded', initDashboardCharts);
+

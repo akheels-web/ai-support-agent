@@ -52,19 +52,34 @@
                             </div>
                         </td>
                         <td>
-                            <form method="post" action="/quality/review" style="display:flex; flex-direction:column; gap:0.5rem;">
+                            <form method="post" action="/quality/review" class="qa-review-form" style="display:flex; flex-direction:column; gap:0.5rem;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <input type="hidden" name="recording_file" value="{{ f.name }}">
                                 
+                                {% if f.rating %}
+                                <div class="review-status-pill" style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.75rem;">
+                                    {% if f.rating == 'Good' %}
+                                        <span class="badge badge-success" style="padding:0.2rem 0.5rem;">★ Good</span>
+                                    {% elif f.rating == 'Needs Improvement' %}
+                                        <span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); padding:0.2rem 0.5rem;">⚠ Needs Improvement</span>
+                                    {% elif f.rating == 'Escalated' %}
+                                        <span class="badge badge-critical" style="padding:0.2rem 0.5rem;">🚨 Escalated</span>
+                                    {% else %}
+                                        <span class="badge badge-secondary" style="padding:0.2rem 0.5rem;">{{ f.rating }}</span>
+                                    {% endif %}
+                                    <span style="font-size:0.7rem; color:var(--muted-foreground);">by {{ f.reviewer }}</span>
+                                </div>
+                                {% endif %}
+
                                 <div style="display:flex; gap:0.5rem;">
                                     <select name="rating" class="select" style="padding:0.35rem 0.5rem; font-size:0.75rem;">
-                                        <option value="Good">★ Good</option>
-                                        <option value="Needs Improvement">⚠ Needs Improvement</option>
-                                        <option value="Escalated">🚨 Escalated</option>
+                                        <option value="Good" {% if f.rating == 'Good' %}selected{% endif %}>★ Good</option>
+                                        <option value="Needs Improvement" {% if f.rating == 'Needs Improvement' %}selected{% endif %}>⚠ Needs Improvement</option>
+                                        <option value="Escalated" {% if f.rating == 'Escalated' %}selected{% endif %}>🚨 Escalated</option>
                                     </select>
-                                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+                                    <button type="submit" class="btn btn-primary btn-sm btn-save-qa">Save</button>
                                 </div>
-                                <input type="text" name="notes" class="input" placeholder="Evaluation notes (optional)" style="padding:0.35rem 0.5rem; font-size:0.75rem;">
+                                <input type="text" name="notes" value="{{ f.notes or '' }}" class="input" placeholder="Evaluation notes (optional)" style="padding:0.35rem 0.5rem; font-size:0.75rem;">
                             </form>
                         </td>
                     </tr>
@@ -80,4 +95,80 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.qa-review-form').forEach(form => {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = form.querySelector('.btn-save-qa');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = 'Saving...';
+
+            const formData = new FormData(form);
+            try {
+                const res = await fetch('/quality/review', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    btn.innerHTML = '✓ Saved';
+                    btn.classList.remove('btn-primary');
+                    btn.classList.add('btn-success');
+                    setTimeout(() => {
+                        btn.innerHTML = origHtml;
+                        btn.classList.remove('btn-success');
+                        btn.classList.add('btn-primary');
+                    }, 2000);
+
+                    // Update or insert review status pill
+                    let pill = form.querySelector('.review-status-pill');
+                    if (!pill) {
+                        pill = document.createElement('div');
+                        pill.className = 'review-status-pill';
+                        pill.style.cssText = 'display:inline-flex; align-items:center; gap:0.35rem; font-size:0.75rem;';
+                        form.insertBefore(pill, form.children[2]);
+                    }
+                    const rating = data.rating;
+                    let badgeHtml = '';
+                    if (rating === 'Good') badgeHtml = '<span class="badge badge-success" style="padding:0.2rem 0.5rem;">★ Good</span>';
+                    else if (rating === 'Needs Improvement') badgeHtml = '<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); padding:0.2rem 0.5rem;">⚠ Needs Improvement</span>';
+                    else if (rating === 'Escalated') badgeHtml = '<span class="badge badge-critical" style="padding:0.2rem 0.5rem;">🚨 Escalated</span>';
+                    else badgeHtml = `<span class="badge badge-secondary" style="padding:0.2rem 0.5rem;">${rating}</span>`;
+
+                    pill.innerHTML = `${badgeHtml} <span style="font-size:0.7rem; color:var(--muted-foreground);">by ${data.reviewer}</span>`;
+
+                    if (window.showToast) {
+                        window.showToast({
+                            title: 'QA Review Saved',
+                            message: `Feedback recorded as "${rating}" successfully.`,
+                            type: 'success'
+                        });
+                    }
+                } else {
+                    throw new Error(data.message || 'Failed to save review');
+                }
+            } catch (err) {
+                btn.innerHTML = origHtml;
+                if (window.showToast) {
+                    window.showToast({
+                        title: 'Error Saving Review',
+                        message: err.message,
+                        type: 'error'
+                    });
+                }
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
+

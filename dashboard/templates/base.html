@@ -9,8 +9,7 @@
     <link rel="stylesheet" href="/static/css/shadcn.css?v=20261001_v4">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="/static/js/vendor/html2pdf.bundle.min.js"></script>
-    <script>if (!window.html2pdf) { document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>'); }</script>
+
 
     <style>
     /* Critical Embedded Styles for Header and Sidebar */
@@ -393,11 +392,6 @@
                 </div>
 
                 <div class="topbar-right">
-                    <!-- Executive PDF Report Button -->
-                    <button class="btn btn-outline btn-sm" id="export-pdf-btn" onclick="exportExecutivePdfReport()">
-                        <i data-lucide="file-down"></i>
-                        <span>Export PDF Report</span>
-                    </button>
 
                     <!-- Theme Switcher (Light / Dark Mode) -->
                     <button class="btn btn-ghost btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
@@ -474,9 +468,10 @@
     </div>
 
     <!-- Application Engine Scripts -->
-    <script src="/static/js/app.js?v=20261003_v8"></script>
-    <script src="/static/js/charts.js?v=20261003_v8"></script>
-    <script src="/static/js/pdf-report.js?v=20261003_v8"></script>
+    <script src="/static/js/app.js?v=20261008_v1"></script>
+    <script src="/static/js/charts.js?v=20261008_v1"></script>
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             if (window.lucide) lucide.createIcons();

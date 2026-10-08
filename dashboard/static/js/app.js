@@ -28,10 +28,12 @@ function toggleTheme() {
 // ============================================================================
 let telemetryTimer = null;
 let liveCallsTimer = null;
+window.currentMetricsRange = '1d';
 
-async function refreshTelemetryStats() {
+async function refreshTelemetryStats(range = null) {
     try {
-        const resp = await fetch('/api/dashboard/stats');
+        const activeRange = range || window.currentMetricsRange || '1d';
+        const resp = await fetch(`/api/dashboard/stats?range=${encodeURIComponent(activeRange)}`);
         if (!resp.ok) return;
         const data = await resp.json();
 
@@ -64,6 +66,48 @@ async function refreshTelemetryStats() {
         console.warn('Telemetry refresh failed:', err);
     }
 }
+
+window.setTimeRange = async function(range) {
+    window.currentMetricsRange = range;
+
+    // Update active button state in segmented control
+    document.querySelectorAll('.time-range-btn').forEach(btn => {
+        if (btn.getAttribute('data-range') === range) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // Update chart card title
+    const chartTitle = document.getElementById('volumeTrendCardTitle');
+    const chartDesc = document.getElementById('volumeTrendCardDesc');
+    if (chartTitle) {
+        if (range === '1d') {
+            chartTitle.textContent = '24-Hour Call Volume & AI Deflection Trend';
+            if (chartDesc) chartDesc.textContent = 'Hourly traffic distribution comparing total volume against autonomous deflection';
+        } else if (range === '7d') {
+            chartTitle.textContent = '7-Day Call Volume & AI Deflection Trend';
+            if (chartDesc) chartDesc.textContent = 'Daily traffic volume and resolution patterns over the past 7 days';
+        } else if (range === '30d') {
+            chartTitle.textContent = '30-Day Call Volume & AI Deflection Trend';
+            if (chartDesc) chartDesc.textContent = 'Monthly call volume metrics and deflection trajectory over 30 days';
+        }
+    }
+
+    // Refresh KPI telemetry stats
+    await refreshTelemetryStats(range);
+
+    // Refresh charts
+    if (window.updateDashboardCharts) {
+        await window.updateDashboardCharts(range);
+    }
+
+    // Update URL query param smoothly
+    const url = new URL(window.location);
+    url.searchParams.set('range', range);
+    window.history.replaceState({}, '', url);
+};
 
 const STATUS_LABELS = {
     'language_selected': 'Language Chosen',
@@ -342,21 +386,103 @@ document.addEventListener('click', (e) => {
 });
 
 // ============================================================================
-// 6. DOM Initialization
+// 7. Modern Toast Notification System
+// ============================================================================
+window.showToast = function({ title, message, type = 'success', duration = 3800 }) {
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast-item toast-${type}`;
+
+    let iconName = 'check-circle-2';
+    if (type === 'error') iconName = 'alert-octagon';
+    else if (type === 'warning') iconName = 'alert-triangle';
+    else if (type === 'info') iconName = 'info';
+
+    toast.innerHTML = `
+        <div class="toast-icon">
+            <i data-lucide="${iconName}" style="width: 18px; height: 18px;"></i>
+        </div>
+        <div class="toast-content">
+            <div class="toast-title">${title || 'Notification'}</div>
+            ${message ? `<div class="toast-message">${message}</div>` : ''}
+        </div>
+        <button type="button" class="toast-close-btn" aria-label="Close">
+            <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+        </button>
+    `;
+
+    container.appendChild(toast);
+    if (window.lucide) {
+        try { lucide.createIcons({ root: toast }); } catch (e) { lucide.createIcons(); }
+    }
+
+    const closeToast = () => {
+        toast.classList.add('toast-leave');
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 260);
+    };
+
+    const closeBtn = toast.querySelector('.toast-close-btn');
+    if (closeBtn) closeBtn.addEventListener('click', closeToast);
+
+    if (duration > 0) {
+        setTimeout(closeToast, duration);
+    }
+    return toast;
+};
+
+// ============================================================================
+// 8. DOM Initialization & URL State
 // ============================================================================
 document.addEventListener('DOMContentLoaded', () => {
     initTheme();
 
+    // Check URL parameters for range or success flashes
+    const urlParams = new URLSearchParams(window.location.search);
+    const rangeParam = urlParams.get('range');
+    if (rangeParam && ['1d', '7d', '30d'].includes(rangeParam)) {
+        window.currentMetricsRange = rangeParam;
+        document.querySelectorAll('.time-range-btn').forEach(btn => {
+            if (btn.getAttribute('data-range') === rangeParam) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    if (urlParams.get('saved') === '1' || urlParams.get('success') === '1') {
+        const msg = urlParams.get('msg') || 'Action completed successfully.';
+        window.showToast({
+            title: 'Success',
+            message: msg,
+            type: 'success'
+        });
+        urlParams.delete('saved');
+        urlParams.delete('success');
+        urlParams.delete('msg');
+        const newSearch = urlParams.toString();
+        const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+        window.history.replaceState({}, '', newUrl);
+    }
+
     // Setup auto-refresh intervals
     refreshTelemetryStats();
-    telemetryTimer = setInterval(refreshTelemetryStats, 30000); // 30s
+    telemetryTimer = setInterval(() => refreshTelemetryStats(), 30000); // 30s
 
     if (document.getElementById('active-calls-tbody')) {
         refreshActiveCalls();
         liveCallsTimer = setInterval(refreshActiveCalls, 10000); // 10s
     }
 
-    // Bind search input for calls table
+    // Bind search input for calls table if present
     initDataTableSearch('calls-table', 'table-search-input');
 
     // Close drawer or dropdown on ESC key
@@ -373,5 +499,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
 
 
