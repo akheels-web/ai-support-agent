@@ -44,7 +44,7 @@ def _float_env(name, default, min_value=None, max_value=None):
 # OpenAI Realtime Configuration
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'")
 OPENAI_REALTIME_MODEL = (os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime") or "gpt-realtime").strip()
-OPENAI_VOICE = (os.getenv("OPENAI_VOICE", "alloy") or "alloy").strip()
+OPENAI_VOICE = (os.getenv("OPENAI_VOICE", "ash") or "ash").strip()
 
 # Ticketing Configuration (Frappe Helpdesk)
 FRAPPE_URL = (os.getenv("FRAPPE_URL", "http://127.0.0.1:8000") or "").rstrip("/")
