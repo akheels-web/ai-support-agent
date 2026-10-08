@@ -221,6 +221,31 @@ class TestAIGuardrails(unittest.TestCase):
         self.assertGreaterEqual(VAD_THRESHOLD, 0.50)
         self.assertGreaterEqual(VAD_SILENCE_MS, 300)
 
+    def test_spoken_salutation_last_name_only(self):
+        from app.openai_realtime_bridge import get_spoken_salutation, get_spoken_last_name, is_female_name
+        self.assertTrue(is_female_name("Fatima Yusuf Al Zajjali"))
+        self.assertTrue(is_female_name("Fatma Yusuf Al-Zadjali"))
+        self.assertTrue(is_female_name("Afrah Mahmood Al Hadabi"))
+        self.assertFalse(is_female_name("Ahmed Al Balushi"))
+
+        self.assertEqual(get_spoken_last_name("Fatma Yusuf Al-Zadjali"), "Al-Zadjali")
+        self.assertEqual(get_spoken_last_name("Fatima Yusuf Al Zajjali"), "Al Zajjali")
+        self.assertEqual(get_spoken_last_name("Afrah Mahmood Al Hadabi"), "Al Hadabi")
+
+        self.assertEqual(get_spoken_salutation("Fatma Yusuf Al-Zadjali", "en"), "Ms. Al-Zadjali")
+        self.assertEqual(get_spoken_salutation("Fatima Yusuf Al Zajjali", "en"), "Ms. Al Zajjali")
+        self.assertEqual(get_spoken_salutation("Afrah Mahmood Al Hadabi", "en"), "Ms. Al Hadabi")
+        self.assertEqual(get_spoken_salutation("Ahmed Al Balushi", "en"), "Mr. Al Balushi")
+        self.assertEqual(get_spoken_salutation("Ahmed Al Balushi", "ar"), "أستاذ Al Balushi")
+
+    def test_system_prompt_last_name_and_troubleshooting_rules(self):
+        from app.openai_realtime_bridge import SYSTEM_PROMPT
+        self.assertIn("STRICT RULE ON CALLER NAMES", SYSTEM_PROMPT)
+        self.assertIn("NEVER recite the caller's full three-or-four-part name", SYSTEM_PROMPT)
+        self.assertIn("ACTION CONFIRMATION VS. TECHNICAL RESOLUTION", SYSTEM_PROMPT)
+        self.assertIn("THEY ARE CONFIRMING THEY PERFORMED THE TROUBLESHOOTING STEP", SYSTEM_PROMPT)
+        self.assertIn("NEVER call record_resolution or assume the issue is resolved when the caller merely confirms performing an action", SYSTEM_PROMPT)
+
 
 if __name__ == "__main__":
     unittest.main()
