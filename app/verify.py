@@ -369,17 +369,34 @@ def _secure_name_match(provided_name, official_name, aliases):
 def verify_user(employee_id, employee_name):
     users = _load_users()
 
+    raw_id = str(employee_id).strip()
     normalized_id = normalize_digits(employee_id)
-    employee_id = normalized_id or str(employee_id).strip()
     employee_name = str(employee_name).strip()
 
-    if not employee_id:
+    if not raw_id:
         return {"verified": False, "reason": "employee_id_missing"}
 
     if not employee_name:
         return {"verified": False, "reason": "employee_name_missing"}
 
-    record = users.get(employee_id)
+    # Flexible matching: check raw_id first, then normalized_id, then case-insensitive / clean lookup
+    record = users.get(raw_id) or (users.get(normalized_id) if normalized_id else None)
+    if not record:
+        raw_lower = raw_id.lower()
+        norm_lower = normalized_id.lower() if normalized_id else ""
+        clean_raw = re.sub(r"[\s\-_.]", "", raw_lower)
+        clean_norm = re.sub(r"[\s\-_.]", "", norm_lower) if norm_lower else ""
+        for uid, udata in users.items():
+            uid_lower = uid.lower()
+            clean_uid = re.sub(r"[\s\-_.]", "", uid_lower)
+            if (
+                uid_lower == raw_lower
+                or (norm_lower and uid_lower == norm_lower)
+                or (clean_raw and clean_uid == clean_raw)
+                or (clean_norm and clean_uid == clean_norm)
+            ):
+                record = udata
+                break
 
     if not record:
         return {"verified": False, "reason": "employee_id_not_found"}

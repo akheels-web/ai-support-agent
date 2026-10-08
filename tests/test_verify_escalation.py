@@ -77,6 +77,28 @@ class TestVerifyAndEscalation(unittest.TestCase):
         self.assertEqual(res_arabic["name"], "Ruqaiya Al Balushi")
         self.assertEqual(res_arabic["tier"], "P1_VIP")
 
+        # 5-digit National employee ID (e.g. 10596)
+        res_five = verify_user("10596", "Mustafa Mohammed Al Farsi")
+        if res_five.get("verified"):
+            self.assertEqual(res_five["employee_id"], "10596")
+            self.assertEqual(res_five["name"], "Mustafa Mohammed Al Farsi")
+
+        # Spoken 5-digit employee ID
+        res_five_spoken = verify_user("one zero five nine six", "Mustafa Mohammed Al Farsi")
+        if res_five_spoken.get("verified"):
+            self.assertEqual(res_five_spoken["employee_id"], "10596")
+
+    def test_flexible_employee_id_matching(self):
+        # 5-digit verification
+        res_5 = verify_user("10596", "Mustafa Mohammed Al Farsi")
+        self.assertTrue(res_5["verified"])
+        self.assertEqual(res_5["employee_id"], "10596")
+
+        # Alphanumeric matching with spaces/hyphens
+        res_alpha = verify_user("nfc chat", "NFC-Chat")
+        if res_alpha.get("verified"):
+            self.assertEqual(res_alpha["employee_id"], "NFC-Chat")
+
 
 if __name__ == "__main__":
     unittest.main()

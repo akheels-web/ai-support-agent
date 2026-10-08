@@ -424,13 +424,11 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - DO NOT answer questions, start troubleshooting, ask for employee ID, or speak until the language is confirmed!
 - NEVER call set_language, speak, or assume a language on silence, background breathing, or ambient noise. If no choice is heard yet, REMAIN SILENT until the caller speaks.
 - If the caller says "English" or speaks in English:
-  1. Immediately call the tool: set_language(language="en").
-  2. Reply strictly in English: "Thank you for choosing English. May I please have your full name?"
-  3. From this point forward, you must speak STRICTLY AND ONLY in English. Do not speak any Arabic.
+  1. Immediately reply in spoken English: "Thank you for choosing English. May I please have your full name?" and call set_language(language="en").
+  2. From this point forward, you must speak STRICTLY AND ONLY in English. Do not speak any Arabic.
 - If the caller says "Arabic" or "عربي" or speaks in Arabic:
-  1. Immediately call the tool: set_language(language="ar").
-  2. Reply strictly in Gulf White Arabic: "أهلاً وسهلاً بك في الدعم الفني. تفضل بالاسم الكامل لو سمحت؟"
-  3. From this point forward, you must speak STRICTLY AND ONLY in Arabic. Do not speak English except standard IT acronyms (VPN, Outlook, Teams).
+  1. Immediately reply in spoken Gulf White Arabic: "أهلاً وسهلاً بك في الدعم الفني. تفضل بالاسم الكامل لو سمحت؟" and call set_language(language="ar").
+  2. From this point forward, you must speak STRICTLY AND ONLY in Arabic. Do not speak English except standard IT acronyms (VPN, Outlook, Teams).
 - If the caller's language selection is ambiguous or they immediately describe a problem without picking a language:
   Ask once more in both languages: "For English please say English. للغة العربية قل عربي."
 
@@ -447,7 +445,7 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 - NEVER call transfer_to_agent for unverified callers!
 - If an unverified caller asks to speak to an agent, be transferred, or speak with a supervisor:
   - You MUST REFUSE the transfer politely.
-  - In English: "I apologize, but for company security reasons, only verified National Finance employees can be transferred to our IT support team. Please provide your full name and 4-digit employee ID first so I can verify your identity."
+  - In English: "I apologize, but for company security reasons, only verified National Finance employees can be transferred to our IT support team. Please provide your full name and employee ID (4 digits, 5 digits, or alphanumeric e.g. 10596, 1001, NFC341) first so I can verify your identity."
   - In Arabic: "أعتذر منك، لدواعي الأمان المتبعة في ناشيونال فاينانس لا يمكن تحويل أي مكالمة للدعم الفني إلا بعد التحقق من الهوية الوظيفية أولاً. يرجى تزويدي بالاسم الكامل والرقم الوظيفي أولاً لنتمكن من مساعدتك."
 - Callers have a strict MAXIMUM of 3 verification attempts. After 3 failed attempts, the call will be disconnected automatically.
 - Only callers who have been successfully verified via verify_user (returning verified: true) can be transferred or have tickets created.
@@ -570,8 +568,8 @@ CRITICAL OPERATIONAL RULES & PROTOCOLS:
 
 17. KEYPAD / DTMF FALLBACK PROTOCOL:
 - If the caller is calling from a noisy environment, has poor audio, or if verbal verification of employee ID fails, inform the caller:
-  - In Arabic: "يمكنك أيضاً إدخال رقمك الوظيفي المكون من 4 أرقام عبر لوحة المفاتيح متبوعاً بمربع (#)."
-  - In English: "You can also enter your 4-digit employee ID using your telephone keypad followed by the hash key (#)."
+  - In Arabic: "يمكنك أيضاً إدخال رقمك الوظيفي عبر لوحة المفاتيح متبوعاً بمربع (#)."
+  - In English: "You can also enter your employee ID using your telephone keypad followed by the hash key (#)."
 - When the caller speaks or submits keypad digits, handle them via submit_dtmf_keypad or verify_user.
 
 18. CALLER SENTIMENT & DE-ESCALATION (ANGRY / FRUSTRATED CALLER HANDLING):
@@ -602,8 +600,9 @@ STANDARD CALL FLOW:
    - If Arabic chosen: Speak 100% in natural Gulf White Arabic.
 3. If caller is not pre-identified:
    - Ask caller full name -> call capture_name.
-   - Ask employee ID -> call capture_employee_id.
+   - Ask employee ID (National Finance IDs can be 4 digits, 5 digits e.g. 10596, or alphanumeric e.g. NFC341; NEVER truncate) -> call capture_employee_id.
    - Call verify_user.
+   - Note: If caller provides both their name and employee ID together, call verify_user immediately.
 4. If unverified caller requests transfer to agent or supervisor:
    - Refuse politely and require identity verification first.
    - Callers have maximum 3 verification attempts. After 3 failed attempts, call drops automatically.
@@ -643,21 +642,29 @@ TOOLS = [
     {
         "type": "function",
         "name": "capture_employee_id",
-        "description": "Capture caller employee ID before verification.",
+        "description": "Capture caller employee ID before verification. National Finance employee IDs can be 4 digits, 5 digits (e.g. 10596), or alphanumeric with characters and numbers (e.g. NFC341, masarrat). Capture the full employee ID exactly as spoken or provided, without truncating any digits or characters.",
         "parameters": {
             "type": "object",
-            "properties": {"employee_id": {"type": "string"}},
+            "properties": {
+                "employee_id": {
+                    "type": "string",
+                    "description": "The full employee ID (4 digits, 5 digits, or alphanumeric e.g. 10596, 1001, NFC341)",
+                }
+            },
             "required": ["employee_id"],
         },
     },
     {
         "type": "function",
         "name": "verify_user",
-        "description": "Verify caller identity using full name and employee ID.",
+        "description": "Verify caller identity using full name and employee ID. National Finance employee IDs can be 4 digits, 5 digits (e.g. 10596), or alphanumeric with characters and numbers (e.g. NFC341, masarrat). Never truncate any digits.",
         "parameters": {
             "type": "object",
             "properties": {
-                "employee_id": {"type": "string"},
+                "employee_id": {
+                    "type": "string",
+                    "description": "The full employee ID (4 digits, 5 digits, or alphanumeric e.g. 10596, 1001, NFC341)",
+                },
                 "employee_name": {"type": "string"},
             },
             "required": ["employee_id", "employee_name"],
@@ -1430,7 +1437,7 @@ async def handle_single_call(asterisk_ws):
         res = await execute_tool("verify_user", {"employee_id": code})
 
         if res.get("verified"):
-            v_name = res.get("caller_name") or ""
+            v_name = res.get("name") or res.get("caller_name") or ""
             if state["language"] == "ar":
                 queue_response(
                     f"Respond only in Arabic. Say: شكراً لك. تم تأكيد هويتك بنجاح عبر الرقم الوظيفي {spoken} للموظف {v_name}. كيف يمكنني مساعدتك اليوم؟"
@@ -1471,6 +1478,10 @@ async def handle_single_call(asterisk_ws):
                 await send_queued_response_if_any()
                 return
 
+        # Cancel any pending DTMF auto-submit task
+        if state.get("dtmf_timer_task") and not state["dtmf_timer_task"].done():
+            state["dtmf_timer_task"].cancel()
+
         if digit == "*":
             state["dtmf_buffer"] = ""
             return
@@ -1485,11 +1496,19 @@ async def handle_single_call(asterisk_ws):
         state["dtmf_buffer"] += digit
         state["dtmf_last_time"] = time.monotonic()
 
-        # If exactly 4 digits entered during verification or inquiry, auto-submit
-        if len(state["dtmf_buffer"]) == 4 and state.get("current_state") in ("greeting", "ask_name", "ask_employee_id", "verification"):
-            code = state["dtmf_buffer"]
-            state["dtmf_buffer"] = ""
-            await handle_dtmf_submission(code)
+        # If 4 or more digits entered during verification or inquiry, schedule auto-submit after 1.8s pause
+        if len(state["dtmf_buffer"]) >= 4 and state.get("current_state") in ("greeting", "ask_name", "ask_employee_id", "verification"):
+            async def _auto_submit_dtmf_after_delay():
+                try:
+                    await asyncio.sleep(1.8)
+                    if state.get("dtmf_buffer"):
+                        code = state["dtmf_buffer"]
+                        state["dtmf_buffer"] = ""
+                        await handle_dtmf_submission(code)
+                except asyncio.CancelledError:
+                    pass
+
+            state["dtmf_timer_task"] = asyncio.create_task(_auto_submit_dtmf_after_delay())
 
     try:
         openai_ws = await connect_openai()
@@ -1620,6 +1639,13 @@ async def handle_single_call(asterisk_ws):
                     return {"success": False, "error": "Name was empty. Ask caller to repeat full name."}
 
                 state["caller_name"] = employee_name
+                # Fast-track: If employee_id is already known, auto-verify immediately to eliminate redundant turn delay!
+                if state.get("employee_id"):
+                    return await execute_tool("verify_user", {
+                        "employee_id": state["employee_id"],
+                        "employee_name": employee_name,
+                    })
+
                 state["current_state"] = "ask_employee_id"
                 return {"success": True, "employee_name": employee_name, "next_state": state["current_state"]}
 
@@ -1751,7 +1777,7 @@ async def handle_single_call(asterisk_ws):
                 verify_key = f"verify:{state.get('caller_number') or digits}"
                 v_res = await asyncio.to_thread(verify_user, digits, state.get("caller_name"))
                 if v_res.get("verified"):
-                    user = v_res["user"]
+                    user = v_res
                     state["verified_user"] = user
                     state["caller_name"] = user["name"]
                     state["is_vip"] = bool(user.get("vip"))
@@ -2340,7 +2366,7 @@ async def handle_single_call(asterisk_ws):
                         "error": (
                             f"Access Denied: Company policy strictly requires employee identity verification before transferring to human IT support. "
                             f"Unverified callers CANNOT be transferred. The caller has {attempts_left} verification attempt(s) remaining. "
-                            f"You MUST refuse the transfer and ask the caller for their full name and 4-digit employee ID."
+                            f"You MUST refuse the transfer and ask the caller for their full name and employee ID."
                         ),
                     }
 
@@ -2480,6 +2506,10 @@ async def handle_single_call(asterisk_ws):
                     f"Say: I am transferring you directly to our Senior Executive Support Desk right now. "
                     f"Then call transfer_to_agent with queue_type='executive' immediately."
                 )
+            elif state.get("response_had_audio"):
+                # Agent already spoke greeting directly during turn!
+                # Do NOT queue a redundant prompt to avoid double-speaking or extra latency.
+                return
             elif state["language"] == "ar":
                 queue_response("Respond only in Arabic. Say: أهلاً وسهلاً بك في الدعم الفني. تفضل بالاسم الكامل لو سمحت؟")
             else:
@@ -2516,11 +2546,11 @@ async def handle_single_call(asterisk_ws):
                 attempts_left = result.get("attempts_left")
                 if state.get("language") == "ar":
                     queue_response(
-                        f"Respond only in Arabic. Say: البيانات غير متطابقة مع سجلات الموظفين. متبقي لديك {attempts_left} محاولات للتحقق. يرجى تزويدي بالاسم الكامل ورقمك الوظيفي المكون من 4 أرقام."
+                        f"Respond only in Arabic. Say: البيانات غير متطابقة مع سجلات الموظفين. متبقي لديك {attempts_left} محاولات للتحقق. يرجى تزويدي بالاسم الكامل ورقمك الوظيفي."
                     )
                 else:
                     queue_response(
-                        f"Respond only in English. Say: Those details do not match our employee directory. You have {attempts_left} verification attempt(s) remaining. May I please have your full name and 4-digit employee ID?"
+                        f"Respond only in English. Say: Those details do not match our employee directory. You have {attempts_left} verification attempt(s) remaining. May I please have your full name and employee ID?"
                     )
             elif tool_name == "capture_employee_id" and result.get("success"):
                 queue_response(f"{prefix} Ask for the caller's full name to complete verification.")
@@ -2752,7 +2782,7 @@ async def handle_single_call(asterisk_ws):
                         )
                     else:
                         queue_response(
-                            f"Respond only in English. Say: I apologize, but per National Finance security policy, caller identity must be verified before transferring to IT support. You have {attempts_left} verification attempt(s) remaining. May I please have your full name and 4-digit employee ID?"
+                            f"Respond only in English. Say: I apologize, but per National Finance security policy, caller identity must be verified before transferring to IT support. You have {attempts_left} verification attempt(s) remaining. May I please have your full name and employee ID?"
                         )
             else:
                 ticket_spoken = result.get("ticket_number_spoken")
@@ -2891,6 +2921,7 @@ async def handle_single_call(asterisk_ws):
 
                 if event_type == "response.created":
                     state["active_response"] = True
+                    state["response_had_audio"] = False
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # Caller interruption / barge-in guard:
@@ -2915,6 +2946,7 @@ async def handle_single_call(asterisk_ws):
                                 pass
 
                 elif event_type == "response.output_audio.delta":
+                    state["response_had_audio"] = True
                     if state["call_ending"]:
                         break
                     if not state.get("ai_speech_started_at"):
