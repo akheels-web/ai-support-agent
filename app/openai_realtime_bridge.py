@@ -6,8 +6,15 @@ import re
 import time
 import struct
 import uuid
-import audioop
 from pathlib import Path
+
+try:
+    import audioop
+except ImportError:
+    try:
+        import audioop_lts as audioop
+    except ImportError:
+        audioop = None
 
 import websockets
 from dotenv import load_dotenv
@@ -29,6 +36,23 @@ from app.config import (
     ASTERISK_QUEUE_STANDARD,
     ASTERISK_QUEUE_EXECUTIVE,
     ASTERISK_QUEUE_EMERGENCY,
+    ECHO_GUARD_SECONDS,
+    AUDIO_PREBUFFER_MS,
+    RESPONSE_WATCHDOG_TIMEOUT_SECONDS,
+    AUDIO_PROFILE,
+    DYNAMIC_VAD_ENABLED,
+    ATTENDED_TRANSFER_TIMEOUT,
+    PROVIDER_FALLBACK_ENABLED,
+)
+from app.audio_engine import (
+    EnhancedResampler,
+    AudioRingBuffer,
+    DynamicVADTuner,
+    AudioQualityMetrics,
+    generate_chime_ulaw,
+    generate_comfort_noise_ulaw,
+    ULAW_SILENCE,
+    FRAME_SIZE_ULAW,
 )
 from app.call_logger import (
     create_call,
@@ -1129,7 +1153,8 @@ class AudioSocketChannel:
     Adapter that wraps Asterisk AudioSocket TCP connection to match WebSocket API.
     Converts Asterisk 16-bit 8kHz linear PCM (ast_format_slin) <-> OpenAI Realtime audio/pcmu (G.711 u-law).
     Handles Asterisk AudioSocket frame headers (0x01 UUID, 0x10 Audio, 0x03 DTMF, 0x00 Hangup).
-    Implements 80ms jitter pre-buffering and real-time 20ms pacing to eliminate broken words and audio starvation.
+    Implements jitter pre-buffering (default 120ms) and real-time 20ms pacing to eliminate broken words and audio starvation.
+    Equipped with EnhancedResampler for stateful band-limited 8kHz output (AVA Audio Profile).
     """
 
     def __init__(self, reader, writer, call_uuid):
@@ -1139,12 +1164,14 @@ class AudioSocketChannel:
         self._closed = False
         self.outbound_queue = asyncio.Queue(maxsize=1500)
         self._send_buffer = bytearray()
+        self.resampler = EnhancedResampler(enable_smoothing=(AUDIO_PROFILE == "telephony_enhanced_8k"))
         self.playback_task = asyncio.create_task(self._playback_loop())
 
     async def _playback_loop(self):
-        """Paces audio frames to Asterisk at exactly 20ms per 320-byte SLIN frame with 80ms jitter pre-buffering."""
+        """Paces audio frames to Asterisk at exactly 20ms per 320-byte SLIN frame with jitter pre-buffering."""
         interval = 0.020
-        prebuffer_target = 4  # 80ms pre-buffer (4 x 20ms frames) to absorb cloud packet jitter
+        prebuffer_target = max(2, AUDIO_PREBUFFER_MS // 20)  # e.g. 120ms = 6 x 20ms frames
+        wait_seconds = AUDIO_PREBUFFER_MS / 1000.0
         is_playing = False
         next_deadline = 0.0
 
@@ -1156,8 +1183,8 @@ class AudioSocketChannel:
                     if self._closed or self.writer.is_closing():
                         break
 
-                    # Pre-buffer: allow up to 80ms for prebuffer_target frames to accumulate
-                    wait_until = time.perf_counter() + 0.080
+                    # Pre-buffer: allow up to AUDIO_PREBUFFER_MS for prebuffer_target frames to accumulate
+                    wait_until = time.perf_counter() + wait_seconds
                     while self.outbound_queue.qsize() < (prebuffer_target - 1):
                         rem = wait_until - time.perf_counter()
                         if rem <= 0:
@@ -1166,7 +1193,7 @@ class AudioSocketChannel:
 
                     is_playing = True
                     next_deadline = time.perf_counter()
-                    slin = audioop.ulaw2lin(frame, 2)
+                    slin = self.resampler.process_ulaw_to_slin(frame)
                     self.writer.write(struct.pack("!BH", 0x10, len(slin)) + slin)
                     next_deadline += interval
                     continue
@@ -1182,7 +1209,7 @@ class AudioSocketChannel:
                 if self._closed or self.writer.is_closing():
                     break
 
-                slin = audioop.ulaw2lin(frame, 2)
+                slin = self.resampler.process_ulaw_to_slin(frame)
                 self.writer.write(struct.pack("!BH", 0x10, len(slin)) + slin)
 
                 now = time.perf_counter()
@@ -1204,7 +1231,7 @@ class AudioSocketChannel:
         if self._send_buffer:
             rem = len(self._send_buffer)
             if rem < 160:
-                self._send_buffer.extend(b"\xff" * (160 - rem))  # 0xff is silence in u-law
+                self._send_buffer.extend(ULAW_SILENCE * (160 - rem))  # 0xff is silence in u-law
             chunk = bytes(self._send_buffer[:160])
             self._send_buffer.clear()
             try:
@@ -1215,6 +1242,7 @@ class AudioSocketChannel:
     def clear_outbound_queue(self):
         """Instantly flush all pending outbound audio frames on barge-in / speech interruption."""
         self._send_buffer.clear()
+        self.resampler.reset()
         while not self.outbound_queue.empty():
             try:
                 self.outbound_queue.get_nowait()
@@ -1238,7 +1266,7 @@ class AudioSocketChannel:
 
             if kind == 0x10 and len(payload) > 0:  # Audio (16-bit 8kHz slin PCM)
                 try:
-                    ulaw = audioop.lin2ulaw(payload, 2)
+                    ulaw = self.resampler.process_slin_to_ulaw(payload)
                     if len(ulaw) > 0:
                         yield ulaw
                 except Exception:
@@ -1355,6 +1383,10 @@ async def handle_single_call(asterisk_ws):
         "last_ticket_number": None,
         "ticket_created": False,
         "active_response": False,
+        "active_response_set_at": 0.0,
+        "last_audio_delta_received_at": 0.0,
+        "audio_metrics": AudioQualityMetrics(),
+        "vad_tuner": DynamicVADTuner(base_threshold=VAD_THRESHOLD, base_silence_ms=VAD_SILENCE_MS) if DYNAMIC_VAD_ENABLED else None,
         "pending_response_instruction": None,
         "pending_goodbye_instruction": None,
         "close_after_next_response_done": False,
@@ -1541,6 +1573,9 @@ async def handle_single_call(asterisk_ws):
         ensure_ticket_logged(status)
         full_transcript = "\n".join(state["transcript_lines"]) if state["transcript_lines"] else None
         auto_summary = generate_call_summary(status)
+        if state.get("audio_metrics"):
+            audio_sum = state["audio_metrics"].get_summary()
+            print(f"[AUDIO TELEMETRY] Call {state['call_id']}: {json.dumps(audio_sum)}")
         log_close_call(state["call_id"], status=status, summary=auto_summary, transcript=full_transcript)
         print(f"[CALL CLOSED] ID: {state['call_id']}, Status: {status}, Transcript lines: {len(state['transcript_lines'])}")
 
@@ -1712,6 +1747,7 @@ async def handle_single_call(asterisk_ws):
             state["pending_disconnect_after_goodbye"] = True
             state["close_after_next_response_done"] = True
             state["active_response"] = True
+            state["active_response_set_at"] = time.monotonic()
             await send_response(openai_ws, instruction)
             return
 
@@ -1719,11 +1755,13 @@ async def handle_single_call(asterisk_ws):
             instruction = state["pending_response_instruction"]
             state["pending_response_instruction"] = None
             state["active_response"] = True
+            state["active_response_set_at"] = time.monotonic()
             await send_response(openai_ws, instruction)
             return
 
         if default_fallback:
             state["active_response"] = True
+            state["active_response_set_at"] = time.monotonic()
             await openai_ws.send(json.dumps({"type": "response.create"}))
 
     async def execute_tool(tool_name, arguments):
@@ -2590,7 +2628,9 @@ async def handle_single_call(asterisk_ws):
                         "employee_id": verified_user.get("employee_id", "N/A"),
                         "tier": state.get("tier", "STANDARD"),
                         "reason": reason,
-                    }
+                    },
+                    attended=True,
+                    attended_timeout=ATTENDED_TRANSFER_TIMEOUT,
                 )
 
                 if result.get("success"):
@@ -2631,6 +2671,52 @@ async def handle_single_call(asterisk_ws):
         finally:
             state["tool_in_progress"] = False
 
+    def validate_tool_call(tool_name: str, arguments: dict, state: dict) -> tuple[bool, str]:
+        """
+        Phase 3 Item 10: Hallucination Validator.
+        Applies post-generation validation on tool call arguments to reject
+        fabricated ticket IDs, bogus employee IDs, invalid categories, or prompt injection.
+        """
+        if not isinstance(arguments, dict):
+            return False, "Tool arguments must be a JSON object"
+
+        if tool_name == "set_language":
+            lang = str(arguments.get("language", "")).strip().lower()
+            if lang not in ("en", "ar"):
+                return False, "Language must be strictly 'en' or 'ar'."
+
+        elif tool_name == "capture_employee_id":
+            emp_id = str(arguments.get("employee_id", "")).strip()
+            if not emp_id or len(emp_id) < 3 or len(emp_id) > 15:
+                return False, "Employee ID must be between 3 and 15 characters."
+            if emp_id.lower() in ("0000", "00000", "1234", "admin", "test", "null", "none"):
+                return False, f"Employee ID '{emp_id}' is invalid or reserved."
+
+        elif tool_name == "create_ticket":
+            title = str(arguments.get("title", "")).strip()
+            description = str(arguments.get("description", "")).strip()
+            if len(title) < 5:
+                return False, "Ticket title is too short (must be at least 5 characters)."
+            if len(description) < 10:
+                return False, "Ticket description must be at least 10 characters."
+            words = description.split()
+            if len(words) >= 4 and len(set(words)) == 1:
+                return False, "Ticket description contains repeated words and appears hallucinated."
+
+        elif tool_name in ("check_ticket_status", "repeat_ticket_number"):
+            if tool_name == "check_ticket_status":
+                ticket_id = str(arguments.get("ticket_id", "")).strip()
+                norm_id = re.sub(r"^HD\s*(\d{4})\s*(\d{4})$", r"HD-\1-\2", ticket_id, flags=re.I)
+                if not re.match(r"^HD-\d{4}-\d{4}$", norm_id, flags=re.I):
+                    return False, f"Invalid ticket format '{ticket_id}'. Must follow format 'HD-YYYY-XXXX'."
+
+        elif tool_name == "transfer_to_agent":
+            q_type = str(arguments.get("queue_type", "standard")).strip().lower()
+            if q_type not in ("standard", "executive", "emergency", "vip", "ceo", "cfo", "l2", "p0_executive", "p1_vip"):
+                return False, f"Invalid queue type '{q_type}'. Must be standard, executive, or emergency."
+
+        return True, ""
+
     async def handle_tool_call(event):
         item = event.get("item", {})
         tool_name = item.get("name", "")
@@ -2643,11 +2729,21 @@ async def handle_single_call(asterisk_ws):
             arguments = {}
 
         print(f"[TOOL] {tool_name} args={arguments}")
-        try:
-            result = await execute_tool(tool_name, arguments)
-        except Exception as exc:
-            print(f"[TOOL ERROR] {tool_name} failed: {repr(exc)}")
-            result = {"success": False, "error": f"Tool {tool_name} failed: {str(exc)}"}
+        is_valid, validation_err = validate_tool_call(tool_name, arguments, state)
+        if not is_valid:
+            print(f"[HALLUCINATION GUARD] Blocked tool {tool_name}: {validation_err}")
+            result = {
+                "success": False,
+                "hallucination_blocked": True,
+                "error": f"Invalid tool arguments: {validation_err}",
+                "guidance": "Please ask caller for valid parameters and do not hallucinate.",
+            }
+        else:
+            try:
+                result = await execute_tool(tool_name, arguments)
+            except Exception as exc:
+                print(f"[TOOL ERROR] {tool_name} failed: {repr(exc)}")
+                result = {"success": False, "error": f"Tool {tool_name} failed: {str(exc)}"}
 
         await openai_ws.send(
             json.dumps(
@@ -2664,7 +2760,14 @@ async def handle_single_call(asterisk_ws):
 
         prefix = language_prefix(state)
 
-        if tool_name == "set_language":
+        if result.get("hallucination_blocked"):
+            err_msg = result.get("error", "Invalid arguments provided.")
+            if state.get("language") == "ar":
+                queue_response(f"Respond only in Arabic. Apologize and state: {err_msg}. Ask the caller for clarification.")
+            else:
+                queue_response(f"Respond only in English. Apologize and state: {err_msg}. Ask the caller for clarification.")
+
+        elif tool_name == "set_language":
             if result.get("action") == "executive_fast_track":
                 queue_response(
                     f"{prefix} Welcome Mr. {result.get('caller_name')} respectfully. "
@@ -3034,6 +3137,42 @@ async def handle_single_call(asterisk_ws):
                     continue
 
                 if isinstance(message, bytes) and len(message) > 0:
+                    if state.get("audio_metrics"):
+                        state["audio_metrics"].record_audio_received(len(message))
+
+                    # Dynamic VAD tuning based on call noise floor
+                    vad_tuner = state.get("vad_tuner")
+                    if vad_tuner:
+                        vad_tuner.analyze_frame(message)
+                        vad_adj = vad_tuner.get_recommended_settings()
+                        if vad_adj:
+                            try:
+                                await openai_ws.send(
+                                    json.dumps(
+                                        {
+                                            "type": "session.update",
+                                            "session": {
+                                                "turn_detection": {
+                                                    "type": "server_vad",
+                                                    "threshold": vad_adj["threshold"],
+                                                    "prefix_padding_ms": 300,
+                                                    "silence_duration_ms": vad_adj["silence_ms"],
+                                                    "create_response": True,
+                                                    "interrupt_response": True,
+                                                }
+                                            },
+                                        }
+                                    )
+                                )
+                                if state.get("audio_metrics"):
+                                    state["audio_metrics"].record_vad_adjustment()
+                                print(
+                                    f"[DYNAMIC VAD] Adjusted: noise={vad_adj['noise_level']} (RMS: {vad_adj['noise_floor_rms']}), "
+                                    f"threshold={vad_adj['threshold']}, silence_ms={vad_adj['silence_ms']}"
+                                )
+                            except Exception as vad_err:
+                                print(f"[DYNAMIC VAD ERROR] {vad_err}")
+
                     await openai_ws.send(
                         json.dumps(
                             {
@@ -3119,18 +3258,19 @@ async def handle_single_call(asterisk_ws):
 
                 if event_type == "response.created":
                     state["active_response"] = True
+                    state["active_response_set_at"] = time.monotonic()
                     state["response_had_audio"] = False
                     state["current_turn_audio_bytes"] = 0
 
                 elif event_type == "input_audio_buffer.speech_started":
                     # Caller interruption / barge-in guard:
-                    # Ignore echoes, breath, or line clicks during the first 500ms of agent speech
+                    # Ignore echoes, breath, or line clicks during the first ECHO_GUARD_SECONDS (default 0.8s) of agent speech
                     # and during the initial 2.0s language greeting/selection window.
                     now_mono = time.monotonic()
                     ai_speaking_time = now_mono - state.get("ai_speech_started_at", 0) if state.get("ai_speech_started_at") else 0
                     lang_time = now_mono - state.get("language_selected_at", 0) if state.get("language_selected_at") else 999.0
 
-                    if lang_time < 2.0 or (state.get("ai_speech_started_at") and ai_speaking_time < 0.5):
+                    if lang_time < 2.0 or (state.get("ai_speech_started_at") and ai_speaking_time < ECHO_GUARD_SECONDS):
                         # Transient noise or turn-start echo - do NOT discard audio or cancel response
                         pass
                     elif state.get("closing") or state.get("pending_disconnect_after_goodbye") or state.get("close_after_next_response_done") or state.get("current_state") in ("closing", "ended"):
@@ -3140,15 +3280,27 @@ async def handle_single_call(asterisk_ws):
                         # Genuine caller interruption while agent is actively speaking
                         if hasattr(asterisk_ws, "clear_outbound_queue"):
                             asterisk_ws.clear_outbound_queue()
+                        if state.get("audio_metrics"):
+                            state["audio_metrics"].record_barge_in()
                         if state.get("active_response"):
                             state["active_response"] = False
+                            state["active_response_set_at"] = 0.0
                             try:
                                 await openai_ws.send(json.dumps({"type": "response.cancel"}))
                             except Exception:
                                 pass
 
+                elif event_type in ("response.cancelled", "response.cancel"):
+                    state["active_response"] = False
+                    state["active_response_set_at"] = 0.0
+                    state["ai_speech_started_at"] = 0.0
+                    if hasattr(asterisk_ws, "clear_outbound_queue"):
+                        asterisk_ws.clear_outbound_queue()
+                    await send_queued_response_if_any()
+
                 elif event_type == "response.output_audio.delta":
                     state["response_had_audio"] = True
+                    state["last_audio_delta_received_at"] = time.monotonic()
                     if state["call_ending"]:
                         break
                     if not state.get("ai_speech_started_at"):
@@ -3158,6 +3310,8 @@ async def handle_single_call(asterisk_ws):
                         raw_pcm = base64.b64decode(audio_b64)
                         if len(raw_pcm) > 0:
                             state["current_turn_audio_bytes"] = state.get("current_turn_audio_bytes", 0) + len(raw_pcm)
+                            if state.get("audio_metrics"):
+                                state["audio_metrics"].record_audio_sent(len(raw_pcm))
                             await asterisk_ws.send(raw_pcm)
 
                 elif event_type == "response.output_item.done":
@@ -3167,11 +3321,18 @@ async def handle_single_call(asterisk_ws):
 
                 elif event_type == "response.done":
                     state["ai_speech_started_at"] = 0.0
+                    state["active_response"] = False
+                    state["active_response_set_at"] = 0.0
                     if hasattr(asterisk_ws, "flush_send_buffer"):
                         asterisk_ws.flush_send_buffer()
                     response = event.get("response", {})
                     status = response.get("status")
-                    state["active_response"] = False
+
+                    if status in ("cancelled", "incomplete"):
+                        if hasattr(asterisk_ws, "clear_outbound_queue"):
+                            asterisk_ws.clear_outbound_queue()
+                        await send_queued_response_if_any()
+                        continue
 
                     if status == "failed":
                         state["call_ending"] = True
@@ -3285,19 +3446,48 @@ async def handle_single_call(asterisk_ws):
 
                 elif event_type == "error":
                     print(f"[OPENAI ERROR] {json.dumps(event, indent=2)}")
-                    # Never lock active_response to True on an error!
-                    # If OpenAI rejected a response, active_response should be False so subsequent
-                    # queued responses or caller speech can proceed freely.
                     state["active_response"] = False
+                    state["active_response_set_at"] = 0.0
 
         except websockets.exceptions.ConnectionClosed:
             pass
         except Exception as exc:
             print(f"[OPENAI->ASTERISK] {exc!r}")
 
+    async def response_watchdog():
+        """
+        Phase 1 Item 1: Watchdog timer for active_response deadlock recovery.
+        Monitors active_response state. If stuck True for longer than RESPONSE_WATCHDOG_TIMEOUT_SECONDS
+        without audio activity, automatically resets active_response to False so queued instructions
+        and caller speech are never blocked.
+        """
+        while not state["call_ending"] and not state.get("closing"):
+            try:
+                await asyncio.sleep(1.0)
+                if state.get("active_response"):
+                    set_at = state.get("active_response_set_at", 0.0)
+                    now_mono = time.monotonic()
+                    if set_at > 0 and (now_mono - set_at) > RESPONSE_WATCHDOG_TIMEOUT_SECONDS:
+                        last_audio_mono = state.get("last_audio_delta_received_at", 0.0)
+                        if (now_mono - last_audio_mono) > RESPONSE_WATCHDOG_TIMEOUT_SECONDS:
+                            print(
+                                f"[WATCHDOG] Stuck active_response detected (duration {now_mono - set_at:.2f}s > "
+                                f"{RESPONSE_WATCHDOG_TIMEOUT_SECONDS}s). Resetting to False."
+                            )
+                            state["active_response"] = False
+                            state["active_response_set_at"] = 0.0
+                            if state.get("audio_metrics"):
+                                state["audio_metrics"].record_watchdog_recovery()
+                            await send_queued_response_if_any()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"[WATCHDOG ERROR] {e}")
+
     tasks = [
         asyncio.create_task(asterisk_to_openai()),
         asyncio.create_task(openai_to_asterisk()),
+        asyncio.create_task(response_watchdog()),
     ]
 
     done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -3310,7 +3500,59 @@ async def handle_single_call(asterisk_ws):
     except Exception:
         pass
 
-    if not state["call_ending"] and state.get("current_state") != "transferred":
+    # Phase 3 Item 9: Provider Fallback Recovery
+    if (
+        PROVIDER_FALLBACK_ENABLED
+        and not state["call_ending"]
+        and not state.get("closing")
+        and state.get("current_state") != "transferred"
+    ):
+        print("[PROVIDER FALLBACK] OpenAI connection dropped prematurely while caller is on the line.")
+        state["call_ending"] = True
+        try:
+            chime = generate_chime_ulaw(duration_ms=600)
+            await asterisk_ws.send(chime)
+            await asyncio.sleep(0.8)
+        except Exception:
+            pass
+
+        try:
+            verified_user = state.get("verified_user") or {}
+            emp_id = verified_user.get("employee_id") or state.get("employee_id") or "Unverified"
+            caller_name = verified_user.get("name") or state.get("caller_name") or f"Caller ({state.get('caller_number', 'Unknown')})"
+            caller_phone = verified_user.get("phone") or state.get("caller_number", "")
+            lang = state.get("language", "en")
+            desc = (
+                f"Voice AI session disconnected abruptly during active call.\n\n"
+                f"Caller: {caller_name}\n"
+                f"Employee ID: {emp_id}\n"
+                f"Phone Number: {caller_phone}\n"
+                f"Language: {lang}\n"
+                f"Issue in Progress: {state.get('issue_summary') or 'General IT Support'}\n"
+                f"Action Required: Immediate priority IT engineer callback.\n"
+                f"Call UUID: {state.get('call_id')}"
+            )
+            ticketing = get_ticketing_client()
+            ticketing.create_ticket(
+                title=f"[AI Disconnected] Priority Callback: {caller_name} ({emp_id})",
+                description=desc,
+                caller_name=caller_name,
+                caller_email=verified_user.get("email") or f"{emp_id}@nationalfinance.com",
+                caller_phone=caller_phone,
+                category="Disrupted Call Callback",
+                priority="High",
+                team="IT Support",
+            )
+            print(f"[PROVIDER FALLBACK] Created emergency callback ticket for {caller_name}")
+        except Exception as fb_err:
+            print(f"[PROVIDER FALLBACK] Error creating callback ticket: {fb_err}")
+
+        chan = state.get("asterisk_channel")
+        if chan:
+            hangup_channel(chan)
+        wrap_up_call(status="provider_fallback_callback_created")
+
+    elif not state["call_ending"] and state.get("current_state") != "transferred":
         wrap_up_call(status="ended")
     elif state.get("current_state") == "transferred":
         wrap_up_call(status="transferred")

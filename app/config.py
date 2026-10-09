@@ -81,6 +81,15 @@ VAD_THRESHOLD = _float_env("VAD_THRESHOLD", 0.65, min_value=0.1, max_value=1.0)
 VAD_SILENCE_MS = _int_env("VAD_SILENCE_MS", 350, min_value=200, max_value=3000)
 VAD_IDLE_TIMEOUT_MS = _int_env("VAD_IDLE_TIMEOUT_MS", 30000, min_value=5000, max_value=30000)
 
+# Audio Engine & Turn-Taking Resilience (AVA Enhancements)
+ECHO_GUARD_SECONDS = _float_env("ECHO_GUARD_SECONDS", 0.8, min_value=0.2, max_value=3.0)
+AUDIO_PREBUFFER_MS = _int_env("AUDIO_PREBUFFER_MS", 120, min_value=40, max_value=500)
+RESPONSE_WATCHDOG_TIMEOUT_SECONDS = _float_env("RESPONSE_WATCHDOG_TIMEOUT_SECONDS", 5.0, min_value=2.0, max_value=30.0)
+AUDIO_PROFILE = os.getenv("AUDIO_PROFILE", "telephony_enhanced_8k").strip().lower()
+DYNAMIC_VAD_ENABLED = os.getenv("DYNAMIC_VAD_ENABLED", "true").lower() in ("true", "1", "yes")
+ATTENDED_TRANSFER_TIMEOUT = _int_env("ATTENDED_TRANSFER_TIMEOUT", 25, min_value=5, max_value=120)
+PROVIDER_FALLBACK_ENABLED = os.getenv("PROVIDER_FALLBACK_ENABLED", "true").lower() in ("true", "1", "yes")
+
 # Dashboard Operations & Security
 DASHBOARD_SECRET = (os.getenv("DASHBOARD_SECRET") or "").strip()
 DASHBOARD_COOKIE_SECURE = (os.getenv("DASHBOARD_COOKIE_SECURE", "false").lower() == "true")

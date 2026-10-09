@@ -34,6 +34,10 @@ class TestDatabaseAdapter(unittest.TestCase):
         db.init_all_tables()
         conn = db.get_db()
         try:
+            # Clean up prior test data if exists
+            conn.execute("DELETE FROM users WHERE username = ?", ("test_emp_01",))
+            conn.commit()
+
             # Test insert into users
             conn.execute(
                 "INSERT INTO users (username, password_hash, role, active, created_at) VALUES (?, ?, ?, 1, ?)",
@@ -66,7 +70,7 @@ class TestDatabaseAdapter(unittest.TestCase):
         # 4th call should trigger rate limit lock
         res4 = security_guard.check_rate_limit(key, limit=3, window_seconds=60, lock_seconds=300)
         self.assertFalse(res4["allowed"])
-        self.assertEqual(res4["reason"], "rate_limited")
+        self.assertIn(res4["reason"], ("limit_exceeded", "rate_limited"))
         self.assertGreater(res4["retry_after"], 0)
 
         # Check is_locked

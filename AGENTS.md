@@ -267,5 +267,18 @@ Integrates Asterisk PBX (via WebSocket/AMI) with OpenAI Realtime API (`gpt-realt
   - System prompt Protocol 5 updated: Arif must NEVER silently transfer without speaking to the caller first. Added Arabic translation of the emergency announcement.
   - Added `"network outage"`, `"internet down"`, `"internet outage"`, `"total outage"` and Arabic equivalents (`انقطاع الشبكة`, `الشبكة متوقفة`, `انقطاع الانترنت`) to `EMERGENCY_KEYWORDS`.
 
-
-
+## 22. Enterprise Audio Engine & Turn-Taking Resilience (AVA Phases 1–3 Complete)
+- **Phase 1: Turn-Taking & Dead-Air Elimination**:
+  - **Deadlock Response Watchdog**: Added background `response_watchdog()` monitoring `active_response_set_at` and `last_audio_delta_received_at`. If `active_response` stays stuck for > `RESPONSE_WATCHDOG_TIMEOUT_SECONDS` (5.0s default) without incoming audio, the watchdog forcibly resets state and triggers `send_queued_response_if_any()`, eliminating telephone dead air.
+  - **Calibrated Echo Guard Window**: Expanded echo suppression window from 0.5s to configurable `ECHO_GUARD_SECONDS` (default `0.8s`) in `input_audio_buffer.speech_started` to prevent acoustic reflections from self-canceling the AI's own turn.
+  - **Jitter Pre-Buffering**: Increased pre-buffering in `AudioSocketChannel._playback_loop` from 80ms (4 frames) to configurable `AUDIO_PREBUFFER_MS` (default 120ms = 6 frames), eliminating audio micro-stutters and under-runs during cloud network variance.
+  - **Barge-In `response.cancelled` State Recovery**: Explicit event handlers for `response.cancelled` and incomplete `response.done` flush the outbound audio queue, clear `active_response`, and immediately process queued responses.
+- **Phase 2: Audio Quality Engine (`app/audio_engine.py`)**:
+  - **Audio Profile Architecture (`AUDIO_PROFILE="telephony_enhanced_8k"`)**: Implemented `EnhancedResampler` featuring DC offset high-pass filtering, soft-knee `tanh` saturation clipping to prevent harsh PCM clipping, and single-pole low-pass filtering for clean G.711 u-law telephony reproduction.
+  - **Dynamic Noise Floor VAD Tuner (`DynamicVADTuner`)**: Analyzes caller audio RMS energy in real-time, classifies background noise levels (`quiet`, `moderate`, `noisy`, `very_noisy`), and dynamically updates OpenAI Realtime `turn_detection` threshold and silence window via `session.update`.
+  - **Smooth Audio Ring Buffer (`AudioRingBuffer`)**: Replaced crude frame-dropping under queue saturation with a smooth circular ring buffer that preserves frame timing and tracks overflow metrics.
+  - **Audio Telemetry Engine (`AudioQualityMetrics`)**: Tracks sent/received audio duration, barge-in interruptions, silence gaps, and watchdog recoveries, persisted into call telemetry upon wrap-up.
+- **Phase 3: Telephony Resilience & Hallucination Guard**:
+  - **Attended Transfer Recovery (`recover_channel_to_ai`)**: Injects Asterisk channel variables (`AI_ATTENDED_TRANSFER`, `AI_TRANSFER_TIMEOUT`, `AI_RECOVERY_EXTEN`, `AI_RECOVERY_CONTEXT`) before AMI redirect, allowing unanswered or busy human queue transfers to safely return to Arif without dropping the call.
+  - **Graceful Provider Outage Fallback**: Implemented `generate_chime_ulaw()` synthesizer. If the OpenAI Realtime WebSocket connection drops unexpectedly during an active call, plays an advisory chime, logs a priority callback ticket in Frappe Helpdesk, and gracefully hangs up the Asterisk channel.
+  - **Tool Call Hallucination Validator (`validate_tool_call`)**: Post-generation validation rejects hallucinated ticket IDs (`HD-YYYY-XXXX`), invalid employee IDs, malformed language tags, and repetitive/hallucinated ticket descriptions before executing Frappe or PBX actions.

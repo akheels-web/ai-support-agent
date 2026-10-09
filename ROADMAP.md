@@ -148,3 +148,9 @@ This document outlines upcoming strategic enhancements and future feature phases
 - [x] In-Band DTMF Telephone Keypad fallback for noisy environment data entry.
 - [x] Bilingual Semantic Knowledge Base Retrieval with cross-process zero-downtime cache reflection.
 - [x] Cisco Webex Screen-Pop Integration via Asterisk AMI `Setvar` context injection.
+- [x] Enterprise Audio Engine with Band-Limited Resampling, Soft-Clipping, and DC Offset Filtering (`app/audio_engine.py`).
+- [x] Dynamic VAD Noise Floor Adaptation and 120ms Jitter Pre-Buffering.
+- [x] Response Watchdog Timer (5.0s deadlock recovery) and `response.cancelled` state recovery.
+- [x] Asterisk Attended Transfer Recovery for unanswered agent transfers (`recover_channel_to_ai`).
+- [x] AI Provider Outage Graceful Fallback with advisory chime and Frappe callback ticketing.
+- [x] Post-generation Tool Call Hallucination Validator (`validate_tool_call`).

@@ -94,16 +94,16 @@ def check_queue_availability(queue_type: str = "standard", extension: str = None
     before transferring a live caller to an Asterisk queue.
     Prevents endless music-on-hold loops and abandoned calls.
     """
+    # Emergency queues always allow transfer / fail open
+    q_lower = (queue_type or "").strip().lower()
+    if q_lower in ("emergency", "critical", "p1", "outage", QUEUE_EMERGENCY):
+        return {"available": True, "queue_name": QUEUE_NAME_EMERGENCY, "emergency": True}
+
     if not ENFORCE_QUEUE_CAPACITY:
         return {"available": True, "reason": "capacity_enforcement_disabled"}
 
     if not ASTERISK_AMI_USER or not ASTERISK_AMI_SECRET:
         return {"available": True, "reason": "ami_not_configured_fallback"}
-
-    # Emergency queues always allow transfer / fail open
-    q_lower = (queue_type or "").strip().lower()
-    if q_lower in ("emergency", "critical", "p1", "outage", QUEUE_EMERGENCY):
-        return {"available": True, "queue_name": QUEUE_NAME_EMERGENCY, "emergency": True}
 
     queue_name = resolve_queue_name(queue_type)
 
@@ -185,10 +185,20 @@ def check_queue_availability(queue_type: str = "standard", extension: str = None
         }
 
 
-def transfer_call(channel, queue_type="standard", extension=None, context=None, caller_context=None):
+def transfer_call(
+    channel,
+    queue_type="standard",
+    extension=None,
+    context=None,
+    caller_context=None,
+    attended=True,
+    attended_timeout=25,
+    recovery_exten=None,
+):
     """
     Transfer live Asterisk channel to human support queue (Standard, Executive, or Emergency).
-    Passes contextual variables (Caller Name, Tier, Ticket Number) to Asterisk channel before redirect.
+    Passes contextual variables (Caller Name, Tier, Ticket Number) and Attended Recovery targets
+    to the Asterisk channel before redirect, ensuring unanswered transfers return safely to the AI.
     """
     if not channel:
         return {
@@ -204,23 +214,32 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
 
     target_extension = resolve_queue_target(queue_type, extension)
     target_context = context or TRANSFER_CONTEXT
+    ai_exten = recovery_exten or os.getenv("ASTERISK_AI_EXTENSION", "100")
 
     try:
         sock = _ami_connect()
         try:
-            # Inject caller context variables for screen-pop / softphone display
+            # Build variables map including caller context & attended recovery config
+            vars_to_set = {}
             if caller_context and isinstance(caller_context, dict):
                 for var_name, var_value in caller_context.items():
                     if var_value:
-                        safe_name = f"AI_{var_name.upper()}"
-                        safe_val = str(var_value).replace("\r", " ").replace("\n", " ")
-                        _ami_send(sock, {
-                            "Action": "Setvar",
-                            "Channel": channel,
-                            "Variable": safe_name,
-                            "Value": safe_val
-                        })
-                        sock.recv(1024)
+                        vars_to_set[f"AI_{var_name.upper()}"] = str(var_value).replace("\r", " ").replace("\n", " ")
+
+            if attended:
+                vars_to_set["AI_ATTENDED_TRANSFER"] = "1"
+                vars_to_set["AI_TRANSFER_TIMEOUT"] = str(attended_timeout)
+                vars_to_set["AI_RECOVERY_CONTEXT"] = target_context
+                vars_to_set["AI_RECOVERY_EXTEN"] = ai_exten
+
+            for safe_name, safe_val in vars_to_set.items():
+                _ami_send(sock, {
+                    "Action": "Setvar",
+                    "Channel": channel,
+                    "Variable": safe_name,
+                    "Value": safe_val
+                })
+                sock.recv(1024)
 
             # Redirect live channel to queue extension
             _ami_send(sock, {
@@ -240,6 +259,9 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
                     "extension": target_extension,
                     "queue_type": queue_type,
                     "context": target_context,
+                    "attended": attended,
+                    "attended_timeout": attended_timeout,
+                    "recovery_exten": ai_exten,
                     "response": response
                 }
 
@@ -258,6 +280,40 @@ def transfer_call(channel, queue_type="standard", extension=None, context=None, 
             "success": False,
             "error": str(exc)
         }
+
+
+def recover_channel_to_ai(channel, context=None, extension=None):
+    """
+    Attended Transfer Recovery: Pulls a live channel back to the AI assistant
+    if the transfer to human queue was unanswered, rejected, or timed out.
+    """
+    if not channel or not ASTERISK_AMI_USER or not ASTERISK_AMI_SECRET:
+        return {"success": False, "error": "Invalid channel or missing AMI credentials"}
+
+    target_context = context or TRANSFER_CONTEXT
+    target_extension = extension or os.getenv("ASTERISK_AI_EXTENSION", "100")
+
+    try:
+        sock = _ami_connect()
+        try:
+            _ami_send(sock, {
+                "Action": "Redirect",
+                "Channel": channel,
+                "Context": target_context,
+                "Exten": target_extension,
+                "Priority": "1"
+            })
+            resp = sock.recv(4096).decode(errors="ignore")
+            _ami_send(sock, {"Action": "Logoff"})
+            return {"success": "Success" in resp, "response": resp}
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
 
 
 def get_active_channel_info(call_uuid=None):

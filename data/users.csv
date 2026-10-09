@@ -10,3 +10,4 @@ employee_id,name,aliases,email,phone,department,vip,role,tier
 1007,Arif Al Sayegh,Areef al Sayeg|Arif Al Sayeg|عارف الصايغ|عارف السايغ,arif@example.com,+96181923481,HR,true,HR Director,P1_VIP
 1008,Ruqaiya Al Balushi,Ruqaiya Balushi|Rukayya Al Balushi|Ruqaya Al Balushi|رقية البلوشي|رقيه البلوشي,ruqaiya@example.com,+96890000008,IT,true,Service Desk Lead,P1_VIP
 1009,Rakesh Sharma,Rakeish|Rakesh|راكش,rakesh@example.com,+96890001258,Sales,false,Sales Manager,STANDARD
+10596,Mustafa Mohammed Al Farsi,Mustafa Al Farsi|مصطفى الفارسي|مصطفى محمد الفارسي,mustafa.farsi@nationalfinance.com,+96891234567,Operations,false,Operations Officer,STANDARD
